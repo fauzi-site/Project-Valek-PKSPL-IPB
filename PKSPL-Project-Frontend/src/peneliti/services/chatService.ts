@@ -169,9 +169,6 @@ class ChatService {
         changed = true;
       }
     });
-    if (changed) {
-      this.saveToStorage();
-    }
   }
 
   public startHeartbeat() {

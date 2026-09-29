@@ -24,21 +24,29 @@ api.interceptors.response.use(response => {
   return response;
 }, error => {
   if (error.response && error.response.status === 401) {
-    localStorage.removeItem('auth_token');
-    sessionStorage.removeItem('auth_token');
-    localStorage.removeItem('pkspl_last_activity');
+    // If request explicitly opts out of automatic auth redirect (e.g. /auth/me or /statistics),
+    // do not wipe storage or force-redirect here. Let the caller handle the error.
+    if (error.config?._skipAuthRedirect) {
+      return Promise.reject(error);
+    }
 
     const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
-    const isAuthRoute =
-      currentPath === '/login' ||
-      currentPath.startsWith('/login') ||
-      currentPath === '/register' ||
-      currentPath.startsWith('/register') ||
-      currentPath === '/forgot-password' ||
-      currentPath === '/reset-password' ||
-      currentPath.startsWith('/auth/');
+    const isProtectedRoute =
+      currentPath.startsWith('/admin') ||
+      currentPath.startsWith('/peneliti') ||
+      currentPath.startsWith('/projects') ||
+      currentPath.startsWith('/valuasi');
 
-    if (!error.config?._skipAuthRedirect && !isAuthRoute && !isRedirectingToLogin) {
+    // Clean up stale credentials on 401
+    localStorage.removeItem('auth_token');
+    sessionStorage.removeItem('auth_token');
+    localStorage.removeItem('pkspl_user');
+    sessionStorage.removeItem('pkspl_user');
+    localStorage.removeItem('pkspl_last_activity');
+
+    // Only force redirect to /login if user was actively on a protected route.
+    // Public routes (such as '/', '/login', etc.) must NEVER be redirected.
+    if (isProtectedRoute && !isRedirectingToLogin) {
       isRedirectingToLogin = true;
       window.location.href = '/login';
     }

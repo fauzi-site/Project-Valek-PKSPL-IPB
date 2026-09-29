@@ -7,8 +7,27 @@ const IDLE_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2 Jam = 7,200,000 ms
 const ACTIVITY_THROTTLE_MS = 10 * 1000; // Throttle activity timestamp updates to once per 10s
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Synchronously initialize user from storage cache if available and token exists
+  const [user, setUser] = useState(() => {
+    try {
+      const token = typeof window !== 'undefined'
+        ? (localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token'))
+        : null;
+      if (!token) return null;
+      const cached = localStorage.getItem('pkspl_user') || sessionStorage.getItem('pkspl_user');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Loading starts as true only if a token is present and needs backend verification
+  const [loading, setLoading] = useState(() => {
+    const token = typeof window !== 'undefined'
+      ? (localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token'))
+      : null;
+    return !!token;
+  });
 
   const isAuthenticated = user !== null;
   const lastActivityUpdateRef = useRef(0);
@@ -26,6 +45,8 @@ export const AuthProvider = ({ children }) => {
   const triggerIdleLogout = useCallback(async () => {
     localStorage.removeItem('auth_token');
     sessionStorage.removeItem('auth_token');
+    localStorage.removeItem('pkspl_user');
+    sessionStorage.removeItem('pkspl_user');
     localStorage.removeItem('pkspl_last_activity');
     setUser(null);
 
@@ -35,18 +56,30 @@ export const AuthProvider = ({ children }) => {
       // Ignore background logout errors
     }
 
-    if (window.location.pathname !== '/login') {
+    const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+    const isProtectedRoute =
+      currentPath.startsWith('/admin') ||
+      currentPath.startsWith('/peneliti') ||
+      currentPath.startsWith('/projects') ||
+      currentPath.startsWith('/valuasi');
+
+    if (isProtectedRoute && currentPath !== '/login') {
       window.location.href = '/login?idle_timeout=1';
     }
   }, []);
 
   // Helper to check if 2 hours idle timeout has passed
   const checkIdleTimeout = useCallback(() => {
+    const token = typeof window !== 'undefined'
+      ? (localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token'))
+      : null;
+    if (!token) return false;
+
     const lastActivityStr = localStorage.getItem('pkspl_last_activity');
     if (!lastActivityStr) return false;
 
     const lastActivity = parseInt(lastActivityStr, 10);
-    if (isNaN(lastActivity)) return false;
+    if (isNaN(lastActivity) || lastActivity <= 0) return false;
 
     const now = Date.now();
     if (now - lastActivity >= IDLE_TIMEOUT_MS) {
@@ -65,9 +98,11 @@ export const AuthProvider = ({ children }) => {
         const lastActivityStr = localStorage.getItem('pkspl_last_activity');
         if (lastActivityStr) {
           const lastActivity = parseInt(lastActivityStr, 10);
-          if (!isNaN(lastActivity) && Date.now() - lastActivity >= IDLE_TIMEOUT_MS) {
+          if (!isNaN(lastActivity) && lastActivity > 0 && Date.now() - lastActivity >= IDLE_TIMEOUT_MS) {
             localStorage.removeItem('auth_token');
             sessionStorage.removeItem('auth_token');
+            localStorage.removeItem('pkspl_user');
+            sessionStorage.removeItem('pkspl_user');
             localStorage.removeItem('pkspl_last_activity');
             setUser(null);
             setLoading(false);
@@ -77,14 +112,28 @@ export const AuthProvider = ({ children }) => {
 
         try {
           const data = await getMe();
-          setUser(data.user);
-          recordActivity();
+          if (data?.user) {
+            setUser(data.user);
+            const storage = localStorage.getItem('auth_token') ? localStorage : sessionStorage;
+            storage.setItem('pkspl_user', JSON.stringify(data.user));
+            recordActivity();
+          }
         } catch (error) {
-          localStorage.removeItem('auth_token');
-          sessionStorage.removeItem('auth_token');
-          localStorage.removeItem('pkspl_last_activity');
-          setUser(null);
+          // Only invalidate session if backend explicitly returned 401 Unauthorized
+          if (error?.response?.status === 401) {
+            localStorage.removeItem('auth_token');
+            sessionStorage.removeItem('auth_token');
+            localStorage.removeItem('pkspl_user');
+            sessionStorage.removeItem('pkspl_user');
+            localStorage.removeItem('pkspl_last_activity');
+            setUser(null);
+          } else {
+            console.warn('[AuthContext] Session restore check encountered non-auth error:', error);
+            // Retain current session and user if available to withstand temporary network blips
+          }
         }
+      } else {
+        setUser(null);
       }
       setLoading(false);
     };
@@ -172,12 +221,16 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (identity, password, rememberMe = false) => {
     const data = await authLogin(identity, password);
+
+    // Save token & user cache
+    localStorage.setItem('auth_token', data.access_token);
+    localStorage.setItem('pkspl_user', JSON.stringify(data.user));
     if (rememberMe) {
-      localStorage.setItem('auth_token', data.access_token);
       sessionStorage.removeItem('auth_token');
+      sessionStorage.removeItem('pkspl_user');
     } else {
       sessionStorage.setItem('auth_token', data.access_token);
-      localStorage.removeItem('auth_token');
+      sessionStorage.setItem('pkspl_user', JSON.stringify(data.user));
     }
 
     const now = Date.now();
@@ -192,7 +245,11 @@ export const AuthProvider = ({ children }) => {
     const data = await authRegister(nama, email, password);
     if (data.access_token) {
       localStorage.setItem('auth_token', data.access_token);
-      sessionStorage.removeItem('auth_token');
+      sessionStorage.setItem('auth_token', data.access_token);
+      if (data.user) {
+        localStorage.setItem('pkspl_user', JSON.stringify(data.user));
+        sessionStorage.setItem('pkspl_user', JSON.stringify(data.user));
+      }
 
       const now = Date.now();
       localStorage.setItem('pkspl_last_activity', now.toString());
@@ -221,14 +278,17 @@ export const AuthProvider = ({ children }) => {
     if (!data?.user) {
       throw new Error('User session is missing after Google login.');
     }
+    localStorage.setItem('pkspl_user', JSON.stringify(data.user));
     setUser(data.user);
     return data.user;
   };
 
   const logout = async () => {
-    // Manual logout removes auth tokens & last activity, BUT preserves pkspl_remembered_email
+    // Manual logout removes auth tokens & user cache & last activity, BUT preserves pkspl_remembered_email
     localStorage.removeItem('auth_token');
     sessionStorage.removeItem('auth_token');
+    localStorage.removeItem('pkspl_user');
+    sessionStorage.removeItem('pkspl_user');
     localStorage.removeItem('pkspl_last_activity');
     setUser(null);
 
@@ -248,6 +308,8 @@ export const AuthProvider = ({ children }) => {
       const data = await getMe();
       if (data?.user) {
         setUser(data.user);
+        const storage = localStorage.getItem('auth_token') ? localStorage : sessionStorage;
+        storage.setItem('pkspl_user', JSON.stringify(data.user));
         return data.user;
       }
     } catch (error) {

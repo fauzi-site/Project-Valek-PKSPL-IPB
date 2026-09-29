@@ -39,7 +39,7 @@ const ProtectedRoute = ({ allowedRoles }) => {
     if (normalizedRole === 'peneliti') {
       return <Navigate to="/peneliti/projects" replace />;
     }
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return <Outlet />;
