@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta name="description" content="Sistem Valuasi Ekonomi Ekosistem Pesisir & Laut - Platform digital PKSPL IPB untuk menghitung nilai ekonomi lingkungan secara akurat dan mudah." />
+    <title>PKSPL IPB - Sistem Valuasi Ekonomi Ekosistem Pesisir & Laut</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+    <script>
+      window.addEventListener('error', function(event) {
+        document.body.innerHTML += '<div style="position:fixed;top:0;left:0;right:0;background:red;color:white;z-index:9999;padding:20px;overflow:auto;"><h1>Runtime Error</h1><pre>' + event.error.stack + '</pre></div>';
+      });
+      window.addEventListener('unhandledrejection', function(event) {
+        document.body.innerHTML += '<div style="position:fixed;top:0;left:0;right:0;background:red;color:white;z-index:9999;padding:20px;overflow:auto;"><h1>Unhandled Promise Rejection</h1><pre>' + event.reason.stack + '</pre></div>';
+      });
+    </script>
+  </body>
+</html>

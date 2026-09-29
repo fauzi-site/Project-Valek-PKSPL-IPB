@@ -1,0 +1,120 @@
+# ============================================================
+# Environment & Credentials
+# ============================================================
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+!.env.docker.example
+!**/.env.docker.example
+*.key
+**/*.key
+*.pem
+**/*.pem
+
+# ============================================================
+# Dependencies
+# ============================================================
+node_modules/
+**/node_modules/
+vendor/
+**/vendor/
+
+# ============================================================
+# Build Outputs
+# ============================================================
+dist/
+**/dist/
+dist-ssr/
+**/dist-ssr/
+build/
+**/build/
+out/
+**/out/
+
+# ============================================================
+# Laravel Storage & Framework Cache
+# ============================================================
+storage/logs/*
+**/storage/logs/*
+!**/storage/logs/.gitignore
+
+storage/framework/cache/*
+**/storage/framework/cache/*
+!**/storage/framework/cache/.gitignore
+
+storage/framework/sessions/*
+**/storage/framework/sessions/*
+!**/storage/framework/sessions/.gitignore
+
+storage/framework/views/*
+**/storage/framework/views/*
+!**/storage/framework/views/.gitignore
+
+bootstrap/cache/*
+**/bootstrap/cache/*
+!**/bootstrap/cache/.gitignore
+
+storage/app/*
+**/storage/app/*
+!**/storage/app/.gitignore
+!**/storage/app/public/
+!**/storage/app/private/
+
+# SQLite databases
+*.sqlite
+**/*.sqlite
+
+# ============================================================
+# Logs, Tests & Dumps
+# ============================================================
+*.log
+**/*.log
+*.stackdump
+**/*.stackdump
+.phpunit.result.cache
+**/.phpunit.result.cache
+
+npm-debug.log*
+**/*npm-debug.log*
+yarn-debug.log*
+**/*yarn-debug.log*
+yarn-error.log*
+**/*yarn-error.log*
+pnpm-debug.log*
+**/*pnpm-debug.log*
+lerna-debug.log*
+**/*lerna-debug.log*
+
+# ============================================================
+# IDE & System Files
+# ============================================================
+.vscode/
+**/.vscode/
+!.vscode/extensions.json
+!**/.vscode/extensions.json
+
+.idea/
+**/.idea/
+
+.DS_Store
+**/.DS_Store
+Thumbs.db
+**/Thumbs.db
+
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+**/*.sw?
+
+# ============================================================
+# Docker Data & Volumes
+# ============================================================
+mysql-data/
+**/mysql-data/
+postgres-data/
+**/postgres-data/

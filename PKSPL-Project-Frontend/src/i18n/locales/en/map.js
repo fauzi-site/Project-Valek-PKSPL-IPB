@@ -1,0 +1,23 @@
+export default {
+  mapTitle: "Region & Area Map",
+  searchLocation: "Search Location / Region",
+  administrativeBoundary: "Administrative Boundary",
+  province: "Province",
+  regency: "Regency / City",
+  district: "District",
+  village: "Village",
+  uploadShp: "Upload SHP File",
+  drawingGeometry: "Region Polygon",
+  clearPolygon: "Clear Polygon",
+  loadingBoundary: "Loading administrative boundary...",
+  boundaryLoaded: "Administrative boundary loaded successfully.",
+  failedBoundary: "Failed to load administrative boundary.",
+  sectionTitle: "Valuation Region Distribution & Ecosystem Services Mapping",
+  sectionSubtitle: "Explore coastal and marine economic valuation locations across Indonesia through interactive map.",
+  viewProjectDetail: "View Project Details",
+  resetZoom: "Reset Zoom",
+  resetTooltip: "Reset to initial position",
+  locationList: "Location List",
+  searchPlaceholder: "Search location...",
+  noLocationFound: "No matching locations found."
+};

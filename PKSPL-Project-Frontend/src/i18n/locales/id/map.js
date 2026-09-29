@@ -1,0 +1,23 @@
+export default {
+  mapTitle: "Peta Kawasan & Wilayah",
+  searchLocation: "Cari Lokasi / Wilayah",
+  administrativeBoundary: "Batas Administratif",
+  province: "Provinsi",
+  regency: "Kabupaten/Kota",
+  district: "Kecamatan",
+  village: "Desa/Kelurahan",
+  uploadShp: "Unggah File SHP",
+  drawingGeometry: "Polygon Kawasan",
+  clearPolygon: "Hapus Polygon",
+  loadingBoundary: "Memuat batas wilayah...",
+  boundaryLoaded: "Batas wilayah berhasil dimuat.",
+  failedBoundary: "Gagal memuat batas wilayah.",
+  sectionTitle: "Sebaran Wilayah Valuasi & Pemetaan Jasa Ekosistem",
+  sectionSubtitle: "Eksplorasi lokasi valuasi ekonomi sumber daya pesisir dan laut di seluruh Indonesia melalui peta interaktif.",
+  viewProjectDetail: "Lihat Detail Proyek",
+  resetZoom: "Reset Zoom",
+  resetTooltip: "Reset ke posisi semula",
+  locationList: "Daftar Lokasi",
+  searchPlaceholder: "Cari lokasi...",
+  noLocationFound: "Tidak ada lokasi yang cocok."
+};

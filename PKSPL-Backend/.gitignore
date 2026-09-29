@@ -1,0 +1,36 @@
+# Laravel
+src/vendor/
+src/node_modules/
+src/storage/*.key
+src/storage/logs/*
+src/storage/framework/cache/*
+src/storage/framework/sessions/*
+src/storage/framework/views/*
+src/bootstrap/cache/*
+src/.env
+src/.phpunit.result.cache
+src/database/*.sqlite
+
+# Environment files
+.env
+.env.*
+.env.docker
+!.env.example
+!.env.docker.example
+!src/.env.example
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs & Dumps
+*.log
+*.stackdump
+
+# Docker
+mysql-data/
+postgres-data/
