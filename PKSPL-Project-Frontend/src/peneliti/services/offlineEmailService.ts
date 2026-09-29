@@ -57,7 +57,8 @@ export const offlineEmailService = {
     let badgeColor = '';
     let statusDescription = '';
     let actionButtonText = 'Buka Sistem Valuasi PKSPL';
-    let actionLink = `http://localhost:5173/peneliti/projects/${projectCode}/review`;
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173';
+    let actionLink = `${origin}/peneliti/projects/${projectCode}/review`;
 
     switch (params.type) {
       case 'DALAM_REVIEW':
@@ -74,7 +75,7 @@ export const offlineEmailService = {
         badgeColor = '#e11d48';
         statusDescription = `Validator (${reviewer}) telah menyelesaikan telaah awal dan menemukan beberapa parameter data atau layer GIS yang memerlukan penyesuaian dari pihak Peneliti Utama sebelum dapat divalidasi.`;
         actionButtonText = 'Buka Lembar Revisi & Catatan';
-        actionLink = `http://localhost:5173/peneliti/projects/${projectCode}/review`;
+        actionLink = `${origin}/peneliti/projects/${projectCode}/review`;
         break;
 
       case 'SELESAI':
@@ -83,7 +84,7 @@ export const offlineEmailService = {
         badgeColor = '#059669';
         statusDescription = `Selamat! Proyek penelitian valuasi ekonomi Anda telah berhasil melewati seluruh tahapan verifikasi mutu dan dinyatakan VALID dan SELESAI oleh Validator (${reviewer}). Dokumen laporan valuasi resmi siap diunduh dan dicetak.`;
         actionButtonText = 'Lihat & Unduh Laporan Akhir';
-        actionLink = `http://localhost:5173/peneliti/projects/${projectCode}/review`;
+        actionLink = `${origin}/peneliti/projects/${projectCode}/review`;
         break;
 
       case 'PESAN_MASUK':
@@ -92,7 +93,7 @@ export const offlineEmailService = {
         badgeColor = '#0284c7';
         statusDescription = `Anda menerima pesan komunikasi baru dari ${reviewer} mengenai tindak lanjut data penelitian pada platform Valuasi Ekonomi PKSPL IPB.`;
         actionButtonText = 'Balas Pesan di Pusat Komunikasi';
-        actionLink = `http://localhost:5173/peneliti/projects/${projectCode}/messages`;
+        actionLink = `${origin}/peneliti/projects/${projectCode}/messages`;
         break;
 
       default:

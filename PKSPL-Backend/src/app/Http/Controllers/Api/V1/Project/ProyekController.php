@@ -102,6 +102,7 @@ class ProyekController extends ApiResourceController
                 'tujuan_valuasi',
                 'id_provinsi',
                 'id_kabupaten_kota',
+                'tahun',
             ])
             ->with([
                 'provinsi:id_provinsi,nama_provinsi',
@@ -160,6 +161,8 @@ class ProyekController extends ApiResourceController
                 'provinsi' => $proyek->provinsi?->nama_provinsi ?? 'Indonesia',
                 'kabupaten' => $proyek->kabupatenKota?->nama_kabupaten_kota ?? '-',
                 'kabupaten_kota' => $proyek->kabupatenKota?->nama_kabupaten_kota ?? '-',
+                'status' => (string) ($proyek->status ?: 'Selesai'),
+                'tahun' => (int) ($proyek->tahun ?: 2026),
                 'category' => $category,
                 'tev' => $tevFormatted,
                 'total_tev' => $projTev,

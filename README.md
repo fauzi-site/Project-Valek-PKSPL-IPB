@@ -18,10 +18,11 @@ Sistem ini dirancang untuk mendigitalkan, menstandardisasi, dan mengotomatisasi 
    - [Opsi A: Menjalankan Menggunakan Docker (Direkomendasikan)](#opsi-a-menjalankan-menggunakan-docker-direkomendasikan)
    - [Opsi B: Menjalankan Manual / Native di Lingkungan Lokal](#opsi-b-menjalankan-manual--native-di-lingkungan-lokal)
 6. [Panduan Instalasi & Menjalankan Frontend](#panduan-instalasi--menjalankan-frontend)
-7. [Daftar Port & Layanan](#daftar-port--layanan)
-8. [Akun Default & Seeding](#akun-default--seeding)
-9. [Pengujian (Testing)](#pengujian-testing)
-10. [Lisensi & Kepemilikan](#lisensi--kepemilikan)
+7. [Menjalankan Demo Public (Cloudflare Tunnel)](#menjalankan-demo-public-cloudflare-tunnel)
+8. [Daftar Port & Layanan](#daftar-port--layanan)
+9. [Akun Default & Seeding](#akun-default--seeding)
+10. [Pengujian (Testing)](#pengujian-testing)
+11. [Lisensi & Kepemilikan](#lisensi--kepemilikan)
 
 ---
 
@@ -291,19 +292,46 @@ Aplikasi frontend akan aktif dan dapat diakses di peramban melalui alamat:
 
 ---
 
+## Menjalankan Demo Public (Cloudflare Tunnel)
+
+Aplikasi dapat dipublikasikan sementara ke internet untuk kebutuhan demonstrasi, presentasi, atau pengujian oleh tim PKSPL/dosen tanpa perlu melakukan deployment ke VPS/cloud hosting. Fitur ini menggunakan arsitektur **Single Origin Reverse Proxy Nginx** dan **Cloudflare Quick Tunnel**.
+
+### Cara Menjalankan:
+1. **Bangun bundle frontend**:
+   ```bash
+   cd PKSPL-Project-Frontend
+   npm run build
+   cd ../PKSPL-Backend
+   ```
+2. **Jalankan container backend & aktifkan Cloudflare Tunnel**:
+   ```bash
+   docker compose up -d
+   docker compose up -d tunnel
+   ```
+3. **Dapatkan URL public dari logs**:
+   ```bash
+   docker logs pkspl-tunnel
+   ```
+   Buka URL `https://xxxxx.trycloudflare.com` yang tercantum di terminal. Aplikasi langsung siap didemokan dari laptop/ponsel mana pun di internet!
+
+Untuk panduan lengkap mengenai konfigurasi, keamanan, isolasi database, dan troubleshooting, silakan baca dokumentasi resmi di:
+👉 **[Panduan Lengkap Public Demo (docs/PUBLIC-DEMO.md)](docs/PUBLIC-DEMO.md)**
+
+---
+
 ## Daftar Port & Layanan
 
 Ketika dijalankan menggunakan konfigurasi standar Docker:
 
 | Layanan | Protokol / Port Host | Keterangan |
 |---|---|---|
-| **Frontend Web (Vite)** | `http://localhost:5173` | Antarmuka Pengguna React |
-| **Backend API (Nginx)** | `http://localhost:8000` | REST API Laravel |
+| **Frontend Web (Vite Dev)** | `http://localhost:5173` | Antarmuka Pengguna React (Dev Server) |
+| **Unified Web & API (Nginx)** | `http://localhost:8000` | Frontend SPA (`/`) & REST API Laravel (`/api`) |
 | **Laravel Reverb (WebSocket)** | `http://localhost:8085` | Komunikasi perpesanan realtime |
 | **Adminer Database Manager** | `http://localhost:8081` | Web UI administrasi database PostgreSQL |
 | **Mailpit Web UI** | `http://localhost:8025` | Inspeksi email lokal (reset password / verifikasi) |
 | **Mailpit SMTP** | `localhost:1025` | Port relay pengiriman email |
-| **PostgreSQL + PostGIS** | `localhost:5433` | Akses langsung ke database dari host |
+| **PostgreSQL + PostGIS** | `localhost:5433` | Akses langsung ke database dari host (Internal) |
 
 ---
 
@@ -313,8 +341,8 @@ Setelah menjalankan `php artisan migrate --seed`, database akan terisi dengan ak
 
 | Peran (*Role*) | Alamat Email | Password Standar | Akses |
 |---|---|---|---|
-| **Super Admin** | `admin@pkspl.ipb.ac.id` | `password` | Akses penuh ke seluruh menu konsol admin & pengaturan sistem |
-| **Peneliti (*Researcher*)** | `peneliti@pkspl.ipb.ac.id` | `password` | Akses ke seluruh 9 alur kerja valuasi proyek, peta, dan data master |
+| **Super Admin** | `admin@gmail.com` | `password` | Akses penuh ke seluruh menu konsol admin & pengaturan sistem |
+| **Peneliti (*Researcher*)** | `peneliti@gmail.com` | `password` | Akses ke seluruh 9 alur kerja valuasi proyek, peta, dan data master |
 
 > [!WARNING]
 > Segera ganti seluruh kredensial dan kata sandi default pada lingkungan produksi (*production*) demi menjaga keamanan sistem.

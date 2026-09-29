@@ -73,7 +73,17 @@ export const locations = [
 
 // ── Helper Functions ──
 export function getLocationById(id) {
-  return locations.find((loc) => loc.id === id);
+  if (!id) return locations[0];
+  const strId = String(id).toLowerCase().trim();
+  return (
+    locations.find(
+      (loc) =>
+        String(loc.id).toLowerCase() === strId ||
+        String(loc.kode_proyek || '').toLowerCase() === strId ||
+        String(loc.id_proyek || '').toLowerCase() === strId ||
+        String(loc.name || '').toLowerCase() === strId
+    ) || locations[0]
+  );
 }
 
 export function getLocationsByCategory(catId) {

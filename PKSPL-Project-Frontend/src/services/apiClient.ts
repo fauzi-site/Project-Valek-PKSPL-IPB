@@ -1,7 +1,7 @@
 /**
  * Abstraksi API Client yang selaras dengan Laravel Backend PKSPL (Sanctum Auth)
  */
-const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 export class ApiError extends Error {
   status: number;
@@ -17,7 +17,8 @@ export class ApiError extends Error {
 
 export const apiClient = {
   async get<T>(endpoint: string, params?: Record<string, string | number>): Promise<T> {
-    const url = new URL(`${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`);
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+    const url = new URL(`${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`, baseUrl);
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {

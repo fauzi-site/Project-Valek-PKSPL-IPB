@@ -144,11 +144,15 @@ const fromApiProject = (project: any, fallbackLead = 'Peneliti Utama'): Project 
   if (backendReviewedBy) {
     rawReviewers.push(...String(backendReviewedBy).split(',').map(s => s.trim()).filter(Boolean));
   }
-  const localReviewersCode = annotationService.getProjectReviewers(code);
-  if (localReviewersCode.length > 0) rawReviewers.push(...localReviewersCode);
-  if (idKey && idKey !== code) {
-    const localReviewersId = annotationService.getProjectReviewers(idKey);
-    if (localReviewersId.length > 0) rawReviewers.push(...localReviewersId);
+  try {
+    const localReviewerCode = localStorage.getItem(`pkspl_reviewer_${code}`);
+    if (localReviewerCode) rawReviewers.push(localReviewerCode);
+    if (idKey && idKey !== code) {
+      const localReviewerId = localStorage.getItem(`pkspl_reviewer_${idKey}`);
+      if (localReviewerId) rawReviewers.push(localReviewerId);
+    }
+  } catch {
+    // Ignore localStorage errors
   }
 
   const uniqueReviewers: string[] = [];
@@ -203,6 +207,10 @@ const fromApiProject = (project: any, fallbackLead = 'Peneliti Utama'): Project 
 export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, user } = useAuth();
   const [projects, setProjects] = useState<Project[]>(() => {
+    // For authenticated users, start with empty list so mock data is not shown
+    if (typeof window !== 'undefined' && (localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token'))) {
+      return [];
+    }
     const loaded = loadFromStorage<Project[]>(STORAGE_KEYS.PROJECTS, INITIAL_PROJECTS);
     return loaded.map(p => {
       const init = INITIAL_PROJECTS.find(i => i.id === p.id || i.code === p.code);
@@ -216,7 +224,10 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [projectsError, setProjectsError] = useState('');
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated) {
+      setProjects([]);
+      return;
+    }
 
     let mounted = true;
     setProjectsLoading(true);
@@ -225,11 +236,18 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     getProyekList({ per_page: 100 })
       .then((data) => {
         if (mounted) {
-          setProjects((Array.isArray(data) ? data : []).map((project) => fromApiProject(project, user?.nama)));
+          const list = (Array.isArray(data) ? data : []).map((project) => fromApiProject(project, user?.nama));
+          setProjects(list);
+          setProjectsError('');
         }
       })
-      .catch(() => {
-        if (mounted) setProjectsError('Daftar proyek gagal dimuat dari server.');
+      .catch((err) => {
+        console.error('[ProjectContext] Gagal memuat daftar proyek dari backend:', err);
+        if (mounted) {
+          setProjects([]);
+          const message = err?.response?.data?.message || err?.message || 'Daftar proyek gagal dimuat dari server.';
+          setProjectsError(message);
+        }
       })
       .finally(() => {
         if (mounted) setProjectsLoading(false);
@@ -294,8 +312,18 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const [activeProjectId, setActiveProjectIdState] = useState<string>(() => 
-    loadFromStorage<string>(STORAGE_KEYS.ACTIVE_ID, 'PKS-994KY1')
+    loadFromStorage<string>(STORAGE_KEYS.ACTIVE_ID, '')
   );
+
+  useEffect(() => {
+    if (projects.length > 0) {
+      const exists = projects.some(p => p.id === activeProjectId || p.code === activeProjectId);
+      if (!exists && projects[0]) {
+        setActiveProjectIdState(projects[0].id);
+        saveToStorage(STORAGE_KEYS.ACTIVE_ID, projects[0].id);
+      }
+    }
+  }, [projects, activeProjectId]);
 
   const [projectLandCovers, setProjectLandCovers] = useState<Record<string, LandCoverPolygon[]>>(() => {
     const loaded = loadFromStorage<Record<string, LandCoverPolygon[]>>(STORAGE_KEYS.PROJECT_LAND_COVERS, INITIAL_PROJECT_LAND_COVERS);

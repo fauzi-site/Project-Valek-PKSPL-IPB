@@ -47,11 +47,16 @@ export const getEcho = (): Echo | null => {
   }
 
   try {
-    const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
-    const authEndpoint = `${apiBaseUrl.replace(/\/+$/, '')}/broadcasting/auth`;
+    const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+    const rawApiBaseUrl = import.meta.env.VITE_API_URL || '/api/v1';
+    const normalizedApiBaseUrl = rawApiBaseUrl.startsWith('http')
+      ? rawApiBaseUrl
+      : `${typeof window !== 'undefined' ? window.location.origin : ''}${rawApiBaseUrl.startsWith('/') ? rawApiBaseUrl : `/${rawApiBaseUrl}`}`;
+    const authEndpoint = `${normalizedApiBaseUrl.replace(/\/+$/, '')}/broadcasting/auth`;
+
     const host = import.meta.env.VITE_REVERB_HOST || (typeof window !== 'undefined' ? window.location.hostname : 'localhost');
-    const port = Number(import.meta.env.VITE_REVERB_PORT || 8085);
-    const scheme = import.meta.env.VITE_REVERB_SCHEME || 'http';
+    const port = isHttps ? 443 : Number(import.meta.env.VITE_REVERB_PORT || 8085);
+    const scheme = isHttps ? 'https' : (import.meta.env.VITE_REVERB_SCHEME || 'http');
 
     echoInstance = new Echo({
       broadcaster: 'reverb',

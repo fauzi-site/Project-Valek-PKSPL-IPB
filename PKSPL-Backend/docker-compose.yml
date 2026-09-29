@@ -77,11 +77,25 @@ services:
       - "8000:80"
     volumes:
       - ./src:/var/www/html
+      - ../PKSPL-Project-Frontend/dist:/var/www/frontend:ro
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
     depends_on:
       - app
     networks:
       - pkspl-network
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: pkspl-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://nginx:80
+    depends_on:
+      - nginx
+    networks:
+      - pkspl-network
+    profiles:
+      - tunnel
+      - demo
 
   postgres:
     image: postgis/postgis:16-3.4
