@@ -1,8 +1,10 @@
 export default {
   nav: {
     home: "Beranda",
-    about: "Kawasan",
-    valuation: "Valuasi",
+    mapDistribution: "Peta Sebaran",
+    about: "Peta Sebaran",
+    valuation: "Valuasi Ekonomi",
+    aboutPlatform: "Tentang Platform",
     contact: "Bantuan / Kontak",
     loginRegister: "Daftar / Masuk",
     adminDashboard: "Dashboard Admin",

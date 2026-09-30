@@ -1,8 +1,10 @@
 export default {
   nav: {
     home: "Home",
-    about: "Regions",
-    valuation: "Valuation",
+    mapDistribution: "Distribution Map",
+    about: "Distribution Map",
+    valuation: "Economic Valuation",
+    aboutPlatform: "About Platform",
     contact: "Help / Contact",
     loginRegister: "Register / Log in",
     adminDashboard: "Admin Dashboard",

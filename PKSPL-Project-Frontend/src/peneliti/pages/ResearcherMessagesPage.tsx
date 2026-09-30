@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useSearchParams, useLocation } from 'react-router-dom';
 import { useChat } from '../context/ChatContext';
 import { ResearcherConversationListPanel } from '../components/chat/ResearcherConversationListPanel';
 import { ResearcherChatWindowPanel } from '../components/chat/ResearcherChatWindowPanel';
@@ -8,6 +8,15 @@ import { AlertCircle, X } from 'lucide-react';
 
 export const ResearcherMessagesPage: React.FC = () => {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const state = location.state as {
+    conversationId?: string | number;
+    targetUserId?: string | number;
+    draftMessage?: string;
+  } | null;
+
+  const [draftMessage, setDraftMessage] = useState<string>('');
+
   const {
     conversations,
     directoryUsers,
@@ -26,23 +35,52 @@ export const ResearcherMessagesPage: React.FC = () => {
     editMessage,
     deleteMessage,
     clearError,
+    refreshConversations,
   } = useChat();
 
-  // Auto-buka percakapan saat diarahkan dari pop up notifikasi (?user=xxx)
+  // Ambil draft pesan dari state router atau query params
   useEffect(() => {
-    const targetUserId = searchParams.get('user');
-    if (!targetUserId || conversations.length === 0) return;
-
-    const found = conversations.find(
-      (c) => String(c.userId) === String(targetUserId) || String(c.otherUser?.id) === String(targetUserId)
-    );
-
-    if (found) {
-      selectConversation(found.id);
-    } else {
-      createNewConversation(targetUserId);
+    const draft = searchParams.get('draft') || state?.draftMessage;
+    if (draft) {
+      setDraftMessage(draft);
     }
-  }, [searchParams, conversations, selectConversation, createNewConversation]);
+  }, [searchParams, state]);
+
+  // Auto-buka percakapan saat diarahkan dari Review & Laporan (?convId=xxx / state) atau pop-up notifikasi (?user=xxx)
+  useEffect(() => {
+    const targetUserId = searchParams.get('user') || state?.targetUserId;
+    const targetConvId = searchParams.get('convId') || searchParams.get('conversationId') || state?.conversationId;
+
+    if (targetConvId) {
+      const convIdStr = String(targetConvId);
+      const found = conversations.find((c) => String(c.id) === convIdStr);
+      if (found) {
+        if (activeConversationId !== found.id) {
+          selectConversation(found.id);
+        }
+      } else if (!isLoading && conversations.length > 0) {
+        selectConversation(convIdStr);
+      } else if (conversations.length === 0 && !isLoading && refreshConversations) {
+        refreshConversations();
+      }
+      return;
+    }
+
+    if (targetUserId && conversations.length > 0) {
+      const targetUserStr = String(targetUserId);
+      const found = conversations.find(
+        (c) => String(c.userId) === targetUserStr || String(c.otherUser?.id) === targetUserStr
+      );
+
+      if (found) {
+        if (activeConversationId !== found.id) {
+          selectConversation(found.id);
+        }
+      } else if (!isLoading) {
+        createNewConversation('Super Admin', 'Super Admin', '', '', targetUserId);
+      }
+    }
+  }, [searchParams, state, conversations, activeConversationId, isLoading, selectConversation, createNewConversation, refreshConversations]);
 
   return (
     <div className="h-[calc(100vh-4rem)] w-full flex flex-col overflow-hidden bg-white">
@@ -99,6 +137,7 @@ export const ResearcherMessagesPage: React.FC = () => {
             <ResearcherChatWindowPanel
               key={activeConversation.id}
               conversation={activeConversation}
+              initialDraft={draftMessage}
               isTyping={Boolean(typingMap[activeConversation.id])}
               onTyping={sendTyping}
               onSendMessage={sendMessage}

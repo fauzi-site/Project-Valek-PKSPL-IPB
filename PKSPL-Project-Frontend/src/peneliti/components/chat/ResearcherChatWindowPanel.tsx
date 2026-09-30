@@ -29,6 +29,7 @@ import { useNavigate } from 'react-router-dom';
 
 interface ResearcherChatWindowPanelProps {
   conversation: Conversation;
+  initialDraft?: string;
   isTyping?: boolean;
   onTyping?: (isTyping: boolean) => void;
   onSendMessage: (
@@ -48,6 +49,7 @@ interface ResearcherChatWindowPanelProps {
 
 export const ResearcherChatWindowPanel: React.FC<ResearcherChatWindowPanelProps> = ({
   conversation,
+  initialDraft,
   isTyping = false,
   onTyping,
   onSendMessage,
@@ -58,7 +60,7 @@ export const ResearcherChatWindowPanel: React.FC<ResearcherChatWindowPanelProps>
   onDeleteMessage,
 }) => {
   const navigate = useNavigate();
-  const [inputText, setInputText] = useState('');
+  const [inputText, setInputText] = useState(initialDraft || '');
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [searchInChatQuery, setSearchInChatQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -88,6 +90,21 @@ export const ResearcherChatWindowPanel: React.FC<ResearcherChatWindowPanelProps>
   const fileInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [currentAttachmentType, setCurrentAttachmentType] = useState<'file' | 'shp' | 'image'>('file');
+
+  // Handle initial draft message (e.g. from Review & Laporan "Butuh Bantuan Super Admin")
+  useEffect(() => {
+    if (initialDraft) {
+      setInputText(initialDraft);
+      const timer = setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+          inputRef.current.selectionStart = inputRef.current.value.length;
+          inputRef.current.selectionEnd = inputRef.current.value.length;
+        }
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [initialDraft]);
 
   // States for Edit & Delete
   const [activeMenuMsgId, setActiveMenuMsgId] = useState<string | null>(null);

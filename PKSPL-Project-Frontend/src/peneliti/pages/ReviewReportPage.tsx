@@ -35,8 +35,13 @@ import {
   TrendingUp,
   Scale,
   History,
-  MessageSquare
+  MessageSquare,
+  Headphones,
+  ArrowRight,
+  Loader2
 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { chatService } from '../services/chatService';
 import { INITIAL_MAP_LAYERS, INITIAL_LAND_COVERS, INITIAL_INDEX_LIST } from '../mock/spatialData';
 import { isValidPolygonCoordinates } from '../utils/geoValidation';
 import { PROVISIONING_DATA } from '../mock/dataMasterMock';
@@ -125,6 +130,7 @@ const ReviewReportPageContent: React.FC = () => {
   // State management
   const [selectedAreaId, setSelectedAreaId] = useState<string>(currentLandCovers[0]?.id || 'poly-1');
   const [isExporting, setIsExporting] = useState(false);
+  const [isConnectingAdmin, setIsConnectingAdmin] = useState(false);
 
   // Sync selectedAreaId when currentLandCovers change
   useEffect(() => {
@@ -515,6 +521,45 @@ const ReviewReportPageContent: React.FC = () => {
       console.error('Export error:', err);
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  // Kontak Super Admin langsung dari Halaman Review & Laporan
+  const handleContactSuperAdmin = async () => {
+    try {
+      setIsConnectingAdmin(true);
+      // 1. Ambil daftar Super Admin dari backend yang valid secara dinamis
+      const directory = await chatService.getDirectoryUsers();
+      const superAdmin = directory.find((u) => {
+        const r = (u.role || '').toLowerCase();
+        return r.includes('super') || r.includes('admin');
+      }) || directory[0];
+
+      if (!superAdmin) {
+        toast.error('Akun Super Admin belum tersedia untuk dihubungi.');
+        return;
+      }
+
+      // 2. Ambil atau inisialisasi percakapan dengan Super Admin di database (tanpa duplikasi)
+      const convId = await chatService.getOrCreateConversation(superAdmin.id);
+
+      // 3. Susun pesan draft dengan konteks proyek saat ini (tidak langsung terkirim otomatis)
+      const projectName = currentProject?.name || 'Kawasan Penelitian';
+      const draft = `Halo Super Admin, saya membutuhkan bantuan terkait proyek ${projectName}, khususnya pada halaman Review & Laporan.`;
+
+      // 4. Arahkan peneliti ke modul chat pesan dengan percakapan terpilih dan pesan ter-prefill
+      navigate(`/peneliti/projects/${effectiveProjId}/messages`, {
+        state: {
+          conversationId: convId,
+          targetUserId: superAdmin.id,
+          draftMessage: draft,
+        },
+      });
+    } catch (err: any) {
+      console.error('[ReviewReportPage] Gagal menghubungi Super Admin:', err);
+      toast.error(err.message || 'Gagal menghubungi Super Admin. Silakan coba lagi.');
+    } finally {
+      setIsConnectingAdmin(false);
     }
   };
 
@@ -2015,6 +2060,51 @@ const ReviewReportPageContent: React.FC = () => {
             >
               <Download className="w-4 h-4" />
               <span>{isExporting ? 'Mengekspor...' : 'Export Excel (13 Sheet)'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* KARTU BANTUAN SUPER ADMIN */}
+        <div className="p-4 sm:p-5 rounded-lg border border-blue-100 bg-gradient-to-r from-blue-50/70 via-indigo-50/30 to-slate-50/80 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-2xs">
+          <div className="flex items-start gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5 sm:mt-0">
+              <Headphones className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className="font-bold text-slate-900 text-sm">
+                  Butuh Bantuan Super Admin?
+                </h4>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 border border-blue-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Layanan Bantuan Peneliti
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 mt-1 max-w-2xl leading-relaxed">
+                Memerlukan konsultasi atau mengalami kendala terkait hasil valuasi, proses review, atau sinkronisasi data penelitian? Hubungi Super Admin langsung dengan konteks dokumen proyek ini.
+              </p>
+            </div>
+          </div>
+
+          <div className="shrink-0 self-start md:self-center">
+            <button
+              type="button"
+              onClick={handleContactSuperAdmin}
+              disabled={isConnectingAdmin}
+              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg text-xs md:text-sm font-semibold flex items-center gap-2 transition-all shadow-xs hover:shadow cursor-pointer whitespace-nowrap disabled:opacity-60"
+            >
+              {isConnectingAdmin ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Menghubungkan...</span>
+                </>
+              ) : (
+                <>
+                  <MessageSquare className="w-4 h-4" />
+                  <span>Hubungi Super Admin</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </div>
         </div>

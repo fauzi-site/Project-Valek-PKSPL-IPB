@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -51,6 +51,7 @@ import { ErrorBoundary } from './ErrorBoundary'
 function LandingPageContent() {
   const [currentView, setCurrentView] = useState('home')
   const [projectId, setProjectId] = useState(null)
+  const location = useLocation()
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -66,6 +67,22 @@ function LandingPageContent() {
       } else {
         setProjectId(null)
         setCurrentView('home')
+
+        if (hash && hash !== 'home' && hash !== 'hero') {
+          setTimeout(() => {
+            const el = document.getElementById(hash)
+            if (el) {
+              const navbarHeight = 90
+              const elementPosition = el.getBoundingClientRect().top + window.scrollY
+              window.scrollTo({
+                top: Math.max(0, elementPosition - navbarHeight),
+                behavior: 'smooth'
+              })
+            }
+          }, 150)
+        } else if (hash === 'hero') {
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+        }
       }
     }
 
@@ -73,7 +90,7 @@ function LandingPageContent() {
 
     window.addEventListener('hashchange', handleHashChange)
     return () => window.removeEventListener('hashchange', handleHashChange)
-  }, [])
+  }, [location.pathname, location.hash])
 
   const navigateTo = (page) => {
     window.location.hash = page

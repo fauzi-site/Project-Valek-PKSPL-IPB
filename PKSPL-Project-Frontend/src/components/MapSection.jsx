@@ -486,7 +486,10 @@ export default function MapSection() {
   };
 
   return (
-    <section className="py-10 md:py-14 bg-slate-50/60" id="map-section">
+    <section className="py-10 md:py-14 bg-slate-50/60 scroll-mt-24 relative" id="map">
+      <span id="peta-sebaran" className="absolute -top-24 block pointer-events-none" />
+      <span id="peta" className="absolute -top-24 block pointer-events-none" />
+      <span id="kawasan" className="absolute -top-24 block pointer-events-none" />
       <div className="w-full max-w-[1440px] mx-auto px-3 sm:px-6 lg:px-8">
 
         {/* Section Header */}

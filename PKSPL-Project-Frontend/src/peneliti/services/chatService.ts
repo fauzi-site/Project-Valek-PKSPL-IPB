@@ -876,11 +876,19 @@ class ChatService {
   /**
    * Membuka atau membuat thread percakapan baru dengan recipientId (ID user tujuan)
    */
-  public async getOrCreateConversation(recipientId: string | number, initialMsg?: string): Promise<string> {
+  public async getOrCreateConversation(
+    recipientId: string | number,
+    initialMsg?: string,
+    idProyek?: number | string
+  ): Promise<string> {
     try {
-      const res = await apiClient.post<any>('/conversations', {
+      const payload: any = {
         recipient_id: Number(recipientId),
-      });
+      };
+      if (idProyek && !isNaN(Number(idProyek))) {
+        payload.id_proyek = Number(idProyek);
+      }
+      const res = await apiClient.post<any>('/conversations', payload);
 
       if (res && res.data) {
         const conv = res.data;
@@ -896,7 +904,12 @@ class ChatService {
           }
         }
 
-        await this.getConversations();
+        const updated = await this.getConversations();
+        this.emit({
+          type: 'CONVERSATIONS_UPDATED',
+          conversations: updated,
+          totalUnread: this.getTotalUnreadCount(),
+        });
         return convId;
       }
     } catch (err) {

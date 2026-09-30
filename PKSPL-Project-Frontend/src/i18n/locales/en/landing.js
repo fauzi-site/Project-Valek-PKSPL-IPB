@@ -1,47 +1,74 @@
 export default {
   hero: {
-    title: "Economic Valuation System for Coastal & Marine Ecosystems",
-    description: "Calculate environmental economic value accurately and easily. Learn the form filling guidelines below to start analyzing your region.",
-    startAnalysis: "Start Analysis"
+    title: "Economic Valuation System for Coastal and Marine Resources",
+    description: "Digital platform supporting data collection, analysis, and economic valuation of Indonesian coastal and marine ecosystems.",
+    exploreMap: "Explore Map",
+    learnPlatform: "Learn About Platform"
   },
   about: {
-    tag: "ABOUT US",
-    title: "About Ecosystem Valuation Platform",
-    subtitle: "PKSPL IPB",
-    description: "Coastal ecosystems such as mangroves, coral reefs, and seagrass beds have crucial ecological and economic benefits. This platform serves as a digital end-to-end solution for:",
-    point1Title: "Data Digitization:",
-    point1Desc: "Facilitating primary & secondary data collection.",
-    point2Title: "Automated TEV Calculation:",
-    point2Desc: "Accommodating Use Value (Direct, Indirect, Option) to Non-Use Value (Existence, Bequest) calculations.",
-    point3Title: "Analysis & Policy:",
-    point3Desc: "Providing sensitivity analysis and strategy recommendations for Blue Economy, conservation zones, to Payment for Ecosystem Services (PES)."
+    tag: "ABOUT THE PLATFORM",
+    title: "Advancing Coastal & Marine Economic Valuation",
+    subtitle: "PKSPL IPB University",
+    description: "An integrated digital platform developed by PKSPL IPB University to strengthen research data governance, environmental economic valuation, and spatial distribution mapping of Indonesian maritime ecosystems.",
+    pillar1Title: "Resource Economic Valuation",
+    pillar1Desc: "Supports quantification of coastal and marine ecosystem service values to guide sustainable conservation and Blue Economy policies.",
+    pillar2Title: "Data Digitization & Governance",
+    pillar2Desc: "Facilitates structured, centralized, and standardized management of primary and secondary research data.",
+    pillar3Title: "Automated TEV Calculation",
+    pillar3Desc: "Calculates Total Economic Value (TEV) spanning Use Value to Non-Use Value following rigorous scientific methodology.",
+    pillar4Title: "Interactive Spatial Visualization",
+    pillar4Desc: "Displays study locations, regional zoning, and ecosystem coverage through an interactive GIS-powered map."
   },
   workflow: {
-    title: "Valuation Form Workflow Guide",
-    subtitle: "Follow these steps to complete the coastal and marine ecosystem valuation form accurately.",
-    step1Title: "Create New Project",
-    step1Desc: "Start by creating a new valuation project and filling basic information regarding location and project identity.",
-    step2Title: "Fill Index Data",
-    step2Desc: "Input indicator data and criteria index parameters for the assessed coastal region.",
-    step3Title: "Define Reclamation / Region Area",
-    step3Desc: "Select the appropriate study location, whether Mangrove ecosystems or other coastal/reclamation areas.",
-    step4Title: "Input Ecosystem Services (Provisioning & Services)",
-    step4Desc: "Enter ecosystem benefit values, ranging from provisioning services to environmental functions.",
-    step5Title: "Flora & Fauna Data",
-    step5Desc: "Complete biodiversity data by inputting species and population counts of flora and fauna in the study area."
+    tag: "RESEARCH WORKFLOW",
+    title: "Ecosystem Valuation Workflow Guide",
+    subtitle: "Six structured stages for conducting coastal and marine resource economic valuation studies and analysis.",
+    step1Title: "Create or Select Project",
+    step1Desc: "Initiate research projects by providing regional identity data, lead researchers, and study scope.",
+    step2Title: "Define Spatial Location",
+    step2Desc: "Map study boundaries, process Shapefile (SHP) layers, and delineate ecosystem coverage zoning.",
+    step3Title: "Input Index & Parameters",
+    step3Desc: "Provide environmental indicator data, biophysical criteria, and location-specific parameters.",
+    step4Title: "Define Ecosystem & Valuation Methods",
+    step4Desc: "Select ecosystem categories (Mangrove, Seagrass, Coral Reef) and corresponding valuation methodologies.",
+    step5Title: "Economic Data & Calculation",
+    step5Desc: "Enter market pricing, travel cost, or CVM variables for automated calculation of Total Economic Value (TEV).",
+    step6Title: "Review Analysis & Reports",
+    step6Desc: "Validate estimated metrics, inspect sensitivity charts, and generate comprehensive scientific reports.",
+    startWorkflow: "Access Research Workspace",
+    viewWorkflowInfo: "Learn Methodology"
   },
   stats: {
-    totalProjects: "Total Projects / Analyses",
-    totalResearchers: "Total Researchers",
-    draftStatus: "Project Status (Draft)",
-    chartTitle: "Monthly Project Creation Chart",
-    chartLoading: "Loading data...",
-    projectsUnit: "Number of Projects",
+    tag: "STATISTICS & DISTRIBUTION",
+    totalProjects: "Total Research Projects",
+    totalResearchers: "Registered Researchers",
+    totalArea: "Total Study Area",
+    totalTev: "Accumulated TEV Estimate",
+    draftStatus: "Completed Projects",
     title: "Participation & Ecosystem Distribution Statistics",
-    description: "This system records valuation form creation in real-time while mapping coastal ecosystem distribution (Mangrove, Coral Reefs, and Seagrass) most frequently analyzed by researchers and policy makers."
+    description: "The system transparently tracks actual research data aggregates, covering monthly project activity and the area distribution of Indonesian coastal and marine ecosystems.",
+    monthlyChartTitle: "Monthly Project Activity",
+    monthlyChartDesc: "Distribution of project valuation form submissions per month",
+    ecosystemChartTitle: "Ecosystem Area Distribution",
+    ecosystemChartDesc: "Comparison of cumulative coverage area (Ha) by ecosystem category",
+    year: "Year",
+    projectsUnit: "Projects",
+    areaUnit: "Ha"
   },
   map: {
-    title: "Ecosystem Valuation Location Distribution Map",
-    subtitle: "Explore project location points and administrative boundaries of coastal economic valuation study areas across Indonesia."
+    title: "Ecosystem Valuation Spatial Distribution Map",
+    subtitle: "Explore project locations and administrative boundaries for coastal economic valuation across Indonesia."
+  },
+  footer: {
+    navTitle: "Navigation",
+    systemTitle: "System Links",
+    aboutText: "Center for Coastal and Marine Resources Studies (PKSPL) IPB University — Digital platform for data governance and economic valuation of Indonesian marine ecosystems.",
+    home: "Home",
+    about: "About Platform",
+    map: "Interactive Map",
+    workflow: "Valuation Workflow",
+    stats: "Statistics & Trends",
+    researcherAccess: "Researcher Access",
+    valuationPortal: "TEV Valuation Portal"
   }
 };
