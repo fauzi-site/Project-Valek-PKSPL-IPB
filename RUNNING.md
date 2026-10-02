@@ -8,14 +8,27 @@ Panduan ini berisi cara menjalankan backend (BE) dan frontend (FE) pada proyek *
 
 Telah disediakan script praktis di root direktori proyek:
 
-1. **Menjalankan BE & FE sekaligus**:
+1. **Menjalankan BE & FE (Dev Mode)**:
    ```bash
    cd "/home/ipmad/vault/pkspl rework"
    ./run-dev.sh
    ```
-   *Script ini otomatis mengaktifkan semua kontainer Docker Backend dan menyalakan Vite Dev Server Frontend.*
+   *Jika file `.env` belum ada, script ini otomatis mendeteksi dan memanggil `setup-env.sh` terlebih dahulu.*
 
-2. **Menghentikan Semua Layanan**:
+2. **Inisialisasi Lingkungan / Setup Awal Saja**:
+   ```bash
+   cd "/home/ipmad/vault/pkspl rework"
+   ./setup-env.sh
+   ```
+   *Script ini bertugas khusus untuk:*
+   - Menyiapkan `.env` Backend & Frontend
+   - Menyiapkan symlink `.env.docker`
+   - Menginstal `node_modules` jika belum ada
+   - Mengenerate `APP_KEY` Laravel
+   - Menghubungkan symlink `storage:link`
+   - Menjalankan `migrate` dan otomatis `db:seed` jika database masih kosong
+
+3. **Menghentikan Semua Layanan**:
    ```bash
    cd "/home/ipmad/vault/pkspl rework"
    ./stop.sh
