@@ -29,6 +29,12 @@ import {
 } from '../mock/dataMasterMock';
 import { getProjectDataMaster, storeProjectDataMaster } from '../../services/dataMasterService';
 import { useProject } from '../context/ProjectContext';
+import {
+  SkeletonTable,
+  EmptyState,
+  RefreshIndicator,
+  LoadingButton
+} from '../../components/loading';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -193,32 +199,6 @@ function sortMasterData(items: UnifiedMasterItem[], sort: SortState): UnifiedMas
     return 0;
   });
 }
-
-// ─── Table Skeleton Helper ───────────────────────────────────────────────────
-
-const TableSkeleton: React.FC<{ columns: number; rows?: number }> = ({ columns, rows = 6 }) => (
-  <>
-    {Array.from({ length: rows }).map((_, rIdx) => (
-      <tr key={rIdx} className="animate-pulse">
-        {Array.from({ length: columns }).map((_, cIdx) => (
-          <td key={cIdx} className="py-4 px-4">
-            <div
-              className={`h-4 bg-slate-200 rounded ${
-                cIdx === 0
-                  ? 'w-6 mx-auto'
-                  : cIdx === 1
-                  ? 'w-24'
-                  : cIdx === columns - 1
-                  ? 'w-24 mx-auto'
-                  : 'w-32'
-              }`}
-            />
-          </td>
-        ))}
-      </tr>
-    ))}
-  </>
-);
 
 // ─── Usage Helper from API ───────────────────────────────────────────────────
 
@@ -614,12 +594,9 @@ export const DataMasterPage: React.FC = () => {
               <span>Tabel Data Master</span>
             </h3>
 
-            {loading ? (
-              <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                Memuat data...
-              </span>
-            ) : (
+            {/* Indicator */}
+            <RefreshIndicator isRefreshing={loading && masterList.length > 0} label="Menyinkronkan..." />
+            {!loading && (
               <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
                 {sorted.length} data
               </span>
@@ -686,16 +663,17 @@ export const DataMasterPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {loading ? (
-                <TableSkeleton columns={8} rows={ITEMS_PER_PAGE} />
+              {loading && masterList.length === 0 ? (
+                <SkeletonTable columns={8} rows={ITEMS_PER_PAGE} />
               ) : paged.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400 text-xs">
-                    <Database className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                    <p className="font-semibold text-slate-600">Tidak ada data master yang ditemukan.</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      {searchTerm ? 'Coba ubah kata kunci pencarian Anda.' : 'Gunakan tombol "+ Tambah Data Master" untuk menambahkan data baru.'}
-                    </p>
+                  <td colSpan={8} className="py-12 text-center">
+                    <EmptyState
+                      title="Tidak Ada Data Master yang Ditemukan"
+                      description={searchTerm ? 'Coba ubah kata kunci pencarian Anda.' : 'Gunakan tombol "+ Tambah Data Master" untuk menambahkan data baru.'}
+                      actionText={searchTerm ? 'Reset Pencarian' : '+ Tambah Data Master'}
+                      onAction={searchTerm ? () => setSearchTerm('') : () => setIsAddModalOpen(true)}
+                    />
                   </td>
                 </tr>
               ) : (

@@ -43,9 +43,10 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { chatService } from '../services/chatService';
-import { INITIAL_MAP_LAYERS, INITIAL_LAND_COVERS, INITIAL_INDEX_LIST } from '../mock/spatialData';
+import { INITIAL_MAP_LAYERS, INITIAL_LAND_COVERS, INITIAL_INDEX_LIST, INITIAL_INDEX_LIST as INITIAL_INDICES } from '../mock/spatialData';
 import { isValidPolygonCoordinates } from '../utils/geoValidation';
 import { PROVISIONING_DATA } from '../mock/dataMasterMock';
+import { Skeleton, SkeletonCard, SkeletonTable, LoadingButton, EmptyState } from '../../components/loading';
 import {
   ResponsiveContainer,
   BarChart,
@@ -75,6 +76,7 @@ const ReviewReportPageContent: React.FC = () => {
     getProjectIndices,
     getProjectLayers,
     getAreaConfig,
+    projectsLoading,
   } = useProject();
 
   const {
@@ -123,7 +125,7 @@ const ReviewReportPageContent: React.FC = () => {
   const rawIndices = (getProjectIndices ? getProjectIndices(effectiveProjId) : []) || [];
   const currentIndices = (rawIndices && rawIndices.length > 0)
     ? rawIndices
-    : INITIAL_INDICES;
+    : INITIAL_INDEX_LIST;
 
   const indexLabelMap = buildIndexLabelMap(currentIndices);
 
@@ -566,6 +568,38 @@ const ReviewReportPageContent: React.FC = () => {
     }
   };
 
+  if (projectsLoading && !currentProject) {
+    return (
+      <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 text-slate-800">
+        <div className="border-b border-slate-200 pb-5 bg-white p-5 rounded-xl shadow-2xs space-y-3">
+          <Skeleton className="h-4 w-48" />
+          <Skeleton className="h-7 w-72" />
+          <Skeleton className="h-4 w-96" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <SkeletonCard count={4} variant="kpi" />
+        </div>
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-2xs space-y-4">
+          <Skeleton className="h-6 w-56" />
+          <SkeletonTable columns={5} rows={6} />
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentProject) {
+    return (
+      <div className="p-8 max-w-2xl mx-auto my-12 bg-white border border-slate-200 rounded-lg shadow-sm text-center">
+        <EmptyState
+          title="Project Tidak Ditemukan"
+          description={`Project dengan kode atau ID "${routeProjId}" tidak ditemukan di sistem.`}
+          actionText="Kembali ke Daftar Proyek"
+          onAction={() => navigate('/peneliti/projects')}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8 text-slate-800">
       {/* 1. Header Halaman */}
@@ -595,24 +629,27 @@ const ReviewReportPageContent: React.FC = () => {
         </div>
 
         {/* Action Buttons: Preview & Export */}
-        <div className="flex items-center flex-wrap gap-2.5">
+        <div className="flex items-center flex-wrap gap-2.5 w-full sm:w-auto">
           <button
             onClick={() => navigate(`/peneliti/projects/${effectiveProjId}/review/preview`)}
-            className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+            className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer flex-1 sm:flex-initial"
           >
             <Eye className="w-4 h-4 text-slate-500" />
             <span>Preview Laporan</span>
           </button>
 
-          <button
+          <LoadingButton
+            variant="success"
+            size="sm"
             onClick={handleExportExcel}
-            disabled={isExporting}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+            loading={isExporting}
+            loadingText="Mengekspor..."
+            icon={<Download className="w-4 h-4" />}
             title="Ekspor seluruh 13 lembar kerja riset"
+            className="flex-1 sm:flex-initial"
           >
-            <Download className="w-4 h-4" />
-            <span>{isExporting ? 'Mengekspor...' : 'Export Excel'}</span>
-          </button>
+            Export Excel
+          </LoadingButton>
         </div>
       </div>
 
@@ -2053,14 +2090,15 @@ const ReviewReportPageContent: React.FC = () => {
               <Eye className="w-4 h-4 text-blue-600" />
               <span>Preview Laporan</span>
             </button>
-            <button
+            <LoadingButton
+              variant="success"
               onClick={handleExportExcel}
-              disabled={isExporting}
-              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs md:text-sm font-bold flex items-center gap-2 transition-colors shadow-sm cursor-pointer whitespace-nowrap disabled:opacity-50"
+              loading={isExporting}
+              loadingText="Mengekspor..."
+              icon={<Download className="w-4 h-4" />}
             >
-              <Download className="w-4 h-4" />
-              <span>{isExporting ? 'Mengekspor...' : 'Export Excel (13 Sheet)'}</span>
-            </button>
+              Export Excel (13 Sheet)
+            </LoadingButton>
           </div>
         </div>
 
@@ -2087,25 +2125,15 @@ const ReviewReportPageContent: React.FC = () => {
           </div>
 
           <div className="shrink-0 self-start md:self-center">
-            <button
-              type="button"
+            <LoadingButton
+              variant="primary"
               onClick={handleContactSuperAdmin}
-              disabled={isConnectingAdmin}
-              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg text-xs md:text-sm font-semibold flex items-center gap-2 transition-all shadow-xs hover:shadow cursor-pointer whitespace-nowrap disabled:opacity-60"
+              loading={isConnectingAdmin}
+              loadingText="Menghubungkan..."
+              icon={<MessageSquare className="w-4 h-4" />}
             >
-              {isConnectingAdmin ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Menghubungkan...</span>
-                </>
-              ) : (
-                <>
-                  <MessageSquare className="w-4 h-4" />
-                  <span>Hubungi Super Admin</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
+              Hubungi Super Admin
+            </LoadingButton>
           </div>
         </div>
       </section>

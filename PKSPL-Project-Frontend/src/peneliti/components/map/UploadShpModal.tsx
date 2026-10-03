@@ -4,6 +4,7 @@ import ShpUploader from '../../../components/map/ShpUploader';
 import { X, Info, Sparkles, CheckCircle2 } from 'lucide-react';
 import { INITIAL_LAND_COVERS } from '../../mock/spatialData';
 import { applyLayerStyle } from '../../../lib/shpStyle';
+import { LoadingButton } from '../../../components/loading';
 
 interface UploadShpModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ export const UploadShpModal: React.FC<UploadShpModalProps> = ({
   const [parsedData, setParsedData] = useState<any>(null);
   const [parsedFileName, setParsedFileName] = useState<string | null>(null);
   const [parsedRawFile, setParsedRawFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
@@ -71,18 +73,23 @@ export const UploadShpModal: React.FC<UploadShpModalProps> = ({
     setParsedRawFile(null);
   };
 
-  const handleUploadSubmit = () => {
+  const handleUploadSubmit = async () => {
     if (!parsedData) return;
-    const destProjId = targetProjectId || activeProject?.id || activeProject?.code;
-    if (destProjId) {
-      uploadProjectShapefile(
-        destProjId,
-        parsedData,
-        parsedFileName || 'Batas Wilayah & Tutupan Lahan SHP',
-        parsedRawFile || undefined
-      );
+    setIsSubmitting(true);
+    try {
+      const destProjId = targetProjectId || activeProject?.id || activeProject?.code;
+      if (destProjId) {
+        await uploadProjectShapefile(
+          destProjId,
+          parsedData,
+          parsedFileName || 'Batas Wilayah & Tutupan Lahan SHP',
+          parsedRawFile || undefined
+        );
+      }
+      onClose();
+    } finally {
+      setIsSubmitting(false);
     }
-    onClose();
   };
 
   return (
@@ -172,18 +179,15 @@ export const UploadShpModal: React.FC<UploadShpModalProps> = ({
           >
             Batal
           </button>
-          <button
-            type="button"
+          <LoadingButton
+            variant="primary"
             onClick={handleUploadSubmit}
             disabled={!parsedData}
-            className={`px-4 py-2 rounded-md text-xs font-semibold text-white transition-colors flex items-center gap-1.5 ${
-              parsedData
-                ? 'bg-blue-600 hover:bg-blue-700 shadow-xs cursor-pointer'
-                : 'bg-slate-300 cursor-not-allowed'
-            }`}
+            loading={isSubmitting}
+            loadingText="Menerapkan..."
           >
-            <span>Terapkan SHP ke Proyek</span>
-          </button>
+            Terapkan SHP ke Proyek
+          </LoadingButton>
         </div>
       </div>
     </div>

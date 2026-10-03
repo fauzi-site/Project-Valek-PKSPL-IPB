@@ -19,6 +19,13 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { LocationSelector } from '../components/LocationSelector';
+import {
+  SkeletonTable,
+  EmptyState,
+  ErrorState,
+  RefreshIndicator,
+  LoadingButton
+} from '../../components/loading';
 
 type MenuPosition = { top: number; left: number };
 
@@ -41,6 +48,7 @@ export const ProjectListPage: React.FC = () => {
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null);
   const [deleteError, setDeleteError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // New project modal form state
   const [newProjCode, setNewProjCode] = useState(generateProjectCode());
@@ -69,12 +77,15 @@ export const ProjectListPage: React.FC = () => {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const created = await createProject(newProjName.trim(), newProjDesc.trim(), newProjLocation.trim());
       setIsCreateModalOpen(false);
       navigate(`/peneliti/projects/${created.id}/maps`);
     } catch {
       setFormError('Proyek gagal dibuat. Periksa koneksi ke server.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -124,7 +135,7 @@ export const ProjectListPage: React.FC = () => {
   });
 
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto space-y-6">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
@@ -158,10 +169,16 @@ export const ProjectListPage: React.FC = () => {
             className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-md text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none placeholder:text-slate-400"
           />
         </div>
+        <RefreshIndicator isRefreshing={projectsLoading && projects.length > 0} label="Menyinkronkan proyek..." />
       </div>
 
-      {projectsLoading && <p className="text-xs text-slate-500">Memuat proyek...</p>}
-      {projectsError && <p className="text-xs text-red-600">{projectsError}</p>}
+      {projectsError && projects.length === 0 && (
+        <ErrorState
+          title="Gagal Memuat Proyek"
+          message={projectsError}
+          onRetry={() => window.location.reload()}
+        />
+      )}
       {deleteError && <p className="text-xs text-red-600">{deleteError}</p>}
 
       {/* Clean Table */}
@@ -180,10 +197,17 @@ export const ProjectListPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {filteredProjects.length === 0 ? (
+              {projectsLoading && projects.length === 0 ? (
+                <SkeletonTable columns={7} rows={6} />
+              ) : filteredProjects.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
-                    Tidak ditemukan proyek yang cocok dengan kriteria pencarian.
+                  <td colSpan={7} className="py-12 text-center">
+                    <EmptyState
+                      title="Proyek Tidak Ditemukan"
+                      description={searchTerm ? `Tidak ditemukan proyek yang cocok dengan "${searchTerm}".` : "Belum ada proyek penelitian yang terdaftar."}
+                      actionText={searchTerm ? "Reset Pencarian" : "+ Buat Proyek Baru"}
+                      onAction={searchTerm ? () => setSearchTerm('') : handleOpenCreateModal}
+                    />
                   </td>
                 </tr>
               ) : (
@@ -307,19 +331,19 @@ export const ProjectListPage: React.FC = () => {
 
       {/* Sederhana: Modal Buat Proyek Baru (Tanpa SHP) */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-2xs z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-lg border border-slate-200 shadow-xl max-w-md w-full overflow-hidden text-sm">
-            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-2xs z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-lg border border-slate-200 shadow-xl max-w-md w-full overflow-hidden text-sm max-h-[90vh] flex flex-col">
+            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
               <h3 className="font-bold text-slate-800 text-sm">Buat Proyek Baru</h3>
               <button
                 onClick={() => setIsCreateModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded"
+                className="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateSubmit} className="p-5 space-y-4">
+            <form onSubmit={handleCreateSubmit} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
               {formError && (
                 <div className="p-2.5 bg-rose-50 border border-rose-200 rounded text-xs text-rose-700">
                   {formError}
@@ -390,16 +414,19 @@ export const ProjectListPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="px-4 py-2 border border-slate-300 bg-white hover:bg-slate-100 rounded text-xs font-medium text-slate-700"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 border border-slate-300 bg-white hover:bg-slate-100 rounded text-xs font-medium text-slate-700 disabled:opacity-50 cursor-pointer"
                 >
                   Batal
                 </button>
-                <button
+                <LoadingButton
                   type="submit"
+                  isLoading={isSubmitting}
+                  loadingText="Menyimpan..."
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold shadow-xs"
                 >
                   Buat Proyek
-                </button>
+                </LoadingButton>
               </div>
             </form>
           </div>

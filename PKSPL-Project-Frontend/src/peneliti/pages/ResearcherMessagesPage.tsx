@@ -138,6 +138,7 @@ export const ResearcherMessagesPage: React.FC = () => {
               key={activeConversation.id}
               conversation={activeConversation}
               initialDraft={draftMessage}
+              isLoadingMessages={isLoading && (!activeConversation.messages || activeConversation.messages.length === 0)}
               isTyping={Boolean(typingMap[activeConversation.id])}
               onTyping={sendTyping}
               onSendMessage={sendMessage}

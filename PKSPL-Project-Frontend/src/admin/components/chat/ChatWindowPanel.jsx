@@ -20,11 +20,13 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { SkeletonList } from '../../../components/loading';
 
 export const ChatWindowPanel = ({
   conversation,
   isTyping = false,
   typingUserName = '',
+  isLoadingMessages = false,
   onTyping,
   onSendMessage,
   onBackMobile,
@@ -409,7 +411,9 @@ export const ChatWindowPanel = ({
         </div>
 
         {/* Messages List */}
-        {displayedMessages.length === 0 ? (
+        {isLoadingMessages ? (
+          <SkeletonList variant="chat-messages" count={5} />
+        ) : displayedMessages.length === 0 ? (
           <div className="p-8 text-center text-xs text-slate-400">
             Tidak ada pesan yang cocok dengan pencarian &ldquo;{searchInChatQuery}&rdquo;.
           </div>

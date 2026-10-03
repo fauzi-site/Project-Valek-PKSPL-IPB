@@ -19,6 +19,7 @@ export const AdminMessagesPage = () => {
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [activeMessages, setActiveMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [messagesLoading, setMessagesLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
 
   // Real-time Typing Indicator States
@@ -85,6 +86,7 @@ export const AdminMessagesPage = () => {
 
     let isMounted = true;
     const fetchMessages = async () => {
+      setMessagesLoading(true);
       try {
         const msgs = await adminChatService.getMessages(activeConversationId, currentUserId);
         if (isMounted) {
@@ -97,6 +99,10 @@ export const AdminMessagesPage = () => {
         );
       } catch (err) {
         console.error('[AdminMessagesPage] Gagal memuat riwayat pesan:', err);
+      } finally {
+        if (isMounted) {
+          setMessagesLoading(false);
+        }
       }
     };
 
@@ -465,6 +471,7 @@ export const AdminMessagesPage = () => {
           activeConversationId={activeConversationId}
           onSelectConversation={handleSelectConversation}
           onNewConversation={handleNewConversation}
+          isLoading={isLoading}
         />
       </div>
 
@@ -480,6 +487,7 @@ export const AdminMessagesPage = () => {
             conversation={activeConversation}
             isTyping={isTyping}
             typingUserName={typingUserName}
+            isLoadingMessages={messagesLoading}
             onTyping={(typing) => {
               if (activeConversationId) {
                 adminChatService.sendTyping(activeConversationId, typing, currentUserId);

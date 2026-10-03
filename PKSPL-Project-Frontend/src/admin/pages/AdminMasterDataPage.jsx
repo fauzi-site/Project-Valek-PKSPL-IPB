@@ -34,6 +34,13 @@ import {
   deleteAdminMasterData
 } from '../../services/dataMasterService';
 import { formatIDR } from '../utils/formatter';
+import {
+  SkeletonCard,
+  SkeletonTable,
+  EmptyState,
+  RefreshIndicator,
+  LoadingButton
+} from '../../components/loading';
 
 export const AdminMasterDataPage = () => {
   // Master data & meta state
@@ -422,59 +429,63 @@ export const AdminMasterDataPage = () => {
       </div>
 
       {/* ── Dynamic Overview Stat Cards ────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Total Master */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Referensi</span>
-            <Database className="w-5 h-5 text-blue-600" />
+      {loading && !summary.total ? (
+        <SkeletonCard count={5} variant="metric" />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          {/* Total Master */}
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Referensi</span>
+              <Database className="w-5 h-5 text-blue-600" />
+            </div>
+            <div className="text-2xl font-bold text-slate-900">{summary.total || 0} Data</div>
+            <p className="text-[11px] text-slate-500">
+              Tersebar di {summary.total_wilayah || 7} Kab/Kota ({summary.total_provinsi || 5} Provinsi)
+            </p>
           </div>
-          <div className="text-2xl font-bold text-slate-900">{summary.total || 0} Data</div>
-          <p className="text-[11px] text-slate-500">
-            Tersebar di {summary.total_wilayah || 7} Kab/Kota ({summary.total_provinsi || 5} Provinsi)
-          </p>
-        </div>
 
-        {/* Provisioning */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Provisioning</span>
-            <Leaf className="w-5 h-5 text-emerald-600" />
+          {/* Provisioning */}
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Provisioning</span>
+              <Leaf className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div className="text-2xl font-bold text-slate-900">{summary.provisioning || 0} Objek</div>
+            <p className="text-[11px] text-slate-500">Biota pangan, kayu, tambak & komoditas</p>
           </div>
-          <div className="text-2xl font-bold text-slate-900">{summary.provisioning || 0} Objek</div>
-          <p className="text-[11px] text-slate-500">Biota pangan, kayu, tambak & komoditas</p>
-        </div>
 
-        {/* Regulating */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Regulating</span>
-            <Shield className="w-5 h-5 text-blue-600" />
+          {/* Regulating */}
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Regulating</span>
+              <Shield className="w-5 h-5 text-blue-600" />
+            </div>
+            <div className="text-2xl font-bold text-slate-900">{summary.regulating || 0} Parameter</div>
+            <p className="text-[11px] text-slate-500">Serapan karbon, penahan abrasi & air</p>
           </div>
-          <div className="text-2xl font-bold text-slate-900">{summary.regulating || 0} Parameter</div>
-          <p className="text-[11px] text-slate-500">Serapan karbon, penahan abrasi & air</p>
-        </div>
 
-        {/* Supporting */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Supporting</span>
-            <Heart className="w-5 h-5 text-rose-600" />
+          {/* Supporting */}
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Supporting</span>
+              <Heart className="w-5 h-5 text-rose-600" />
+            </div>
+            <div className="text-2xl font-bold text-slate-900">{summary.supporting || 0} Fungsi</div>
+            <p className="text-[11px] text-slate-500">Nursery ground, nutrien & plasma nutfah</p>
           </div>
-          <div className="text-2xl font-bold text-slate-900">{summary.supporting || 0} Fungsi</div>
-          <p className="text-[11px] text-slate-500">Nursery ground, nutrien & plasma nutfah</p>
-        </div>
 
-        {/* Cultural */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Cultural</span>
-            <Palette className="w-5 h-5 text-amber-600" />
+          {/* Cultural */}
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Cultural</span>
+              <Palette className="w-5 h-5 text-amber-600" />
+            </div>
+            <div className="text-2xl font-bold text-slate-900">{summary.cultural || 0} Objek</div>
+            <p className="text-[11px] text-slate-500">Ekowisata bahari, edukasi & budaya</p>
           </div>
-          <div className="text-2xl font-bold text-slate-900">{summary.cultural || 0} Objek</div>
-          <p className="text-[11px] text-slate-500">Ekowisata bahari, edukasi & budaya</p>
         </div>
-      </div>
+      )}
 
       {/* ── Main Data Master Table & Filter Container ─────────────────────── */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
@@ -552,30 +563,33 @@ export const AdminMasterDataPage = () => {
               )}
             </div>
 
-            {/* Search Box */}
-            <form onSubmit={handleSearchSubmit} className="relative w-full lg:w-72">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Cari objek, latin, atau daerah..."
-                className="w-full pl-9 pr-8 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-colors"
-              />
-              {searchTerm && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchTerm('');
-                    setPage(1);
-                    fetchData();
-                  }}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
-                >
-                  ✕
-                </button>
-              )}
-            </form>
+            {/* Search Box & Refresh */}
+            <div className="flex items-center gap-2 w-full lg:w-auto">
+              <RefreshIndicator isRefreshing={loading && items.length > 0} label="Menyinkronkan..." />
+              <form onSubmit={handleSearchSubmit} className="relative w-full lg:w-72">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Cari objek, latin, atau daerah..."
+                  className="w-full pl-9 pr-8 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-colors"
+                />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm('');
+                      setPage(1);
+                      fetchData();
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                  >
+                    ✕
+                  </button>
+                )}
+              </form>
+            </div>
           </div>
         </div>
 
@@ -596,26 +610,17 @@ export const AdminMasterDataPage = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
-              {loading ? (
-                Array.from({ length: 6 }).map((_, rIdx) => (
-                  <tr key={rIdx} className="animate-pulse">
-                    {Array.from({ length: 9 }).map((_, cIdx) => (
-                      <td key={cIdx} className="py-4 px-4">
-                        <div className="h-4 bg-slate-200 rounded w-full" />
-                      </td>
-                    ))}
-                  </tr>
-                ))
+              {loading && items.length === 0 ? (
+                <SkeletonTable columns={9} rows={8} />
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-14 text-center text-slate-400 text-xs">
-                    <Database className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                    <p className="font-semibold text-slate-600 text-sm">Tidak ada data master yang cocok.</p>
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      {hasActiveFilters
-                        ? 'Coba atur ulang filter wilayah atau kata kunci pencarian Anda.'
-                        : 'Klik tombol "+ Tambah Data Master" untuk menambahkan data referensi baru.'}
-                    </p>
+                  <td colSpan={9} className="py-14 text-center">
+                    <EmptyState
+                      title="Tidak Ada Data Master yang Cocok"
+                      description={hasActiveFilters ? 'Coba atur ulang filter wilayah atau kata kunci pencarian Anda.' : 'Belum ada data referensi master yang tersimpan di sistem.'}
+                      actionText={hasActiveFilters ? 'Reset Semua Filter' : '+ Tambah Data Master'}
+                      onAction={hasActiveFilters ? () => { setSelectedProvinsi(''); setSelectedKabupaten(''); setSelectedCategory('all'); setSearchTerm(''); } : handleOpenAddModal}
+                    />
                   </td>
                 </tr>
               ) : (

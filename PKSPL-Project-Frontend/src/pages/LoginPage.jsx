@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
+import { LoadingButton } from '../components/loading'
 
 const GoogleIcon = () => (
   <svg width="20" height="20" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
@@ -212,14 +213,15 @@ function LoginPage() {
             </div>
 
             {/* Sign In Button */}
-            <button
+            <LoadingButton
               id="sign-in-button"
               type="submit"
-              disabled={isLoading}
-              className={`w-full py-2.5 bg-[#1a56db] text-white text-sm font-semibold rounded-lg transition-all duration-200 hover:bg-[#1545b8] hover:shadow-lg hover:shadow-blue-500/25 active:scale-[0.98] cursor-pointer ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+              loading={isLoading}
+              loadingText={t('signingIn')}
+              className="w-full py-2.5 bg-[#1a56db] text-white text-sm font-semibold rounded-lg transition-all duration-200 hover:bg-[#1545b8] hover:shadow-lg hover:shadow-blue-500/25 active:scale-[0.98] cursor-pointer"
             >
-              {isLoading ? t('signingIn') : t('signIn')}
-            </button>
+              {t('signIn')}
+            </LoadingButton>
 
             {/* Sign In with Google */}
             <button

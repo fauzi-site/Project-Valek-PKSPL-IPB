@@ -155,14 +155,20 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* Mobile Navigation Dropdown */}
+      {/* Mobile Backdrop & Navigation Dropdown */}
       {isMobileMenuOpen && (
-        <div
-          className="lg:hidden fixed top-[72px] left-4 right-4 sm:left-6 sm:right-6
-                     bg-black/80 backdrop-blur-md
-                     rounded-2xl shadow-2xl shadow-black/20 border border-white/10
-                     overflow-hidden animate-fade-in"
-        >
+        <>
+          <div
+            className="lg:hidden fixed inset-0 bg-black/40 backdrop-blur-xs z-40 transition-opacity"
+            onClick={() => setIsMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
+          <div
+            className="lg:hidden fixed top-[72px] left-4 right-4 sm:left-6 sm:right-6
+                       bg-black/85 backdrop-blur-md
+                       rounded-2xl shadow-2xl shadow-black/20 border border-white/10
+                       max-h-[calc(100vh-5.5rem)] overflow-y-auto z-50 animate-fade-in"
+          >
           <div className="px-4 py-3 space-y-1">
             {navLinks.map((link) => (
               <a
@@ -221,6 +227,7 @@ const Navbar = () => {
             </div>
           </div>
         </div>
+        </>
       )}
     </nav>
 

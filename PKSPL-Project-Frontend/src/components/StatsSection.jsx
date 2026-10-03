@@ -19,6 +19,7 @@ import {
 } from 'recharts';
 import { useTranslation } from 'react-i18next';
 import { getLandingStatistics } from '../services/statisticsService';
+import { SkeletonCard, SkeletonChart, ErrorState, EmptyState } from './loading';
 
 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
@@ -199,43 +200,41 @@ export const StatsSection = () => {
     <section id="stats" className="py-20 lg:py-28 bg-slate-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Metric Cards Header */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-md transition-shadow">
-            <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-              <BarChart3 className="w-6 h-6" />
+        {loading ? (
+          <SkeletonCard count={3} variant="metric" className="mb-12" />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-md transition-shadow">
+              <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                <BarChart3 className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('stats.totalProjects')}</p>
+                <h3 className="text-2xl font-bold text-slate-800">{totalProjects}</h3>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('stats.totalProjects')}</p>
-              <h3 className="text-2xl font-bold text-slate-800">
-                {loading ? <span className="text-slate-300 animate-pulse">...</span> : totalProjects}
-              </h3>
-            </div>
-          </div>
 
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-md transition-shadow">
-            <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-              <Users className="w-6 h-6" />
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-md transition-shadow">
+              <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                <Users className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('stats.totalResearchers')}</p>
+                <h3 className="text-2xl font-bold text-slate-800">{totalResearchers}</h3>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('stats.totalResearchers')}</p>
-              <h3 className="text-2xl font-bold text-slate-800">
-                {loading ? <span className="text-slate-300 animate-pulse">...</span> : totalResearchers}
-              </h3>
-            </div>
-          </div>
 
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4 sm:col-span-2 lg:col-span-1 hover:shadow-md transition-shadow">
-            <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-              <TrendingUp className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{activePeriodTev.label}</p>
-              <h3 className="text-2xl font-bold text-slate-800">
-                {loading ? <span className="text-slate-300 animate-pulse">...</span> : activePeriodTev.formatted}
-              </h3>
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center gap-4 sm:col-span-2 lg:col-span-1 hover:shadow-md transition-shadow">
+              <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                <TrendingUp className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{activePeriodTev.label}</p>
+                <h3 className="text-2xl font-bold text-slate-800">{activePeriodTev.formatted}</h3>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Main Content Grid: Image Left, Chart Card & Description Right */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 lg:gap-14 items-center">
@@ -260,8 +259,8 @@ export const StatsSection = () => {
           </div>
 
           {/* Right Column: Dynamic Interactive Chart Card */}
-          <div className="space-y-6">
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-100 p-5 sm:p-6 lg:p-7 space-y-4">
+          <div className="space-y-6 min-w-0">
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-100 p-4 sm:p-6 lg:p-7 space-y-4 min-w-0">
               {/* Header with Title and Mode Controls (Bulanan vs Tahunan & Pemilih Tahun) */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3.5 border-b border-slate-100 gap-3">
                 <div>
@@ -329,25 +328,20 @@ export const StatsSection = () => {
               </div>
 
               {/* Chart Visual Container */}
-              <div className="h-[250px] sm:h-[270px] w-full pt-1">
+              <div className="h-[250px] sm:h-[270px] w-full min-w-0 pt-1">
                 {loading ? (
-                  <div className="h-full w-full flex flex-col items-center justify-center text-slate-400 gap-2">
-                    <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-                    <span className="text-xs font-medium">Memuat data aktivitas proyek...</span>
-                  </div>
+                  <SkeletonChart variant="area" height={270} />
                 ) : error ? (
-                  <div className="h-full w-full flex flex-col items-center justify-center text-slate-500 gap-2 text-center p-4">
-                    <AlertCircle className="w-7 h-7 text-amber-500" />
-                    <span className="text-xs font-medium text-slate-700">{error}</span>
-                    <button
-                      type="button"
-                      onClick={fetchStats}
-                      className="mt-1 px-3 py-1 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Coba Lagi</span>
-                    </button>
-                  </div>
+                  <ErrorState
+                    error={error}
+                    title="Data Aktivitas Tidak Dapat Dimuat"
+                    onRetry={fetchStats}
+                  />
+                ) : chartData.length === 0 ? (
+                  <EmptyState
+                    title="Belum Ada Data Aktivitas"
+                    description="Data tren pertumbuhan belum tersedia untuk tahun yang dipilih."
+                  />
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -388,7 +382,7 @@ export const StatsSection = () => {
               </div>
 
               {/* Mini Stats Summary Pills */}
-              <div className="grid grid-cols-3 gap-2.5 pt-3 border-t border-slate-100 text-xs">
+              <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5 pt-3 border-t border-slate-100 text-xs">
                 <div className="p-2 sm:p-2.5 rounded-xl bg-slate-50/90 border border-slate-100">
                   <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total Periode Ini</div>
                   <div className="text-sm sm:text-base font-bold text-slate-900 mt-0.5">

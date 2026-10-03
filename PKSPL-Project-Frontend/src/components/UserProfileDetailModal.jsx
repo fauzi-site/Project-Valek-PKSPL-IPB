@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getUserById } from '../services/userService'
 import { useAuth } from '../contexts/AuthContext'
+import { SkeletonModal } from './loading'
 
 const roleColors = {
   'Super Admin': 'bg-purple-100 text-purple-700 border border-purple-200',
@@ -142,11 +143,7 @@ function UserProfileDetailModal({ isOpen, userId, initialData, onClose, isOnline
         {/* Modal Content Area */}
         <div className="p-6 overflow-y-auto flex-1">
           {isLoading ? (
-            <div className="py-12 text-center space-y-3">
-              <div className="w-10 h-10 border-4 border-[#1a56db]/20 border-t-[#1a56db] rounded-full animate-spin mx-auto" />
-              <p className="text-sm font-semibold text-gray-700">Memuat detail profil...</p>
-              <p className="text-xs text-gray-400">Mengambil informasi pengguna dari server</p>
-            </div>
+            <SkeletonModal variant="profile" />
           ) : error ? (
             <div className="py-8 text-center space-y-4">
               <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto">

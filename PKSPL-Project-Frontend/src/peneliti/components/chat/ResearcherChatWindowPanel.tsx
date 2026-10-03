@@ -26,11 +26,13 @@ import {
   Ban,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { SkeletonList } from '../../../components/loading';
 
 interface ResearcherChatWindowPanelProps {
   conversation: Conversation;
   initialDraft?: string;
   isTyping?: boolean;
+  isLoadingMessages?: boolean;
   onTyping?: (isTyping: boolean) => void;
   onSendMessage: (
     text: string,
@@ -51,6 +53,7 @@ export const ResearcherChatWindowPanel: React.FC<ResearcherChatWindowPanelProps>
   conversation,
   initialDraft,
   isTyping = false,
+  isLoadingMessages = false,
   onTyping,
   onSendMessage,
   onUploadFile,
@@ -568,7 +571,9 @@ export const ResearcherChatWindowPanel: React.FC<ResearcherChatWindowPanelProps>
         </div>
 
         {/* Messages List */}
-        {displayedMessages.length === 0 ? (
+        {isLoadingMessages ? (
+          <SkeletonList variant="chat-messages" count={5} />
+        ) : displayedMessages.length === 0 ? (
           <div className="p-8 text-center text-xs text-slate-400">
             Tidak ada pesan yang cocok dengan &ldquo;{searchInChatQuery}&rdquo;.
           </div>

@@ -12,6 +12,7 @@ import { INITIAL_LAND_COVERS, INITIAL_INDEX_LIST } from '../mock/spatialData';
 import { getHistoricalStudiesForArea } from '../mock/historicalAnalyticsMock';
 import { aggregateProjectValuation } from '../utils/valuationAggregator';
 import { EcosystemServiceId } from '../types/valuation';
+import { Skeleton, SkeletonTable, EmptyState } from '../../components/loading';
 
 // Standard limits for academic report compactness
 const MAX_VALUATION_ROWS_PER_AREA = 10;
@@ -27,6 +28,7 @@ export const ReportPrintView: React.FC = () => {
     activeProject,
     activeProjectId,
     projects,
+    projectsLoading,
     getProjectLandCovers,
     getProjectIndices,
     getAreaConfig
@@ -43,6 +45,7 @@ export const ReportPrintView: React.FC = () => {
   const paddedTargetCode = `PRJ-${String(effectiveProjId).padStart(3, '0')}`;
 
   const [fetchedProject, setFetchedProject] = useState<any>(null);
+  const [isLoadingProject, setIsLoadingProject] = useState(false);
 
   const matchedProject =
     projects.find(p => {
@@ -56,6 +59,7 @@ export const ReportPrintView: React.FC = () => {
 
   useEffect(() => {
     if (!matchedProject && effectiveProjId) {
+      setIsLoadingProject(true);
       getProyekById(effectiveProjId)
         .then((data) => {
           if (data) {
@@ -72,7 +76,10 @@ export const ReportPrintView: React.FC = () => {
             });
           }
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => {
+          setIsLoadingProject(false);
+        });
     }
   }, [matchedProject, effectiveProjId]);
 
@@ -429,6 +436,51 @@ export const ReportPrintView: React.FC = () => {
   const handlePrint = () => {
     window.print();
   };
+
+  if ((projectsLoading || isLoadingProject) && !currentProject) {
+    return (
+      <div className="min-h-screen bg-slate-200 p-3 sm:p-6 md:p-8 font-sans text-slate-900">
+        <div className="max-w-[210mm] mx-auto mb-4 flex items-center justify-between">
+          <Skeleton className="h-9 w-24 rounded-lg" />
+          <Skeleton className="h-9 w-32 rounded-lg" />
+        </div>
+        <div className="max-w-[210mm] mx-auto bg-white shadow-xl p-8 sm:p-12 space-y-8 rounded-sm">
+          <div className="flex items-center gap-4 border-b-2 border-slate-200 pb-6">
+            <Skeleton className="w-16 h-16 rounded-full shrink-0" />
+            <div className="space-y-2 flex-1">
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="h-6 w-3/4" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          </div>
+          <div className="space-y-3">
+            <Skeleton className="h-5 w-40" />
+            <SkeletonTable columns={4} rows={3} />
+          </div>
+          <div className="space-y-3">
+            <Skeleton className="h-5 w-48" />
+            <Skeleton className="h-20 w-full" />
+            <SkeletonTable columns={5} rows={4} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentProject) {
+    return (
+      <div className="min-h-screen bg-slate-200 p-8 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full text-center">
+          <EmptyState
+            title="Laporan Tidak Ditemukan"
+            description={`Data proyek dengan ID "${effectiveProjId}" tidak ditemukan atau gagal dimuat.`}
+            actionText="Kembali"
+            onAction={handleBack}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-200 p-3 sm:p-6 md:p-8 font-sans text-slate-900 print:bg-white print:p-0">

@@ -12,6 +12,7 @@ import {
   Sparkles,
   X
 } from 'lucide-react';
+import { SkeletonList } from '../../../components/loading';
 
 export const ConversationListPanel = ({
   conversations,
@@ -19,6 +20,7 @@ export const ConversationListPanel = ({
   onSelectConversation,
   onNewConversation,
   directoryUsers = [],
+  isLoading = false,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeRoleFilter, setActiveRoleFilter] = useState('ALL');
@@ -135,7 +137,9 @@ export const ConversationListPanel = ({
 
       {/* 4. Scrollable Conversation List */}
       <div className="flex-1 overflow-y-auto divide-y divide-slate-100/80">
-        {filteredConversations.length === 0 ? (
+        {isLoading && conversations.length === 0 ? (
+          <SkeletonList variant="conversation" count={6} />
+        ) : filteredConversations.length === 0 ? (
           <div className="p-8 text-center text-slate-400 text-xs space-y-1">
             <p className="font-semibold text-slate-600">Tidak ada percakapan ditemukan</p>
             <p className="text-[11px]">Coba cari dengan kata kunci lain atau ubah filter role.</p>

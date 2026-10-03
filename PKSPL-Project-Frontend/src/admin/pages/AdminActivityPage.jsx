@@ -26,11 +26,12 @@ import {
   ChevronRight
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { SkeletonCard, SkeletonTable, EmptyState, RefreshIndicator } from '../../components/loading';
 
 export const AdminActivityPage = () => {
   // Dynamic Activity Logs & Stats from Backend Database
-  const [logs, setLogs] = useState(AUDIT_LOGS_DATA);
-  const [stats, setStats] = useState(AUDIT_SUMMARY_STATS);
+  const [logs, setLogs] = useState([]);
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Filter States
@@ -59,10 +60,17 @@ export const AdminActivityPage = () => {
         setLogs(res.data);
         if (res.stats) {
           setStats(res.stats);
+        } else {
+          setStats(AUDIT_SUMMARY_STATS);
         }
+      } else {
+        setLogs(AUDIT_LOGS_DATA);
+        setStats(AUDIT_SUMMARY_STATS);
       }
     } catch (err) {
       console.warn('Gagal memuat log aktivitas dari backend, menggunakan data lokal:', err);
+      setLogs(AUDIT_LOGS_DATA);
+      setStats(AUDIT_SUMMARY_STATS);
     } finally {
       setLoading(false);
     }
@@ -260,7 +268,8 @@ export const AdminActivityPage = () => {
         </div>
 
         {/* Header Actions */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0">
+          <RefreshIndicator isRefreshing={loading && logs.length > 0} label="Menyinkronkan log..." />
           <button
             onClick={fetchActivityLogs}
             disabled={loading}
@@ -298,51 +307,55 @@ export const AdminActivityPage = () => {
       </div>
 
       {/* 2. 4 Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Aktivitas Hari Ini</span>
-            <Activity className="w-5 h-5 text-blue-600" />
+      {loading && !stats ? (
+        <SkeletonCard count={4} variant="kpi" />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Aktivitas Hari Ini</span>
+              <Activity className="w-5 h-5 text-blue-600" />
+            </div>
+            <div className="text-2xl font-bold text-slate-900">
+              {stats?.todayActivities ?? 0}
+            </div>
+            <p className="text-[11px] text-emerald-600 font-semibold">{stats?.todayGrowth ?? ''}</p>
           </div>
-          <div className="text-2xl font-bold text-slate-900">
-            {loading ? <span className="text-slate-300 animate-pulse">...</span> : stats.todayActivities}
-          </div>
-          <p className="text-[11px] text-emerald-600 font-semibold">{stats.todayGrowth}</p>
-        </div>
 
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Pengguna Aktif</span>
-            <Users className="w-5 h-5 text-purple-600" />
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Pengguna Aktif</span>
+              <Users className="w-5 h-5 text-purple-600" />
+            </div>
+            <div className="text-2xl font-bold text-slate-900">
+              {stats?.activeUsers ?? 0}
+            </div>
+            <p className="text-[11px] text-slate-500">{stats?.activeUsersDesc ?? ''}</p>
           </div>
-          <div className="text-2xl font-bold text-slate-900">
-            {loading ? <span className="text-slate-300 animate-pulse">...</span> : stats.activeUsers}
-          </div>
-          <p className="text-[11px] text-slate-500">{stats.activeUsersDesc}</p>
-        </div>
 
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Perubahan Data</span>
-            <Database className="w-5 h-5 text-emerald-600" />
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Perubahan Data</span>
+              <Database className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div className="text-2xl font-bold text-slate-900">
+              {stats?.dataChanges ?? 0}
+            </div>
+            <p className="text-[11px] text-slate-500">{stats?.dataChangesDesc ?? ''}</p>
           </div>
-          <div className="text-2xl font-bold text-slate-900">
-            {loading ? <span className="text-slate-300 animate-pulse">...</span> : stats.dataChanges}
-          </div>
-          <p className="text-[11px] text-slate-500">{stats.dataChangesDesc}</p>
-        </div>
 
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Aksi Penting</span>
-            <ShieldAlert className="w-5 h-5 text-amber-600" />
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Aksi Penting</span>
+              <ShieldAlert className="w-5 h-5 text-amber-600" />
+            </div>
+            <div className="text-2xl font-bold text-slate-900">
+              {stats?.importantActivities ?? 0}
+            </div>
+            <p className="text-[11px] text-slate-500">{stats?.importantActivitiesDesc ?? ''}</p>
           </div>
-          <div className="text-2xl font-bold text-slate-900">
-            {loading ? <span className="text-slate-300 animate-pulse">...</span> : stats.importantActivities}
-          </div>
-          <p className="text-[11px] text-slate-500">{stats.importantActivitiesDesc}</p>
         </div>
-      </div>
+      )}
 
       {/* 3. Main Filter & Table Card */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden space-y-0">
@@ -489,21 +502,17 @@ export const AdminActivityPage = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {paginatedLogs.length === 0 ? (
+              {loading && logs.length === 0 ? (
+                <SkeletonTable columns={7} rows={8} />
+              ) : paginatedLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
-                    <div className="max-w-sm mx-auto space-y-2">
-                      <p className="font-semibold text-slate-600">Tidak ada data aktivitas audit ditemukan</p>
-                      <p className="text-[11px]">Silakan sesuaikan kata kunci pencarian atau reset filter untuk menampilkan log kembali.</p>
-                      {isFiltered && (
-                        <button
-                          onClick={handleResetFilters}
-                          className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded-lg text-xs transition-colors cursor-pointer"
-                        >
-                          Reset Semua Filter
-                        </button>
-                      )}
-                    </div>
+                  <td colSpan={7} className="py-12 text-center">
+                    <EmptyState
+                      title="Tidak Ada Data Aktivitas"
+                      description={isFiltered ? "Silakan sesuaikan kata kunci pencarian atau reset filter untuk menampilkan log kembali." : "Belum ada riwayat aktivitas yang tercatat di sistem."}
+                      actionText={isFiltered ? "Reset Semua Filter" : undefined}
+                      onAction={isFiltered ? handleResetFilters : undefined}
+                    />
                   </td>
                 </tr>
               ) : (

@@ -5,12 +5,13 @@ import { formatIDR, formatNumber } from '../utils/formatter';
 import { ProjectModulesModal } from '../components/ProjectModulesModal';
 import { FolderKanban, Plus, Search, Eye, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { SkeletonTable, EmptyState, RefreshIndicator } from '../../components/loading';
 
 export const AdminProjectsPage = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
-  const [projectsList, setProjectsList] = useState(ADMIN_PROJECTS_LIST);
-  const [loading, setLoading] = useState(false);
+  const [projectsList, setProjectsList] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedProjectForModal, setSelectedProjectForModal] = useState(null);
   const [isModulesModalOpen, setIsModulesModalOpen] = useState(false);
 
@@ -37,9 +38,12 @@ export const AdminProjectsPage = () => {
             };
           });
           setProjectsList(formatted);
+        } else if (isMounted) {
+          setProjectsList(ADMIN_PROJECTS_LIST);
         }
       } catch (err) {
         console.warn('API getProyekList fallback to mock:', err);
+        if (isMounted) setProjectsList(ADMIN_PROJECTS_LIST);
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -101,6 +105,7 @@ export const AdminProjectsPage = () => {
               className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
+          <RefreshIndicator isRefreshing={loading && projectsList.length > 0} label="Menyinkronkan data..." />
         </div>
 
         {/* Table */}
@@ -117,10 +122,17 @@ export const AdminProjectsPage = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredProjects.length === 0 ? (
+              {loading && projectsList.length === 0 ? (
+                <SkeletonTable columns={6} rows={6} />
+              ) : filteredProjects.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400">
-                    Tidak ada proyek yang sesuai dengan kriteria pencarian.
+                  <td colSpan={6} className="py-10 text-center">
+                    <EmptyState
+                      title="Proyek Tidak Ditemukan"
+                      description={searchTerm ? `Tidak ada proyek yang cocok dengan kata kunci "${searchTerm}".` : "Belum ada proyek valuasi yang terdata di sistem."}
+                      actionText={searchTerm ? "Reset Pencarian" : undefined}
+                      onAction={searchTerm ? () => setSearchTerm('') : undefined}
+                    />
                   </td>
                 </tr>
               ) : (

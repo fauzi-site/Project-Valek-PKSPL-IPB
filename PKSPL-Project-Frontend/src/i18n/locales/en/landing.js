@@ -21,8 +21,8 @@ export default {
   },
   workflow: {
     tag: "RESEARCH WORKFLOW",
-    title: "Ecosystem Valuation Workflow Guide",
-    subtitle: "Six structured stages for conducting coastal and marine resource economic valuation studies and analysis.",
+    title: "Valuation Form Workflow Guide",
+    subtitle: "Follow these steps to complete coastal and marine ecosystem valuation forms comprehensively and accurately.",
     step1Title: "Create or Select Project",
     step1Desc: "Initiate research projects by providing regional identity data, lead researchers, and study scope.",
     step2Title: "Define Spatial Location",
@@ -35,6 +35,8 @@ export default {
     step5Desc: "Enter market pricing, travel cost, or CVM variables for automated calculation of Total Economic Value (TEV).",
     step6Title: "Review Analysis & Reports",
     step6Desc: "Validate estimated metrics, inspect sensitivity charts, and generate comprehensive scientific reports.",
+    ctaTitle: "Ready to Perform Valuation Analysis?",
+    ctaDesc: "Access PKSPL IPB researcher module to initiate project data and calculate TEV.",
     startWorkflow: "Access Research Workspace",
     viewWorkflowInfo: "Learn Methodology"
   },

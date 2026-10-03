@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Users, Search, Mail, CheckCircle2, UserPlus, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatUserLastActive } from '../utils/formatter';
+import { SkeletonTable, EmptyState, RefreshIndicator, LoadingButton } from '../../components/loading';
 
 /**
  * Check if a user is currently online based on the active authenticated session.
@@ -121,7 +122,7 @@ function UserActionModal({ isOpen, onClose, title, confirmText, initialData, rol
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-xs" onClick={onClose} />
-      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md p-6 z-10 animate-in text-slate-800">
+      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md p-5 sm:p-6 z-10 animate-in text-slate-800 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
           <h2 className="text-base font-bold text-slate-900">{title}</h2>
           <button
@@ -201,17 +202,19 @@ function UserActionModal({ isOpen, onClose, title, confirmText, initialData, rol
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium transition-colors cursor-pointer"
+              disabled={isSubmitting}
+              className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium transition-colors cursor-pointer disabled:opacity-50"
             >
               Batal
             </button>
-            <button
+            <LoadingButton
               type="submit"
-              disabled={isSubmitting}
-              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+              isLoading={isSubmitting}
+              loadingText="Menyimpan..."
+              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-xs"
             >
-              {isSubmitting ? 'Menyimpan...' : confirmText}
-            </button>
+              {confirmText}
+            </LoadingButton>
           </div>
         </form>
       </div>
@@ -223,9 +226,9 @@ export const AdminUsersPage = () => {
   const { user: currentAuthUser } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
-  const [usersList, setUsersList] = useState(ADMIN_USERS_LIST);
+  const [usersList, setUsersList] = useState([]);
   const [roles, setRoles] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Modal states
@@ -265,9 +268,12 @@ export const AdminUsersPage = () => {
           is_verified: u.is_verified ?? u.email_verified_at ? true : false,
         }));
         setUsersList(formatted);
+      } else {
+        setUsersList(ADMIN_USERS_LIST);
       }
     } catch (err) {
       console.warn('API users fallback to mock:', err);
+      setUsersList(ADMIN_USERS_LIST);
     } finally {
       setLoading(false);
     }
@@ -419,15 +425,18 @@ export const AdminUsersPage = () => {
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
         {/* Table Toolbar */}
         <div className="p-4 bg-slate-50/70 border-b border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-          <div className="relative w-full sm:w-72">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Cari nama, email, institusi..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="relative w-full sm:w-72">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Cari nama, email, institusi..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+            <RefreshIndicator isRefreshing={loading && usersList.length > 0} label="Menyinkronkan..." />
           </div>
 
           <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto">
@@ -460,10 +469,17 @@ export const AdminUsersPage = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredUsers.length === 0 ? (
+              {loading && usersList.length === 0 ? (
+                <SkeletonTable columns={5} rows={6} />
+              ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-slate-400">
-                    Tidak ada data pengguna yang sesuai dengan filter.
+                  <td colSpan={5} className="py-10 text-center">
+                    <EmptyState
+                      title="Pengguna Tidak Ditemukan"
+                      description={searchTerm ? `Tidak ada akun yang cocok dengan kata kunci "${searchTerm}".` : "Belum ada akun pengguna yang terdaftar."}
+                      actionText={searchTerm ? "Reset Pencarian" : undefined}
+                      onAction={searchTerm ? () => setSearchTerm('') : undefined}
+                    />
                   </td>
                 </tr>
               ) : (

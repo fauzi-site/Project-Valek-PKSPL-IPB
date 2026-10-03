@@ -10,6 +10,7 @@ import {
   CheckCheck,
   Check,
 } from 'lucide-react';
+import { SkeletonList } from '../../../components/loading';
 
 interface ResearcherConversationListPanelProps {
   conversations: Conversation[];
@@ -213,19 +214,7 @@ export const ResearcherConversationListPanel: React.FC<ResearcherConversationLis
       {/* ------------------------------------------------------------- */}
       <div className="flex-1 overflow-y-auto divide-y divide-slate-100/80">
         {isLoading ? (
-          // Loading Skeleton
-          <div className="p-4 space-y-4 animate-pulse">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-full bg-slate-200 shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-3.5 bg-slate-200 rounded w-3/4" />
-                  <div className="h-2.5 bg-slate-100 rounded w-1/2" />
-                  <div className="h-2.5 bg-slate-100 rounded w-5/6" />
-                </div>
-              </div>
-            ))}
-          </div>
+          <SkeletonList variant="conversation" count={5} />
         ) : filteredConversations.length === 0 ? (
           // Empty state
           <div className="p-8 text-center text-slate-400 text-xs space-y-2">

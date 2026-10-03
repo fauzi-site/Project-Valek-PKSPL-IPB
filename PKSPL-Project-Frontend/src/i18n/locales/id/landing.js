@@ -21,8 +21,8 @@ export default {
   },
   workflow: {
     tag: "ALUR KERJA RISET",
-    title: "Panduan Alur Valuasi Ekosistem",
-    subtitle: "Enam tahapan terstruktur dalam penyusunan studi dan analisis valuasi ekonomi sumber daya pesisir dan laut.",
+    title: "Panduan Alur Pengisian Form Valuasi",
+    subtitle: "Ikuti langkah-langkah berikut untuk mengisi form valuasi ekosistem pesisir dan laut secara lengkap dan akurat.",
     step1Title: "Membuat atau Memilih Proyek",
     step1Desc: "Inisiasi proyek penelitian dengan mengisi data identitas kawasan, koordinator riset, serta cakupan studi.",
     step2Title: "Menentukan Lokasi & Spasial",
@@ -35,6 +35,8 @@ export default {
     step5Desc: "Memasukkan variabel harga pasar, biaya perjalanan, atau CVM untuk kalkulasi otomatis nilai TEV.",
     step6Title: "Meninjau Analisis & Laporan",
     step6Desc: "Memvalidasi hasil estimasi, menelaah grafik sensitivitas, dan menyusun laporan saintifik komprehensif.",
+    ctaTitle: "Siap Melakukan Analisis Valuasi?",
+    ctaDesc: "Akses modul peneliti PKSPL IPB untuk memulai pencatatan proyek dan perhitungan TEV.",
     startWorkflow: "Mulai ke Ruang Riset",
     viewWorkflowInfo: "Pelajari Metodologi"
   },

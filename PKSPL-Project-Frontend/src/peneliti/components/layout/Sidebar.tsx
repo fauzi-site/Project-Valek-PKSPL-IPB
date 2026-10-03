@@ -16,16 +16,24 @@ import {
   ChevronLeft,
   ChevronRight,
   Home,
-  MessageSquare
+  MessageSquare,
+  X
 } from 'lucide-react';
 import { SidebarAccountMenu } from '../../../components/profile/SidebarAccountMenu';
 
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
+  isMobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
+export const Sidebar: React.FC<SidebarProps> = ({
+  collapsed,
+  onToggle,
+  isMobileOpen = false,
+  onMobileClose
+}) => {
   const { activeProject, activeProjectId } = useProject();
   const { user } = useAuth() || {};
   const isAdmin = user?.role?.nama_role === 'Super Admin' || user?.role?.nama_role === 'Admin' || user?.role === 'admin';
@@ -107,38 +115,57 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
     : allWorkflowItems;
 
   return (
-    <aside
-      className={`bg-slate-900 text-slate-300 flex flex-col transition-all duration-200 ease-in-out border-r border-slate-800 z-40 select-none ${
-        collapsed ? 'w-16' : 'w-64'
-      }`}
-    >
-      {/* Brand Header */}
-      <div className="h-16 px-4 flex items-center justify-between border-b border-slate-800 bg-slate-950/40">
-        {!collapsed && (
-          <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-sm flex-shrink-0">
+    <>
+      {/* Mobile Backdrop Overlay */}
+      {isMobileOpen && (
+        <div
+          onClick={onMobileClose}
+          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-40 md:hidden transition-opacity"
+        />
+      )}
+
+      <aside
+        className={`fixed md:static inset-y-0 left-0 z-50 bg-slate-900 text-slate-300 flex flex-col transition-all duration-300 ease-in-out border-r border-slate-800 select-none ${
+          isMobileOpen ? 'translate-x-0 w-72 shadow-2xl' : '-translate-x-full md:translate-x-0'
+        } ${collapsed ? 'md:w-16' : 'md:w-64'}`}
+      >
+        {/* Brand Header */}
+        <div className="h-16 px-4 flex items-center justify-between border-b border-slate-800 bg-slate-950/40 shrink-0">
+          {(!collapsed || isMobileOpen) && (
+            <div className="flex items-center gap-2.5 overflow-hidden">
+              <div className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-sm flex-shrink-0">
+                PK
+              </div>
+              <div className="leading-tight truncate">
+                <div className="text-sm font-bold text-white tracking-wider">PKSPL</div>
+                <div className="text-[11px] text-slate-400 font-medium">Sistem Valuasi</div>
+              </div>
+            </div>
+          )}
+          {collapsed && !isMobileOpen && (
+            <div className="w-8 h-8 mx-auto rounded bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-sm">
               PK
             </div>
-            <div className="leading-tight truncate">
-              <div className="text-sm font-bold text-white tracking-wider">PKSPL</div>
-              <div className="text-[11px] text-slate-400 font-medium">Sistem Valuasi</div>
-            </div>
-          </div>
-        )}
-        {collapsed && (
-          <div className="w-8 h-8 mx-auto rounded bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-sm">
-            PK
-          </div>
-        )}
+          )}
 
-        <button
-          onClick={onToggle}
-          title={collapsed ? "Perluas sidebar" : "Ciutkan sidebar"}
-          className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-        >
-          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-        </button>
-      </div>
+          {/* Desktop Collapse Toggle Button */}
+          <button
+            onClick={onToggle}
+            title={collapsed ? "Perluas sidebar" : "Ciutkan sidebar"}
+            className="hidden md:flex p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+          >
+            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </button>
+
+          {/* Mobile Drawer Close Button */}
+          <button
+            onClick={onMobileClose}
+            title="Tutup navigasi"
+            className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
       {/* Active Project Banner in Sidebar */}
       {!collapsed && activeProject && (
@@ -171,6 +198,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
             <NavLink
               key={item.num}
               to={item.path}
+              onClick={() => onMobileClose?.()}
               title={collapsed ? `${item.num} ${item.title}` : undefined}
               className={({ isActive }) => {
                 const active = isCurrent || isActive;
@@ -185,7 +213,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                 <Icon className="w-4 h-4" />
               </div>
 
-              {!collapsed && (
+              {(!collapsed || isMobileOpen) && (
                 <div className="flex items-center gap-2 w-full truncate">
                   <span className="text-[11px] font-mono opacity-60">{item.num}</span>
                   <span className="truncate">{item.title}</span>
@@ -197,13 +225,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
 
         {/* Komunikasi & Pesan */}
         <div className="pt-2 pb-1 border-t border-slate-800/80 space-y-1">
-          {!collapsed && (
+          {(!collapsed || isMobileOpen) && (
             <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
               Komunikasi
             </div>
           )}
           <NavLink
             to={`/peneliti/projects/${projId}/messages`}
+            onClick={() => onMobileClose?.()}
             title={collapsed ? 'Pesan & Komunikasi' : undefined}
             className={({ isActive }) => {
               const active = isActive || location.pathname.includes('/messages');
@@ -211,7 +240,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                 active
                   ? 'bg-blue-600 text-white font-semibold shadow-sm'
                   : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-              } ${collapsed ? 'justify-center px-0' : ''}`;
+              } ${collapsed && !isMobileOpen ? 'justify-center px-0' : ''}`;
             }}
           >
             <div className="flex items-center justify-center flex-shrink-0 relative">
@@ -242,5 +271,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
       {/* Standardized Bottom Profile & Logout Section */}
       <SidebarAccountMenu collapsed={collapsed} />
     </aside>
+    </>
   );
 };

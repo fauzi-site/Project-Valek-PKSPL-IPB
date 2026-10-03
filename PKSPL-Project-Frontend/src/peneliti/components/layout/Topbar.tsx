@@ -16,7 +16,8 @@ import {
   Wifi,
   WifiOff,
   AlertTriangle,
-  FileText
+  FileText,
+  Menu
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -32,9 +33,10 @@ import {
 
 interface TopbarProps {
   onToggleSidebar?: () => void;
+  onToggleMobileSidebar?: () => void;
 }
 
-export const Topbar: React.FC<TopbarProps> = () => {
+export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar, onToggleMobileSidebar }) => {
   const { activeProject, projects, setActiveProjectId } = useProject();
   const { totalUnreadCount: chatUnreadCount } = useChat();
   const location = useLocation();
@@ -250,28 +252,38 @@ export const Topbar: React.FC<TopbarProps> = () => {
   };
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 px-4 md:px-6 flex items-center justify-between gap-3 sticky top-0 z-30 shadow-xs">
-      {/* Left: Breadcrumbs & Project Selector */}
-      <div className="flex items-center gap-3 flex-nowrap whitespace-nowrap min-w-0">
-        <div className="flex items-center gap-2 text-sm text-slate-500 font-medium shrink-0">
+    <header className="h-16 bg-white border-b border-slate-200 px-3 sm:px-4 md:px-6 flex items-center justify-between gap-2 sm:gap-3 sticky top-0 z-30 shadow-xs">
+      {/* Left: Hamburger (Mobile) + Breadcrumbs & Project Selector */}
+      <div className="flex items-center gap-2 sm:gap-3 flex-nowrap whitespace-nowrap min-w-0">
+        {/* Mobile Hamburger Drawer Trigger */}
+        <button
+          type="button"
+          onClick={onToggleMobileSidebar}
+          className="p-1.5 -ml-1 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg md:hidden shrink-0 transition-colors cursor-pointer"
+          aria-label="Buka menu navigasi"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
+        <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-slate-500 font-medium shrink-0">
           <span className="text-slate-800 font-semibold tracking-tight">PKSPL</span>
-          <ChevronRight className="w-4 h-4 text-slate-400" />
+          <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 hidden sm:inline" />
           <span className="hidden sm:inline">Sistem Valuasi</span>
-          <ChevronRight className="w-4 h-4 text-slate-400 hidden sm:inline" />
-          <span className="text-blue-700 font-medium bg-blue-50 px-2 py-0.5 rounded text-xs shrink-0">
+          <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400" />
+          <span className="text-blue-700 font-medium bg-blue-50 px-1.5 sm:px-2 py-0.5 rounded text-[11px] sm:text-xs shrink-0 max-w-[120px] sm:max-w-none truncate">
             {currentStepName}
           </span>
         </div>
 
         {/* Project Switcher Dropdown */}
         {selectedProj && (
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="hidden sm:block w-px h-6 bg-slate-200 mx-1"></div>
-            <FolderGit2 className="w-4 h-4 text-slate-400 shrink-0" />
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink min-w-0">
+            <div className="hidden sm:block w-px h-6 bg-slate-200 mx-0.5 sm:mx-1"></div>
+            <FolderGit2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 shrink-0" />
             <select
               value={selectedProjId}
               onChange={handleProjectSelect}
-              className="text-xs bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded px-2.5 py-1 text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 w-[120px] sm:w-[160px] md:w-auto md:max-w-[200px] lg:max-w-xs truncate cursor-pointer shrink"
+              className="text-xs bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded px-2 py-1 text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 w-[95px] xs:w-[130px] sm:w-[160px] md:w-auto md:max-w-[200px] lg:max-w-xs truncate cursor-pointer shrink"
             >
               {projects.map(p => (
                 <option key={p.id} value={p.id}>
@@ -312,7 +324,7 @@ export const Topbar: React.FC<TopbarProps> = () => {
 
           {/* Realtime Pop-up di Lonceng (Muncul saat Online) */}
           {incomingBellAlert && !showNotifications && (
-            <div className="absolute right-0 top-12 z-50 w-80 bg-white rounded-2xl shadow-2xl border-2 border-emerald-500 p-3.5 animate-in fade-in slide-in-from-top-3 duration-200">
+            <div className="absolute right-0 top-12 z-50 w-[calc(100vw-2rem)] max-w-sm sm:w-80 bg-white rounded-2xl shadow-2xl border-2 border-emerald-500 p-3.5 animate-in fade-in slide-in-from-top-3 duration-200">
               <div className="flex items-start gap-3">
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
                   incomingBellAlert.type === 'SELESAI'
@@ -387,7 +399,7 @@ export const Topbar: React.FC<TopbarProps> = () => {
 
           {/* Notification Popover Dropdown */}
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-[340px] sm:w-[410px] bg-white rounded-2xl shadow-2xl border border-slate-200 py-0 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="fixed sm:absolute inset-x-2 sm:inset-x-auto sm:right-0 top-16 sm:top-auto sm:mt-2 w-auto sm:w-[410px] max-w-[calc(100vw-1rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 py-0 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
               {/* Header */}
               <div className="px-4 py-3 bg-gradient-to-r from-slate-900 via-slate-800 to-blue-950 text-white flex items-center justify-between">
                 <div className="flex items-center gap-2">

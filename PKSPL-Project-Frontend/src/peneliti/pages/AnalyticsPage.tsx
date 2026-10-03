@@ -38,6 +38,13 @@ import {
 } from 'lucide-react';
 import { getMethodSchema } from '../types/methodSchemas';
 import {
+  Skeleton,
+  SkeletonCard,
+  SkeletonChart,
+  EmptyState,
+  RefreshIndicator
+} from '../../components/loading';
+import {
   ResponsiveContainer,
   BarChart,
   Bar,
@@ -121,6 +128,7 @@ const AnalyticsPageContent: React.FC = () => {
   const params = useParams<{ projectId?: string }>();
   const {
     projects,
+    projectsLoading,
     activeProject,
     activeProjectId,
     setActiveProjectId,
@@ -548,6 +556,41 @@ const AnalyticsPageContent: React.FC = () => {
   const hasContributionData    = hasAnyValue && serviceContributions.some(s => s.nominal > 0);
   const hasMethodData          = methodByServiceData.some(m => m.nominal > 0);
   const hasInputSummaryData    = inputSummary.some(d => d.itemCount > 0);
+
+  if (projectsLoading && !currentProject) {
+    return (
+      <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-8 animate-content-fade-in">
+        <div className="p-6 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-3">
+          <Skeleton className="h-6 w-72" />
+          <Skeleton className="h-4 w-96" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <SkeletonCard count={4} variant="kpi" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="p-6 bg-white rounded-xl border border-slate-200 shadow-2xs">
+            <SkeletonChart variant="bar" height={280} />
+          </div>
+          <div className="p-6 bg-white rounded-xl border border-slate-200 shadow-2xs">
+            <SkeletonChart variant="donut" height={280} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentProject) {
+    return (
+      <div className="p-8 max-w-2xl mx-auto my-12 bg-white border border-slate-200 rounded-lg shadow-sm text-center">
+        <EmptyState
+          title="Project Tidak Ditemukan"
+          description={`Project dengan kode atau ID "${routeProjId}" tidak ditemukan di sistem.`}
+          actionText="Kembali ke Daftar Proyek"
+          onAction={() => navigate('/peneliti/projects')}
+        />
+      </div>
+    );
+  }
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (

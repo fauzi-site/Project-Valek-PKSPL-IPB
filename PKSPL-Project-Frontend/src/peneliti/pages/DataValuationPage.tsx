@@ -11,6 +11,12 @@ import { EcosystemServiceId } from '../types/valuation';
 import { getMethodSchema } from '../types/methodSchemas';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
 import {
+  Skeleton,
+  SkeletonTable,
+  EmptyState,
+  RefreshIndicator
+} from '../../components/loading';
+import {
   TableProperties,
   ArrowRight,
   FolderX,
@@ -25,6 +31,7 @@ const DataValuationPageContent: React.FC = () => {
   const params = useParams<{ projectId?: string }>();
   const {
     projects,
+    projectsLoading,
     activeProject,
     activeProjectId,
     setActiveProjectId,
@@ -243,24 +250,38 @@ const DataValuationPageContent: React.FC = () => {
   };
 
   // -------------------------------------------------------------
+  // LOADING STATE: Loading project metadata
+  // -------------------------------------------------------------
+  if (projectsLoading && !currentProject) {
+    return (
+      <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
+        <div className="p-6 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-3">
+          <Skeleton className="h-6 w-72" />
+          <Skeleton className="h-4 w-96" />
+        </div>
+        <div className="p-6 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-4">
+          <div className="flex justify-between items-center">
+            <Skeleton className="h-5 w-48" />
+            <Skeleton className="h-8 w-32 rounded-lg" />
+          </div>
+          <SkeletonTable columns={6} rows={6} />
+        </div>
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------
   // FALLBACK 1: Project Not Found
   // -------------------------------------------------------------
   if (!currentProject) {
     return (
-      <div className="p-8 max-w-2xl mx-auto my-12 bg-white border border-slate-200 rounded-lg shadow-sm text-center space-y-4">
-        <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
-          <FolderX className="w-6 h-6" />
-        </div>
-        <h2 className="text-lg font-bold text-slate-900">Project Tidak Ditemukan</h2>
-        <p className="text-xs text-slate-500 max-w-md mx-auto">
-          Project dengan kode atau ID &ldquo;<span className="font-mono font-bold text-slate-700">{routeProjId}</span>&rdquo; tidak ditemukan di dalam sistem.
-        </p>
-        <button
-          onClick={() => navigate('/peneliti/projects')}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold cursor-pointer"
-        >
-          Kembali ke Daftar Proyek
-        </button>
+      <div className="p-8 max-w-2xl mx-auto my-12 bg-white border border-slate-200 rounded-lg shadow-sm text-center">
+        <EmptyState
+          title="Project Tidak Ditemukan"
+          description={`Project dengan kode atau ID "${routeProjId}" tidak ditemukan di dalam sistem.`}
+          actionText="Kembali ke Daftar Proyek"
+          onAction={() => navigate('/peneliti/projects')}
+        />
       </div>
     );
   }

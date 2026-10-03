@@ -4,17 +4,46 @@ import {
   Activity,
   Globe,
   Monitor,
-  ExternalLink,
+  FileText,
   Clock,
   Code,
   AlertCircle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { getTargetProjectId } from '../ProjectModulesModal';
 
 export const AdminActivityDetailModal = ({ activity, onClose }) => {
   const navigate = useNavigate();
 
   if (!activity) return null;
+
+  const handlePreviewReport = () => {
+    const targetProjectId = getTargetProjectId({
+      code: activity.projectCode,
+      kode_proyek: activity.projectCode,
+      id: activity.projectId || activity.id_proyek,
+    });
+    const effectiveCode = activity.projectCode || `PRJ-${targetProjectId}`;
+
+    try {
+      localStorage.setItem('pkspl_active_project_id', String(targetProjectId));
+      localStorage.setItem('pkspl_active_project_code', String(effectiveCode));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('pkspl_active_project_changed', {
+            detail: { id: targetProjectId, code: effectiveCode }
+          })
+        );
+      }
+    } catch {
+      // ignore
+    }
+
+    onClose();
+    navigate(`/peneliti/projects/${targetProjectId}/review/preview`, {
+      state: { from: 'admin' }
+    });
+  };
 
   const getActivityTypeBadge = (type) => {
     switch (type) {
@@ -189,14 +218,12 @@ export const AdminActivityDetailModal = ({ activity, onClose }) => {
 
               {activity.projectCode && (
                 <button
-                  onClick={() => {
-                    onClose();
-                    navigate('/peneliti/projects');
-                  }}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors self-start sm:self-auto cursor-pointer"
+                  onClick={handlePreviewReport}
+                  className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors self-start sm:self-auto cursor-pointer shadow-2xs"
+                  title="Lihat preview laporan proyek ini"
                 >
-                  <span>Buka Proyek</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Preview Laporan</span>
                 </button>
               )}
             </div>

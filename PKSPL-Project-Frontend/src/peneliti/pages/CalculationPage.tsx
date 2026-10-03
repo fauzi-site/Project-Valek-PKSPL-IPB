@@ -38,6 +38,13 @@ import {
 } from 'lucide-react';
 import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
+import {
+  Skeleton,
+  SkeletonCard,
+  SkeletonTable,
+  EmptyState,
+  RefreshIndicator
+} from '../../components/loading';
 
 interface RowFormulaBreakdown {
   no: number;
@@ -57,7 +64,16 @@ interface RowFormulaBreakdown {
 
 const CalculationPageContent: React.FC = () => {
   const params = useParams<{ projectId?: string }>();
-  const { projects, activeProject, activeProjectId, setActiveProjectId, landCovers, indices, getAreaConfig } = useProject();
+  const {
+    projects,
+    projectsLoading,
+    activeProject,
+    activeProjectId,
+    setActiveProjectId,
+    landCovers,
+    indices,
+    getAreaConfig
+  } = useProject();
   const { getServiceSubtotal, getGrandTotalForArea, getRows } = useSpreadsheet();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -656,6 +672,36 @@ const CalculationPageContent: React.FC = () => {
       type: 'Direct & Option Value',
     }
   ].filter(card => isServiceActiveInScope(card.id));
+
+  if (projectsLoading && !currentProject) {
+    return (
+      <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6">
+        <div className="p-6 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-3">
+          <Skeleton className="h-6 w-72" />
+          <Skeleton className="h-4 w-96" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <SkeletonCard count={4} variant="kpi" />
+        </div>
+        <div className="p-6 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-4">
+          <SkeletonTable columns={6} rows={6} />
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentProject) {
+    return (
+      <div className="p-8 max-w-2xl mx-auto my-12 bg-white border border-slate-200 rounded-lg shadow-sm text-center">
+        <EmptyState
+          title="Project Tidak Ditemukan"
+          description={`Project dengan kode atau ID "${routeProjId}" tidak ditemukan di sistem.`}
+          actionText="Kembali ke Daftar Proyek"
+          onAction={() => navigate('/peneliti/projects')}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6">

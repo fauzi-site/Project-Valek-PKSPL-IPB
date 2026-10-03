@@ -581,7 +581,7 @@ export default function MapSection() {
                   activeCategory === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200/70 text-slate-600'
                 }`}
               >
-                {categoryCounts.all || 0}
+                {isLoading ? '...' : (categoryCounts.all || 0)}
               </span>
             </button>
 
@@ -607,7 +607,7 @@ export default function MapSection() {
                       isActive ? 'bg-white/20 text-white' : 'bg-slate-200/70 text-slate-600'
                     }`}
                   >
-                    {count}
+                    {isLoading ? '...' : count}
                   </span>
                 </button>
               );
@@ -616,7 +616,7 @@ export default function MapSection() {
         </div>
 
         {/* Full-Map Container (100% Full Width, Visual Focus Utama) */}
-        <div className="relative w-full h-[68vh] min-h-[540px] max-h-[740px] rounded-xl overflow-hidden shadow-md border border-slate-200/90 bg-white">
+        <div className="relative w-full h-[52vh] sm:h-[60vh] md:h-[68vh] min-h-[380px] sm:min-h-[460px] md:min-h-[540px] max-h-[740px] rounded-xl overflow-hidden shadow-md border border-slate-200/90 bg-white">
           <MapContainer
             center={[-2.5, 118.0]}
             zoom={5}
