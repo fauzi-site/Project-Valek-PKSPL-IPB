@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { LandCoverPolygon } from '../../types/spatial';
 import { formatIDR, formatNumber } from '../../utils/formatter';
 import { getPolygonColor } from '../../utils/spatialColors';
+import { getIndexLabel } from '../../utils/indexLabel';
 import { 
   X, 
   ExternalLink, 
@@ -87,6 +88,7 @@ export const PolygonDetailDrawer: React.FC<PolygonDetailDrawerProps> = ({
   if (!polygon) return null;
 
   const hasIndex = Boolean(polygon.indexId || polygon.indexCode);
+  const indexLabel = getIndexLabel(indices, polygon.indexId, polygon.indexCode);
   const color = getPolygonColor(polygon);
 
   const handleCopy = (text: string, keyName: string) => {
@@ -319,11 +321,8 @@ export const PolygonDetailDrawer: React.FC<PolygonDetailDrawerProps> = ({
               {hasIndex ? (
                 <div className="mt-2 p-2.5 bg-white border border-blue-200 rounded flex items-center justify-between">
                   <div>
-                    <span className="text-xs font-mono font-bold text-blue-700 block">
-                      {polygon.indexCode}
-                    </span>
-                    <span className="text-[11px] text-slate-600 mt-0.5 block">
-                      {polygon.indexName || polygon.name}
+                    <span className="text-xs font-semibold text-blue-700 block">
+                      {indexLabel}
                     </span>
                   </div>
                   <button

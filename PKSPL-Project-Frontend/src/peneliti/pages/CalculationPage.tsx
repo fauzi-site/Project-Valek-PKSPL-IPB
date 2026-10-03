@@ -4,6 +4,7 @@ import { useSpreadsheet } from '../context/SpreadsheetContext';
 import { getMethodSchema } from '../types/methodSchemas';
 import { EcosystemServiceId } from '../types/valuation';
 import { formatIDR, formatNumber } from '../utils/formatter';
+import { buildIndexLabelMap } from '../utils/indexLabel';
 import {
   Calculator,
   ArrowRight,
@@ -121,6 +122,9 @@ const CalculationPageContent: React.FC = () => {
     // Filter out indices that have no land covers in this project
     return Array.from(map.values()).filter(idx => idx.landCoverIds.length > 0);
   }, [indices, landCovers]);
+
+  // Map from index id/code → "Index N" label (based on position in original indices array)
+  const indexLabelMap = useMemo(() => buildIndexLabelMap(indices), [indices]);
 
   // Read URL area parameter if any
   const urlArea = searchParams.get('area');
@@ -774,8 +778,7 @@ const CalculationPageContent: React.FC = () => {
                         {isSomeInIdx && <Minus className="w-3 h-3 stroke-[3]" />}
                       </div>
                       <div className="truncate">
-                        <span className="font-mono font-bold text-blue-700 mr-2">{idx.code}</span>
-                        <span className="text-slate-900 truncate">{idx.name}</span>
+                        <span className="font-semibold text-blue-700">{indexLabelMap.get(idx.code) ?? idx.code}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0 text-[11px] font-mono text-slate-500">
@@ -849,8 +852,7 @@ const CalculationPageContent: React.FC = () => {
                     <div className="flex items-center justify-between text-[11px] px-1 text-slate-500 font-semibold border-b border-slate-100 pb-1">
                       <div className="flex items-center gap-1.5">
                         <Bookmark className="w-3 h-3 text-blue-500" />
-                        <span className="font-mono text-blue-700 font-bold">{idx.code}</span>
-                        <span className="text-slate-600 font-normal truncate max-w-[180px]">— {idx.name}</span>
+                        <span className="font-semibold text-blue-700">{indexLabelMap.get(idx.code) ?? idx.code}</span>
                       </div>
                       <span className="text-[10px] font-mono text-slate-400">
                         {selectedInIdx}/{idxLandCovers.length} terpilih
@@ -1313,7 +1315,9 @@ const CalculationPageContent: React.FC = () => {
                         {lc.type.replace('_', ' ')}
                       </div>
                     </td>
-                    <td className="py-3 px-4 font-mono font-semibold text-blue-700">{lc.indexCode || 'NON-INDEX'}</td>
+                    <td className="py-3 px-4 font-semibold text-blue-700">
+                      {lc.indexCode ? (indexLabelMap.get(lc.indexCode) ?? lc.indexCode) : '—'}
+                    </td>
                     <td className="py-3 px-4 text-right font-mono">{formatNumber(lc.areaHa)}</td>
                     <td className="py-3 px-4 text-slate-600">
                       <div className="flex flex-wrap gap-1">
@@ -1586,11 +1590,8 @@ const CalculationPageContent: React.FC = () => {
                                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                     <div className="flex items-center gap-2.5">
                                       <Bookmark className="w-4 h-4 text-blue-400" />
-                                      <span className="font-mono bg-blue-500/20 text-blue-200 px-2.5 py-0.5 rounded border border-blue-400/30 font-bold text-[11px]">
-                                        {idxGroup.indexCode}
-                                      </span>
                                       <span className="text-sm font-bold tracking-tight text-white">
-                                        {idxGroup.indexName}
+                                        {indexLabelMap.get(idxGroup.indexCode) ?? idxGroup.indexCode}
                                       </span>
                                       <span className="text-slate-300 font-normal text-[11px] ml-1">
                                         ({idxGroup.landCovers.length} Tutupan Lahan • {formatNumber(idxGroup.totalHa)} ha)
@@ -1700,7 +1701,7 @@ const CalculationPageContent: React.FC = () => {
                               {idxGroup.landCovers.length > 1 && (
                                 <tr className="bg-slate-200/70 border-b-2 border-slate-300 text-xs font-bold text-slate-900">
                                   <td colSpan={3} className="py-2.5 px-4 text-right">
-                                    Total Nilai Indeks {idxGroup.indexCode} ({idxGroup.indexName}):
+                                    Total Nilai {indexLabelMap.get(idxGroup.indexCode) ?? idxGroup.indexCode}:
                                   </td>
                                   <td className="py-2.5 px-4 text-right font-mono font-extrabold text-blue-950">
                                     {formatIDR(idxGroup.subtotal)}

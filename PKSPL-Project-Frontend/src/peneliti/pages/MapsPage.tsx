@@ -252,24 +252,22 @@ export const MapsPage: React.FC = () => {
               {/* Preview Chips Index yang ada */}
               <div className="my-4 p-3.5 bg-slate-50 border border-slate-200/80 rounded-lg">
                 <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center justify-between">
-                  <span>Daftar Index Terdaftar Saat Ini:</span>
-                  <span className="font-mono text-slate-600">{indices.length} item</span>
+                  <span>Registered Indices:</span>
+                  <span className="font-mono text-slate-600">{indices.length} items</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {indices.slice(0, 5).map((idxItem) => (
+                  {indices.slice(0, 5).map((idxItem, i) => (
                     <span
                       key={idxItem.id}
                       className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-slate-200 rounded-md text-xs text-slate-700 shadow-2xs"
                     >
-                      <span className="font-mono font-bold text-blue-600">{idxItem.code}</span>
-                      <span>•</span>
-                      <span className="font-medium truncate max-w-[120px]">{idxItem.name}</span>
+                      <span className="font-mono font-bold text-blue-600">Index {i + 1}</span>
                       <span className="text-[11px] text-slate-400">({idxItem.areaHa} ha)</span>
                     </span>
                   ))}
                   {indices.length > 5 && (
                     <span className="inline-flex items-center px-2 py-1 bg-slate-200/70 rounded-md text-xs font-medium text-slate-600">
-                      +{indices.length - 5} lainnya
+                      +{indices.length - 5} more
                     </span>
                   )}
                 </div>
@@ -424,10 +422,10 @@ export const MapsPage: React.FC = () => {
                   onChange={handleIndexFilterChange}
                   className="bg-slate-50 border border-slate-300 rounded px-2.5 py-1 text-slate-700 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer"
                 >
-                  <option value="ALL">Semua Index ({indices.length})</option>
-                  {indices.map(idx => (
+                  <option value="ALL">All Indices ({indices.length})</option>
+                  {indices.map((idx, i) => (
                     <option key={idx.id} value={idx.code}>
-                      {idx.code} — {idx.name}
+                      Index {i + 1}
                     </option>
                   ))}
                 </select>

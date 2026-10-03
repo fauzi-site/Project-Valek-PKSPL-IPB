@@ -6,6 +6,7 @@ import { DynamicServiceSection } from '../components/spreadsheet/DynamicServiceS
 import { ExcelImportModal } from '../components/spreadsheet/ExcelImportModal';
 import { DetectedCustomColumn } from '../utils/excelEngine';
 import { formatNumber } from '../utils/formatter';
+import { buildIndexLabelMap } from '../utils/indexLabel';
 import { EcosystemServiceId } from '../types/valuation';
 import { getMethodSchema } from '../types/methodSchemas';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
@@ -50,6 +51,8 @@ const DataValuationPageContent: React.FC = () => {
   const indices = useMemo(() => {
     return (getProjectIndices ? getProjectIndices(routeProjId) : defaultIndices) || defaultIndices || [];
   }, [getProjectIndices, routeProjId, defaultIndices]);
+
+  const indexLabelMap = useMemo(() => buildIndexLabelMap(indices), [indices]);
 
   // Selected area from query param or first land cover
   const queryArea = searchParams.get('area');
@@ -351,14 +354,14 @@ const DataValuationPageContent: React.FC = () => {
               onChange={(e) => handleIndexChange(e.target.value)}
               className="bg-slate-50 hover:bg-slate-100/90 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-semibold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none cursor-pointer transition-colors text-xs"
             >
-              <option value="ALL">Semua Indeks ({indices.length})</option>
-              {indices.map(idx => {
+              <option value="ALL">All Indices ({indices.length})</option>
+              {indices.map((idx, i) => {
                 const count = landCovers.filter(lc => {
                   return lc.indexId === idx.id || lc.indexCode === idx.code || lc.indexName === idx.name;
                 }).length;
                 return (
                   <option key={idx.id} value={idx.code || idx.id}>
-                    {idx.code} — {idx.name} {count > 0 ? `(${count} Area)` : ''}
+                    {indexLabelMap.get(idx.code) ?? `Index ${i + 1}`} {count > 0 ? `(${count} Area)` : ''}
                   </option>
                 );
               })}
@@ -382,13 +385,10 @@ const DataValuationPageContent: React.FC = () => {
                 <option value="" disabled>Tidak ada tutupan lahan</option>
               ) : (
                 availableLandCovers.map(lc => {
-                  const matchIdx = indices.find(
-                    i => i.id === lc.indexId || i.code === lc.indexCode || i.name === lc.indexName
-                  );
-                  const idxLabel = lc.indexCode || matchIdx?.code;
+                  const idxOrdinal = lc.indexCode ? (indexLabelMap.get(lc.indexCode) ?? lc.indexCode) : null;
                   return (
                     <option key={lc.id} value={lc.id}>
-                      {lc.name} ({formatNumber(lc.areaHa)} Ha){selectedIndexCode === 'ALL' && idxLabel ? ` — ${idxLabel}` : ''}
+                      {lc.name} ({formatNumber(lc.areaHa)} Ha){selectedIndexCode === 'ALL' && idxOrdinal ? ` — ${idxOrdinal}` : ''}
                     </option>
                   );
                 })
@@ -404,8 +404,8 @@ const DataValuationPageContent: React.FC = () => {
               {currentArea.indexCode && (
                 <>
                   <span className="text-slate-300">•</span>
-                  <span className="font-mono text-indigo-700 font-semibold bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200/60 text-[10px]">
-                    {currentArea.indexCode}
+                  <span className="font-semibold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200/60 text-[10px]">
+                    {indexLabelMap.get(currentArea.indexCode) ?? currentArea.indexCode}
                   </span>
                 </>
               )}

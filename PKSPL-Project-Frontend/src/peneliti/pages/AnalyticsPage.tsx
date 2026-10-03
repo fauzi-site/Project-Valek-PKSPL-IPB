@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useProject } from '../context/ProjectContext';
 import { useSpreadsheet, isMockProject, isStaticMockRow } from '../context/SpreadsheetContext';
 import { formatIDR, formatNumber } from '../utils/formatter';
+import { buildIndexLabelMap } from '../utils/indexLabel';
 import { getHistoricalStudiesForArea } from '../mock/historicalAnalyticsMock';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
 import { EcosystemServiceId } from '../types/valuation';
@@ -146,6 +147,7 @@ const AnalyticsPageContent: React.FC = () => {
   // ── Data Spasial ───────────────────────────────────────────────────────
   const allLandCovers = (getProjectLandCovers ? getProjectLandCovers(effectiveProjId) : []) || [];
   const allIndices    = (getProjectIndices   ? getProjectIndices(effectiveProjId)    : []) || [];
+  const indexLabelMap = buildIndexLabelMap(allIndices);
 
   // ── Filter State ───────────────────────────────────────────────────────
   const [filterIndexId,     setFilterIndexId]     = useState<string>('ALL');
@@ -588,9 +590,9 @@ const AnalyticsPageContent: React.FC = () => {
               className="bg-slate-50 border border-slate-300 rounded px-2.5 py-1 text-slate-700 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer"
             >
               <option value="ALL">Semua Indeks ({allIndices.length})</option>
-              {allIndices.map(idx => (
+              {allIndices.map((idx, i) => (
                 <option key={idx.id} value={idx.id}>
-                  [{idx.code}] {idx.name}
+                  {indexLabelMap.get(idx.code) ?? `Index ${i + 1}`}
                 </option>
               ))}
             </select>

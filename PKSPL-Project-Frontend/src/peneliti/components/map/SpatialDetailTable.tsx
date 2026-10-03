@@ -510,12 +510,18 @@ export const SpatialDetailTable: React.FC<SpatialDetailTableProps> = ({
 
                         {/* Status Index */}
                         <td className="py-2 px-3 align-middle">
-                          {hasIdx ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-mono font-semibold">
-                              <Tag className="w-2.5 h-2.5" />
-                              {poly.indexCode}
-                            </span>
-                          ) : (
+                          {hasIdx ? (() => {
+                            const idxPos = indices
+                              ? indices.findIndex(x => x.id === poly.indexId || x.code === poly.indexCode)
+                              : -1;
+                            const label = idxPos >= 0 ? `Index ${idxPos + 1}` : poly.indexCode;
+                            return (
+                              <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-mono font-semibold">
+                                <Tag className="w-2.5 h-2.5" />
+                                {label}
+                              </span>
+                            );
+                          })() : (
                             <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">
                               Belum Terhubung
                             </span>

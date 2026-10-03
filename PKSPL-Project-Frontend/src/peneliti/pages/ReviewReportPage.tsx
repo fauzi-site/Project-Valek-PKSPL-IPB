@@ -4,6 +4,7 @@ import { useProject } from '../context/ProjectContext';
 import { useSpreadsheet, isMockProject } from '../context/SpreadsheetContext';
 import { exportFullProjectWorkbook } from '../utils/excelEngine';
 import { formatIDR, formatNumber, formatDate } from '../utils/formatter';
+import { buildIndexLabelMap } from '../utils/indexLabel';
 import { EcosystemServiceId } from '../types/valuation';
 import { getHistoricalStudiesForArea } from '../mock/historicalAnalyticsMock';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
@@ -123,6 +124,8 @@ const ReviewReportPageContent: React.FC = () => {
   const currentIndices = (rawIndices && rawIndices.length > 0)
     ? rawIndices
     : INITIAL_INDICES;
+
+  const indexLabelMap = buildIndexLabelMap(currentIndices);
 
   const rawLayers = (getProjectLayers ? getProjectLayers(effectiveProjId) : []) || [];
   const currentLayers = (rawLayers && rawLayers.length > 0) ? rawLayers : INITIAL_MAP_LAYERS;
@@ -690,13 +693,10 @@ const ReviewReportPageContent: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {currentIndices.map(idx => (
+              {currentIndices.map((idx, i) => (
                 <tr key={idx.id} className="hover:bg-slate-50/50">
-                  <td className="py-2.5 px-3 font-mono font-bold text-blue-700 border-r border-slate-200">
-                    {idx.code}
-                  </td>
-                  <td className="py-2.5 px-3 font-semibold text-slate-800 border-r border-slate-200">
-                    {idx.name}
+                  <td className="py-2.5 px-3 font-semibold text-blue-700 border-r border-slate-200" colSpan={2}>
+                    {indexLabelMap.get(idx.code) ?? `Index ${i + 1}`}
                   </td>
                   <td className="py-2.5 px-3 text-slate-600 border-r border-slate-200">
                     {idx.landCoverName || idx.landCoverType || 'Mangrove'}
@@ -973,7 +973,7 @@ const ReviewReportPageContent: React.FC = () => {
             >
               {currentLandCovers.map(lc => (
                 <option key={lc.id} value={lc.id}>
-                  {lc.name} ({lc.areaHa} ha) — {lc.indexCode}
+                  {lc.name} ({lc.areaHa} ha){lc.indexCode ? ` — ${indexLabelMap.get(lc.indexCode) ?? lc.indexCode}` : ''}
                 </option>
               ))}
             </select>

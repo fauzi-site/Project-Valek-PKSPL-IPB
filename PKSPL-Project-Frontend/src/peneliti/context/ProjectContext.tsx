@@ -388,34 +388,38 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       const mappedIndexes: IndexItem[] = apiIndexes.map((index: any) => {
         const landCover = index.jenis_tutupan_lahan?.[0];
-        const mockIdx = (ALL_PROJECT_INDICES[activeProjectId] || ALL_PROJECT_INDICES[projectCode] || []).find(
-          (mi) => mi.code === index.kode_index || mi.name === index.nama_index
+        // spatialStatus: only 'connected' if the index itself has geometry from DB
+        const hasGeometry = index.geometry && (
+          (typeof index.geometry === 'object' && index.geometry.coordinates) ||
+          (typeof index.geometry === 'string' && index.geometry.length > 10)
         );
         return {
           id: String(index.id_index), code: index.kode_index, name: index.nama_index,
           landCoverType: landCover?.kategori || 'Lainnya', landCoverName: landCover?.nama_tutupan_lahan || index.nama_index,
-          landCoverId: mockIdx?.landCoverId,
-          polygonId: mockIdx?.polygonId,
+          landCoverId: undefined,
+          polygonId: undefined,
           areaHa: Number(index.luas) || 0, unit: index.satuan_luas || 'ha', description: index.deskripsi || '',
-          status: mockIdx?.status || 'Draft', spatialStatus: mockIdx?.spatialStatus || 'unconnected',
+          status: 'Draft', spatialStatus: hasGeometry ? 'connected' : 'unconnected',
           createdAt: index.created_at, updatedAt: index.updated_at,
         };
       });
       const mappedLandCovers: LandCoverPolygon[] = apiIndexes.flatMap((index: any) =>
         (index.jenis_tutupan_lahan || []).map((landCover: any) => {
-          // Match mock polygon to inherit rich data (serviceDetails, totalValue, etc.)
+          // Find mock polygon only for valuation data (serviceDetails, totalValue) — NOT for coordinates
           const mockPoly = mockLandCovers.find(
             (m) => m.indexCode === index.kode_index ||
-                   m.name === landCover.nama_tutupan_lahan ||
-                   m.indexName === index.nama_index
+                   m.name === landCover.nama_tutupan_lahan
           );
+          // Geometry comes from the land cover's own geometry field — not borrowed from mock
+          const geomCoords = landCover.geometry?.coordinates ?? null;
+          const realCoords: [number, number][] = geomCoords ? geomCoords : [];
           return {
             id: String(landCover.id_jenis_tutupan_lahan),
             code: `${index.kode_index}-${landCover.id_jenis_tutupan_lahan}`,
             name: landCover.nama_tutupan_lahan,
             type: (landCover.kategori || 'lainnya').toLowerCase().replaceAll(' ', '_') as LandCoverPolygon['type'],
             areaHa: Number(landCover.luas) || (mockPoly?.areaHa ?? 0),
-            coordinates: mockPoly?.coordinates ?? [],
+            coordinates: realCoords,
             center: mockPoly?.center ?? [0, 0],
             indexId: String(index.id_index),
             indexCode: index.kode_index,

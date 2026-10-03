@@ -6,6 +6,7 @@ import { useProject } from '../context/ProjectContext';
 import { useSpreadsheet, isMockProject } from '../context/SpreadsheetContext';
 import { getMethodSchema } from '../types/methodSchemas';
 import { formatIDR, formatNumber, formatDate } from '../utils/formatter';
+import { buildIndexLabelMap } from '../utils/indexLabel';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { INITIAL_LAND_COVERS, INITIAL_INDEX_LIST } from '../mock/spatialData';
 import { getHistoricalStudiesForArea } from '../mock/historicalAnalyticsMock';
@@ -86,6 +87,8 @@ export const ReportPrintView: React.FC = () => {
   const currentIndices = (rawIndices && rawIndices.length > 0)
     ? rawIndices
     : INITIAL_INDEX_LIST;
+
+  const indexLabelMap = buildIndexLabelMap(currentIndices);
 
   const isMock = isMockProject(effectiveProjId);
 
@@ -692,8 +695,8 @@ export const ReportPrintView: React.FC = () => {
                 <tr key={ab.id || idx} className="hover:bg-slate-50/60">
                   <td className="py-2 px-3 text-center border-r border-slate-300 font-mono text-slate-500">{idx + 1}</td>
                   <td className="py-2 px-3 border-r border-slate-300 font-medium text-slate-900">{ab.name}</td>
-                  <td className="py-2 px-3 border-r border-slate-300 font-mono text-center text-slate-700">
-                    {ab.indexCode}
+                  <td className="py-2 px-3 border-r border-slate-300 font-medium text-center text-slate-700">
+                    {ab.indexCode ? (indexLabelMap.get(ab.indexCode) ?? ab.indexCode) : '—'}
                   </td>
                   <td className="py-2 px-3 border-r border-slate-300 text-right font-mono whitespace-nowrap">{formatNumber(ab.areaHa, 2)}</td>
                   <td className="py-2 px-3 border-r border-slate-300 text-right font-mono text-slate-600">
@@ -806,7 +809,11 @@ export const ReportPrintView: React.FC = () => {
                       <span className="text-slate-900 font-bold">Area Tutupan {areaIdx + 1}:</span>
                       <span>{areaData.area.name}</span>
                       <span className="text-slate-400 font-normal">|</span>
-                      <span className="font-mono font-medium text-slate-600 text-[11px]">{areaData.area.indexCode}</span>
+                      <span className="font-medium text-slate-600 text-[11px]">
+                        {areaData.area.indexCode
+                          ? (indexLabelMap.get(areaData.area.indexCode) ?? areaData.area.indexCode)
+                          : '—'}
+                      </span>
                       <span className="text-slate-400 font-normal">|</span>
                       <span className="font-normal text-slate-600 text-[11px]">{formatNumber(areaData.area.areaHa, 2)} Ha</span>
                     </div>
@@ -1058,7 +1065,13 @@ export const ReportPrintView: React.FC = () => {
                 <div key={ab.id} className="space-y-0.5">
                   <div className="flex justify-between text-[11px]">
                     <span className="font-medium text-slate-800">
-                      {ab.name} <span className="font-mono text-slate-500">({ab.indexCode})</span> — {formatNumber(ab.areaHa, 1)} Ha
+                      {ab.name}
+                      {ab.indexCode && (
+                        <span className="font-medium text-slate-500">
+                          {' '}({indexLabelMap.get(ab.indexCode) ?? ab.indexCode})
+                        </span>
+                      )}
+                      {' '}— {formatNumber(ab.areaHa, 1)} Ha
                     </span>
                     <span className="font-mono font-semibold text-slate-900 whitespace-nowrap">
                       {formatIDR(ab.totalValue)} ({ab.percentageOfTev.toFixed(1)}%)
