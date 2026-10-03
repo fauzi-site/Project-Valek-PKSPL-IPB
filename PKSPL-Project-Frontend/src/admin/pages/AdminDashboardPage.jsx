@@ -360,7 +360,6 @@ export const AdminDashboardPage = () => {
       ? Number(((diffTev / itemA.akumulasiTevMiliar) * 100).toFixed(1))
       : 0;
     const diffNew = itemB.proyekBaru - itemA.proyekBaru;
-    const diffDone = itemB.proyekSelesai - itemA.proyekSelesai;
     const diffArea = Number(((itemB.luasHa || 0) - (itemA.luasHa || 0)).toFixed(1));
 
     comparisonSummary = {
@@ -370,7 +369,6 @@ export const AdminDashboardPage = () => {
       diffTev,
       pctTev,
       diffNew,
-      diffDone,
       diffArea,
       isExactPair: activeTrendData.length === 2,
     };
@@ -960,17 +958,9 @@ export const AdminDashboardPage = () => {
 
                 {/* Project New Delta */}
                 <div className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 shadow-2xs flex items-center gap-2">
-                  <span className="text-[11px] text-slate-500 font-medium">Proyek Baru:</span>
+                  <span className="text-[11px] text-slate-500 font-medium">Proyek Riset:</span>
                   <span className="font-mono font-bold text-blue-600">
                     {comparisonSummary.diffNew >= 0 ? `+${comparisonSummary.diffNew}` : comparisonSummary.diffNew} Proyek
-                  </span>
-                </div>
-
-                {/* Project Done Delta */}
-                <div className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 shadow-2xs flex items-center gap-2">
-                  <span className="text-[11px] text-slate-500 font-medium">Proyek Selesai:</span>
-                  <span className="font-mono font-bold text-amber-600">
-                    {comparisonSummary.diffDone >= 0 ? `+${comparisonSummary.diffDone}` : comparisonSummary.diffDone} Proyek
                   </span>
                 </div>
 
@@ -1076,19 +1066,10 @@ export const AdminDashboardPage = () => {
                           <div className="flex items-center justify-between">
                             <span className="text-slate-400 flex items-center gap-1.5">
                               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                              <span>Proyek Baru:</span>
+                              <span>Proyek Riset:</span>
                             </span>
                             <span className="font-bold text-emerald-400 font-mono">
                               +{item.proyekBaru} Proyek
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-slate-400 flex items-center gap-1.5">
-                              <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-                              <span>Proyek Selesai:</span>
-                            </span>
-                            <span className="font-bold text-amber-300 font-mono">
-                              {item.proyekSelesai} Proyek
                             </span>
                           </div>
                           {item.luasHa && (
@@ -1120,24 +1101,14 @@ export const AdminDashboardPage = () => {
 
               {/* Bar Elements for Projects Activity */}
               {(trendMetricView === 'all' || trendMetricView === 'projects') && (
-                <>
-                  <Bar
-                    yAxisId="right"
-                    dataKey="proyekBaru"
-                    name="Proyek Baru"
-                    fill="url(#barNewGrad)"
-                    radius={[4, 4, 0, 0]}
-                    maxBarSize={activeTrendData.length <= 4 ? 40 : 24}
-                  />
-                  <Bar
-                    yAxisId="right"
-                    dataKey="proyekSelesai"
-                    name="Proyek Selesai"
-                    fill="url(#barDoneGrad)"
-                    radius={[4, 4, 0, 0]}
-                    maxBarSize={activeTrendData.length <= 4 ? 40 : 24}
-                  />
-                </>
+                <Bar
+                  yAxisId="right"
+                  dataKey="proyekBaru"
+                  name="Proyek Riset"
+                  fill="url(#barNewGrad)"
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={activeTrendData.length <= 4 ? 40 : 28}
+                />
               )}
 
               {/* Area & Line for TEV Valuation */}
@@ -1159,14 +1130,14 @@ export const AdminDashboardPage = () => {
           </ResponsiveContainer>
         </div>
 
-        {/* Row 5: 4 Metric Cards for Selected Comparison Window */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 border-t border-slate-100 text-xs">
-          <div className="p-3 rounded-lg bg-blue-50/70 border border-blue-100 flex flex-col justify-between">
+        {/* Row 5: 3 Metric Cards for Selected Comparison Window */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-3 border-t border-slate-100 text-xs">
+          <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-100 flex flex-col justify-between">
             <div className="flex items-center gap-1.5 text-blue-700 font-semibold text-[11px]">
               <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
               <span>Akumulasi TEV Terpilih</span>
             </div>
-            <div className="text-base font-black text-slate-900 mt-1">
+            <div className="text-base sm:text-lg font-black text-slate-900 mt-1">
               Rp {activeTrendData[activeTrendData.length - 1]?.akumulasiTevMiliar ?? totalTevMiliar}{' '}
               <span className="text-xs font-semibold text-slate-500">Miliar</span>
             </div>
@@ -1175,40 +1146,26 @@ export const AdminDashboardPage = () => {
             </div>
           </div>
 
-          <div className="p-3 rounded-lg bg-emerald-50/70 border border-emerald-100 flex flex-col justify-between">
+          <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-100 flex flex-col justify-between">
             <div className="flex items-center gap-1.5 text-emerald-700 font-semibold text-[11px]">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-              <span>Proyek Baru Ditambah</span>
+              <span>Total Proyek Riset</span>
             </div>
-            <div className="text-base font-black text-slate-900 mt-1">
+            <div className="text-base sm:text-lg font-black text-slate-900 mt-1">
               {activeTrendData.reduce((acc, curr) => acc + (curr.proyekBaru || 0), 0)}{' '}
-              <span className="text-xs font-semibold text-slate-500">Proyek Riset</span>
+              <span className="text-xs font-semibold text-slate-500">Proyek Terdaftar</span>
             </div>
             <div className="text-[10px] text-emerald-600 font-medium mt-0.5">
               Dalam Rentang Terpilih
             </div>
           </div>
 
-          <div className="p-3 rounded-lg bg-amber-50/70 border border-amber-100 flex flex-col justify-between">
-            <div className="flex items-center gap-1.5 text-amber-700 font-semibold text-[11px]">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-              <span>Proyek Tervalidasi</span>
-            </div>
-            <div className="text-base font-black text-slate-900 mt-1">
-              {activeTrendData.reduce((acc, curr) => acc + (curr.proyekSelesai || 0), 0)}{' '}
-              <span className="text-xs font-semibold text-slate-500">Proyek Selesai</span>
-            </div>
-            <div className="text-[10px] text-amber-700 font-medium mt-0.5">
-              Review & Laporan Disetujui
-            </div>
-          </div>
-
-          <div className="p-3 rounded-lg bg-indigo-50/70 border border-indigo-100 flex flex-col justify-between">
+          <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-100 flex flex-col justify-between">
             <div className="flex items-center gap-1.5 text-indigo-700 font-semibold text-[11px]">
               <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
               <span>Cakupan Luas Spasial</span>
             </div>
-            <div className="text-base font-black text-slate-900 mt-1">
+            <div className="text-base sm:text-lg font-black text-slate-900 mt-1">
               {formatNumber(activeTrendData[activeTrendData.length - 1]?.luasHa ?? totalAreaHa)}{' '}
               <span className="text-xs font-semibold text-slate-500">Ha</span>
             </div>
