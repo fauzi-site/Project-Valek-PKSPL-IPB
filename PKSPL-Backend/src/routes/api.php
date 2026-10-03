@@ -185,6 +185,7 @@ Route::prefix('v1')->group(function (): void {
     // 3.1.1 Mengelola CRUD proyek analisis valuasi dengan proteksi Sanctum.
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('proyek/next-code', [ProyekController::class, 'nextCode']);
+        Route::delete('proyek/{proyek}/shapefile', [ProyekController::class, 'deleteShapefile']);
         Route::apiResource('proyek', ProyekController::class);
 
         // ------------------------------------------------------------

@@ -110,3 +110,20 @@ export async function loadAllSpatialFromIndexedDB(): Promise<
     return {};
   }
 }
+
+export async function deleteSpatialFromIndexedDB(projId: string): Promise<boolean> {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.delete(String(projId));
+
+      request.onsuccess = () => resolve(true);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.warn('deleteSpatialFromIndexedDB warning:', err);
+    return false;
+  }
+}

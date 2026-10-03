@@ -25,8 +25,8 @@ import {
   getFallbackLayersForProject
 } from '../mock/projectMockRegistry';
 import { loadFromStorage, saveToStorage } from '../utils/storage';
-import { saveSpatialToIndexedDB, loadAllSpatialFromIndexedDB } from '../utils/idbStorage';
-import { createProyek, deleteProyek, getProyekList, updateProyek } from '../../services/projectService';
+import { saveSpatialToIndexedDB, loadAllSpatialFromIndexedDB, deleteSpatialFromIndexedDB } from '../utils/idbStorage';
+import { createProyek, deleteProyek, getProyekList, updateProyek, deleteProjectShapefileApi } from '../../services/projectService';
 import { createIndexApi, createLandCoverApi, deleteLandCoverApi, deleteIndexApi, getIndexesApi, updateIndexApi, updateLandCoverApi } from '../../services/indexService';
 
 import { AreaServiceConfig, EcosystemServiceId } from '../types/valuation';
@@ -51,6 +51,7 @@ interface ProjectContextType {
   updateProjectStatus: (id: string, status: ProjectStatus, notes?: string, reviewer?: string) => void;
   addShpLayer: (name: string, featureCount: number, crs: string, targetProjId?: string, geojson?: any) => void;
   uploadProjectShapefile: (targetProjId: string, geojson: any, fileName?: string, rawFile?: File) => void;
+  deleteProjectShapefile: (targetProjId: string, deleteAssociatedIndices?: boolean) => Promise<void>;
   setProjectHasShp: (projectId: string, hasShp: boolean) => void;
   getProjectLandCovers: (projectId: string) => LandCoverPolygon[];
   getProjectIndices: (projectId: string) => IndexItem[];
@@ -116,6 +117,10 @@ const INITIAL_PROJECT_INDICES: Record<string, IndexItem[]> = {
 const INITIAL_PROJECT_LAYERS: Record<string, MapLayer[]> = {
   ...ALL_PROJECT_LAYERS,
 };
+
+// IDs yang explicitly terdaftar sebagai proyek mock/demo.
+// Hanya proyek dengan ID di sini yang boleh mendapat fallback index dari registry.
+const KNOWN_MOCK_PROJECT_IDS = new Set<string>(Object.keys(ALL_PROJECT_INDICES));
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
@@ -191,13 +196,17 @@ const fromApiProject = (project: any, fallbackLead = 'Peneliti Utama'): Project 
     year: Number(project.tahun || project.year || new Date().getFullYear()),
     createdAt: project.created_at || '',
     updatedAt: project.updated_at || project.updatedAt || '',
-    hasShp: Boolean(
-      (project.shapefile_files && Object.keys(project.shapefile_files).length) ||
-      project.geometry ||
-      project.boundary_geojson ||
-      localStorage.getItem(`pkspl_has_shp_${code}`) === 'true' ||
-      localStorage.getItem(`pkspl_has_shp_${idKey}`) === 'true'
-    ),
+    hasShp: (() => {
+      const explicitFalse = localStorage.getItem(`pkspl_has_shp_${code}`) === 'false' || localStorage.getItem(`pkspl_has_shp_${idKey}`) === 'false';
+      if (explicitFalse) return false;
+      const explicitTrue = localStorage.getItem(`pkspl_has_shp_${code}`) === 'true' || localStorage.getItem(`pkspl_has_shp_${idKey}`) === 'true';
+      if (explicitTrue) return true;
+      return Boolean(
+        (project.shapefile_files && Object.keys(project.shapefile_files).length) ||
+        project.geometry ||
+        project.boundary_geojson
+      );
+    })(),
     latitude: project.latitude ?? null,
     longitude: project.longitude ?? null,
     geometry: project.geometry ?? null,
@@ -297,7 +306,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         setProjects((prev) =>
           prev.map((p) => {
-            if (spatialMap[p.id] || (p.code && spatialMap[p.code])) {
+            const pData = spatialMap[p.id] || (p.code ? spatialMap[p.code] : null);
+            const hasPolys = Boolean(pData?.polygons && Array.isArray(pData.polygons) && pData.polygons.length > 0);
+            if (hasPolys) {
               return { ...p, hasShp: true };
             }
             return p;
@@ -518,8 +529,19 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return null;
     })();
 
-    // Determine mock registry data for this project
     const found = projects.find(p => p.id === projectId || p.code === projectId);
+
+    // Proyek real (dari API) — jangan inject land cover mock jika belum ada data real
+    const isMockProject =
+      KNOWN_MOCK_PROJECT_IDS.has(projectId) ||
+      (found?.code ? KNOWN_MOCK_PROJECT_IDS.has(found.code) : false) ||
+      (found?.id ? KNOWN_MOCK_PROJECT_IDS.has(found.id) : false);
+
+    if (!isMockProject) {
+      return stored || [];
+    }
+
+    // Determine mock registry data for this project (hanya untuk proyek mock/demo)
     const mockLCs: LandCoverPolygon[] =
       ALL_PROJECT_LAND_COVERS[projectId] ||
       (found?.code ? ALL_PROJECT_LAND_COVERS[found.code] : undefined) ||
@@ -571,6 +593,19 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return projectIndices[found.id];
       }
     }
+
+    // Untuk proyek real (dari API), jangan gunakan fallback mock sama sekali —
+    // kembalikan array kosong agar tampilan "belum ada index" muncul dengan benar.
+    const isMockProject =
+      KNOWN_MOCK_PROJECT_IDS.has(projectId) ||
+      (found?.code ? KNOWN_MOCK_PROJECT_IDS.has(found.code) : false) ||
+      (found?.id ? KNOWN_MOCK_PROJECT_IDS.has(found.id) : false);
+
+    if (!isMockProject) {
+      return projectIndices[projectId] || [];
+    }
+
+    // Di bawah ini hanya jalan untuk proyek mock/demo yang terdaftar.
     const mockIdx =
       ALL_PROJECT_INDICES[projectId] ||
       (found?.code ? ALL_PROJECT_INDICES[found.code] : undefined) ||
@@ -910,6 +945,15 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const polygons: LandCoverPolygon[] = [];
     const indexMap = new Map<string, IndexItem>();
 
+    const existingList = projectIndices[idKey] || projectIndices[projId] || (codeKey ? projectIndices[codeKey] : []) || [];
+    const existingByName = new Map<string, IndexItem>();
+    existingList.forEach(item => {
+      if (item.name) existingByName.set(item.name.toLowerCase().trim(), item);
+      if (item.landCoverName) existingByName.set(item.landCoverName.toLowerCase().trim(), item);
+      if (item.code) existingByName.set(item.code.toLowerCase().trim(), item);
+    });
+    const usedExistingIds = new Set<string>();
+
     features.forEach((feat: any, idx: number) => {
       const geom = feat?.geometry;
       if (!geom) return;
@@ -982,23 +1026,39 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         let indexItem = indexMap.get(name);
         if (!indexItem) {
-          const idxId = `idx-shp-${idKey}-${indexMap.size + 1}`;
-          const idxCode = `IDX-${String(indexMap.size + 1).padStart(3, '0')}`;
-          indexItem = {
-            id: idxId,
-            code: idxCode,
-            name: String(name),
-            landCoverType: type,
-            landCoverName: String(name),
-            landCoverId: polyId,
-            areaHa: areaHa,
-            unit: 'ha',
-            description: `Tutupan lahan hasil ekstraksi Shapefile (${name})`,
-            status: 'Draft',
-            spatialStatus: 'connected',
-            polygonId: polyId,
-            createdAt: new Date().toISOString().split('T')[0],
-          };
+          const normName = String(name).toLowerCase().trim();
+          const matched = existingByName.get(normName);
+          if (matched && !usedExistingIds.has(matched.id)) {
+            usedExistingIds.add(matched.id);
+            indexItem = {
+              ...matched,
+              landCoverType: type || matched.landCoverType,
+              landCoverName: String(name),
+              landCoverId: polyId,
+              polygonId: polyId,
+              areaHa: areaHa,
+              spatialStatus: 'connected',
+              updatedAt: new Date().toISOString().split('T')[0],
+            };
+          } else {
+            const idxId = `idx-shp-${idKey}-${indexMap.size + 1}`;
+            const idxCode = `IDX-${String(indexMap.size + 1).padStart(3, '0')}`;
+            indexItem = {
+              id: idxId,
+              code: idxCode,
+              name: String(name),
+              landCoverType: type,
+              landCoverName: String(name),
+              landCoverId: polyId,
+              areaHa: areaHa,
+              unit: 'ha',
+              description: `Tutupan lahan hasil ekstraksi Shapefile (${name})`,
+              status: 'Draft',
+              spatialStatus: 'connected',
+              polygonId: polyId,
+              createdAt: new Date().toISOString().split('T')[0],
+            };
+          }
           indexMap.set(name, indexItem);
         } else {
           indexItem.areaHa = Number((indexItem.areaHa + areaHa).toFixed(2));
@@ -1041,7 +1101,11 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       },
     ];
 
-    const idxList = Array.from(indexMap.values());
+    const connectedList = Array.from(indexMap.values());
+    const unmatchedExisting = existingList
+      .filter(ex => !usedExistingIds.has(ex.id) && !connectedList.some(c => c.id === ex.id))
+      .map(ex => ({ ...ex, spatialStatus: 'unconnected' as const }));
+    const idxList = [...connectedList, ...unmatchedExisting];
 
     setProjectLayers(prev => ({
       ...prev,
@@ -1209,6 +1273,120 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
       return p;
     }));
+  };
+
+  const deleteProjectShapefile = async (targetProjId: string, deleteAssociatedIndices: boolean = false): Promise<void> => {
+    const projId = targetProjId || activeProjectId;
+    const targetP = projects.find(p => p.id === projId || p.code === projId || String(p.id) === String(projId));
+    const idKey = String(targetP?.id || projId);
+    const codeKey = targetP?.code;
+
+    // 1. Reset land covers & layers
+    setProjectLandCovers(prev => ({
+      ...prev,
+      [idKey]: [],
+      ...(codeKey ? { [codeKey]: [] } : {}),
+      [projId]: [],
+    }));
+
+    setProjectLayers(prev => ({
+      ...prev,
+      [idKey]: [],
+      ...(codeKey ? { [codeKey]: [] } : {}),
+      [projId]: [],
+    }));
+
+    // 2. Handle indices based on confirmation choice
+    let updatedIndices: IndexItem[] = [];
+    if (deleteAssociatedIndices) {
+      setProjectIndices(prev => ({
+        ...prev,
+        [idKey]: [],
+        ...(codeKey ? { [codeKey]: [] } : {}),
+        [projId]: [],
+      }));
+      updatedIndices = [];
+    } else {
+      const currentIndices = projectIndices[idKey] || projectIndices[projId] || (codeKey ? projectIndices[codeKey] : []) || [];
+      updatedIndices = currentIndices.map(idx => ({
+        ...idx,
+        spatialStatus: 'unconnected' as const,
+        polygonId: undefined,
+        landCoverId: undefined,
+        updatedAt: 'Baru saja',
+      }));
+
+      setProjectIndices(prev => ({
+        ...prev,
+        [idKey]: updatedIndices,
+        ...(codeKey ? { [codeKey]: updatedIndices } : {}),
+        [projId]: updatedIndices,
+      }));
+    }
+
+    // 3. Update project hasShp status in state
+    setProjects(prev => prev.map(p => {
+      if (p.id === idKey || p.code === codeKey || p.id === projId || p.code === projId) {
+        return {
+          ...p,
+          hasShp: false,
+          updatedAt: 'Baru saja',
+        };
+      }
+      return p;
+    }));
+
+    // 4. Update localStorage flags
+    try {
+      localStorage.removeItem(`pkspl_has_shp_${idKey}`);
+      if (codeKey) localStorage.removeItem(`pkspl_has_shp_${codeKey}`);
+      if (projId) localStorage.removeItem(`pkspl_has_shp_${projId}`);
+      localStorage.setItem(`pkspl_has_shp_${idKey}`, 'false');
+      if (codeKey) localStorage.setItem(`pkspl_has_shp_${codeKey}`, 'false');
+      if (projId) localStorage.setItem(`pkspl_has_shp_${projId}`, 'false');
+    } catch (e) {
+      console.warn('Failed to update localStorage has_shp flag:', e);
+    }
+
+    // 5. Update / delete in IndexedDB
+    try {
+      if (deleteAssociatedIndices) {
+        await deleteSpatialFromIndexedDB(idKey);
+        if (codeKey && codeKey !== idKey) {
+          await deleteSpatialFromIndexedDB(codeKey);
+        }
+      } else {
+        await saveSpatialToIndexedDB(idKey, {
+          geojson: null,
+          polygons: [],
+          indices: updatedIndices,
+          layers: [],
+          fileName: undefined,
+        });
+        if (codeKey && codeKey !== idKey) {
+          await saveSpatialToIndexedDB(codeKey, {
+            geojson: null,
+            polygons: [],
+            indices: updatedIndices,
+            layers: [],
+            fileName: undefined,
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('deleteProjectShapefile IndexedDB warning:', err);
+    }
+
+    // 6. Synchronize with backend API if valid project ID
+    const numericId = Number(idKey);
+    const apiTargetId = (Number.isInteger(numericId) && numericId > 0) ? String(numericId) : (codeKey || idKey);
+    if (apiTargetId) {
+      try {
+        await deleteProjectShapefileApi(apiTargetId, deleteAssociatedIndices);
+      } catch (err) {
+        console.warn('Backend deleteProjectShapefile API warning:', err);
+      }
+    }
   };
 
   const createIndex = (item: Omit<IndexItem, 'id'>): IndexItem => {
@@ -1593,6 +1771,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updateProjectStatus,
         addShpLayer,
         uploadProjectShapefile,
+        deleteProjectShapefile,
         setProjectHasShp,
         getProjectLandCovers,
         getProjectIndices,

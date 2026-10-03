@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Controller untuk mengelola data proyek penelitian valuasi ekonomi pesisir dan laut.
@@ -344,6 +345,62 @@ class ProyekController extends ApiResourceController
         $proyek->projectValuationSetting()->delete();
 
         return $this->destroyResource($proyek);
+    }
+
+    /**
+     * Menghapus file shapefile dan geometri dari proyek.
+     * Menerima opsi delete_indices untuk menentukan apakah indeks ikut dihapus atau tetap dipertahankan.
+     */
+    public function deleteShapefile(Request $request, Proyek $proyek): JsonResponse
+    {
+        $user = $request->user() ?? $request->user('sanctum') ?? auth('sanctum')->user();
+        if ($user) {
+            $roleName = $user->role ? Role::normalize($user->role->nama_role) : null;
+            if ($roleName === Role::PENELITI && (int) $proyek->id_user !== (int) $user->id_user) {
+                return response()->json([
+                    'message' => 'Anda tidak memiliki akses untuk mengubah proyek ini.',
+                ], 403);
+            }
+        }
+
+        // 1. Hapus berkas fisik shapefile dari storage jika tersedia
+        if (! empty($proyek->shapefile_files)) {
+            try {
+                Storage::disk(config('filesystems.default'))
+                    ->deleteDirectory("proyek/{$proyek->id_proyek}/shapefile");
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning("Gagal menghapus direktori berkas SHP proyek {$proyek->id_proyek}: " . $e->getMessage());
+            }
+        }
+
+        // 2. Kosongkan atribut spasial dan geometri di database
+        $proyek->update([
+            'shapefile_files' => null,
+            'geometry' => null,
+            'latitude' => null,
+            'longitude' => null,
+            'luas' => null,
+        ]);
+
+        // 3. Tangani indeks: konfirmasi apakah indeks terdaftar juga ikut dihapus
+        $deleteIndices = $request->boolean('delete_indices')
+            || $request->input('delete_indices') === 'true'
+            || $request->input('delete_indices') === 1;
+
+        if ($deleteIndices) {
+            foreach ($proyek->indexes as $index) {
+                DB::table('jenis_tutupan_lahan')->where('id_index', $index->id_index)->delete();
+                $index->delete();
+            }
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => $deleteIndices
+                ? 'Data SHP dan seluruh indeks terdaftar berhasil dihapus.'
+                : 'Data SHP berhasil dihapus, daftar indeks dipertahankan.',
+            'data' => new ProyekResource($proyek->refresh()),
+        ]);
     }
 
     /**

@@ -48,3 +48,10 @@ export const deleteProyek = async (idProyek) => {
   const response = await api.delete(`/proyek/${idProyek}`)
   return response.data
 }
+
+export const deleteProjectShapefileApi = async (idProyek, deleteIndices = false) => {
+  const response = await api.delete(`/proyek/${idProyek}/shapefile`, {
+    params: { delete_indices: deleteIndices ? 1 : 0 },
+  })
+  return response.data
+}
