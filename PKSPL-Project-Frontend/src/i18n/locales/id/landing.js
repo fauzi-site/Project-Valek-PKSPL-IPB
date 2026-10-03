@@ -39,21 +39,15 @@ export default {
     viewWorkflowInfo: "Pelajari Metodologi"
   },
   stats: {
-    tag: "STATISTIK & SEBARAN",
-    totalProjects: "Total Proyek Penelitian",
-    totalResearchers: "Peneliti Terdaftar",
-    totalArea: "Total Luas Kawasan",
-    totalTev: "Akumulasi Estimasi TEV",
-    draftStatus: "Proyek Selesai",
+    totalProjects: "TOTAL PROYEK / ANALISIS",
+    totalResearchers: "TOTAL PENELITI",
+    accumulatedTev: "AKUMULASI TEV",
+    totalYearly: "TOTAL",
+    chartTitle: "Grafik Pembuatan Proyek Per Bulan",
+    chartLoading: "Memuat data...",
+    projectsUnit: "Jumlah Proyek",
     title: "Statistik Partisipasi & Sebaran Ekosistem",
-    description: "Sistem mencatat rekapitulasi data penelitian aktual secara transparan, mencakup dinamika aktivitas pembuatan proyek per periode serta komposisi sebaran luas ekosistem pesisir Indonesia.",
-    monthlyChartTitle: "Aktivitas Proyek per Bulan",
-    monthlyChartDesc: "Distribusi jumlah pembuatan form valuasi proyek per bulan",
-    ecosystemChartTitle: "Sebaran Luas Ekosistem",
-    ecosystemChartDesc: "Perbandingan akumulasi luas tutupan kawasan (Ha) per kategori ekosistem",
-    year: "Tahun",
-    projectsUnit: "Proyek",
-    areaUnit: "Ha"
+    description: "Sistem ini mencatat pertumbuhan pengisian form valuasi secara real-time sekaligus memetakan sebaran objek ekosistem pesisir (Mangrove, Terumbu Karang, dan Lamun) yang paling banyak dianalisis oleh para peneliti dan pengambil kebijakan."
   },
   map: {
     title: "Peta Sebaran Lokasi Valuasi Ekosistem",

@@ -194,7 +194,8 @@ export const ADMIN_USERS_LIST = [
     role: 'Super Admin',
     institution: 'PKSPL IPB University',
     status: 'Aktif',
-    lastActive: '10.15',
+    last_login_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(), // 10 menit lalu
+    last_seen_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
     assignedProjectsCount: 18,
     created_at: '2025-01-10T08:30:00Z',
     updated_at: '2025-02-15T14:20:00Z',
@@ -209,7 +210,8 @@ export const ADMIN_USERS_LIST = [
     role: 'Peneliti',
     institution: 'PKSPL IPB / FPIK IPB',
     status: 'Aktif',
-    lastActive: '15 Menit lalu',
+    last_login_at: new Date(Date.now() - 3 * 3600 * 1000).toISOString(), // 3 jam lalu
+    last_seen_at: new Date(Date.now() - 3 * 3600 * 1000).toISOString(),
     assignedProjectsCount: 3,
     created_at: '2025-01-15T09:00:00Z',
     updated_at: '2025-02-10T11:00:00Z',
@@ -224,7 +226,8 @@ export const ADMIN_USERS_LIST = [
     role: 'Peneliti',
     institution: 'Departemen Ekonomi Sumberdaya IPB',
     status: 'Aktif',
-    lastActive: '09.33',
+    last_login_at: new Date(Date.now() - 25 * 3600 * 1000).toISOString(), // Kemarin
+    last_seen_at: new Date(Date.now() - 25 * 3600 * 1000).toISOString(),
     assignedProjectsCount: 7,
     created_at: '2025-01-20T10:15:00Z',
     updated_at: '2025-02-12T16:45:00Z',
@@ -239,7 +242,8 @@ export const ADMIN_USERS_LIST = [
     role: 'Peneliti',
     institution: 'PKSPL IPB',
     status: 'Aktif',
-    lastActive: '5 Jam lalu',
+    last_login_at: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(), // 2 hari lalu
+    last_seen_at: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(),
     assignedProjectsCount: 2,
     created_at: '2025-02-01T13:00:00Z',
     updated_at: '2025-02-14T09:30:00Z',
@@ -254,10 +258,27 @@ export const ADMIN_USERS_LIST = [
     role: 'Peneliti',
     institution: 'Konsorsium Riset Pesisir Bali',
     status: 'Aktif',
-    lastActive: 'Kemarin, 14:20',
+    last_login_at: new Date(Date.now() - 10 * 24 * 3600 * 1000).toISOString(), // 10 hari lalu
+    last_seen_at: new Date(Date.now() - 10 * 24 * 3600 * 1000).toISOString(),
     assignedProjectsCount: 4,
     created_at: '2025-02-05T07:45:00Z',
     updated_at: '2025-02-16T18:00:00Z',
     is_verified: false
+  },
+  {
+    id: 'USR-06',
+    id_user: 'USR-06',
+    name: 'Maya Sartika, S.Kel',
+    nama: 'Maya Sartika, S.Kel',
+    email: 'maya.sartika@pkspl.ipb.ac.id',
+    role: 'Peneliti',
+    institution: 'PKSPL IPB',
+    status: 'Aktif',
+    last_login_at: null, // Belum pernah login
+    last_seen_at: null,
+    assignedProjectsCount: 0,
+    created_at: '2025-02-20T10:00:00Z',
+    updated_at: '2025-02-20T10:00:00Z',
+    is_verified: true
   }
 ];

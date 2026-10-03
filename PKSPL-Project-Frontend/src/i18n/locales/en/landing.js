@@ -39,21 +39,15 @@ export default {
     viewWorkflowInfo: "Learn Methodology"
   },
   stats: {
-    tag: "STATISTICS & DISTRIBUTION",
-    totalProjects: "Total Research Projects",
-    totalResearchers: "Registered Researchers",
-    totalArea: "Total Study Area",
-    totalTev: "Accumulated TEV Estimate",
-    draftStatus: "Completed Projects",
+    totalProjects: "TOTAL PROJECTS / ANALYSES",
+    totalResearchers: "TOTAL RESEARCHERS",
+    accumulatedTev: "ACCUMULATED TEV",
+    totalYearly: "TOTAL",
+    chartTitle: "Monthly Project Creation Chart",
+    chartLoading: "Loading data...",
+    projectsUnit: "Number of Projects",
     title: "Participation & Ecosystem Distribution Statistics",
-    description: "The system transparently tracks actual research data aggregates, covering monthly project activity and the area distribution of Indonesian coastal and marine ecosystems.",
-    monthlyChartTitle: "Monthly Project Activity",
-    monthlyChartDesc: "Distribution of project valuation form submissions per month",
-    ecosystemChartTitle: "Ecosystem Area Distribution",
-    ecosystemChartDesc: "Comparison of cumulative coverage area (Ha) by ecosystem category",
-    year: "Year",
-    projectsUnit: "Projects",
-    areaUnit: "Ha"
+    description: "This system records valuation form creation in real-time while mapping coastal ecosystem distribution (Mangrove, Coral Reefs, and Seagrass) most frequently analyzed by researchers and policy makers."
   },
   map: {
     title: "Ecosystem Valuation Spatial Distribution Map",

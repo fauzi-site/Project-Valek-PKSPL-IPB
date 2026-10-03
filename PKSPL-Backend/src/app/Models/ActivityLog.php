@@ -12,7 +12,7 @@ class ActivityLog extends Model
     const CREATED_AT = 'created_at';
     protected $table = 'activity_logs';
     protected $primaryKey = 'id_log';
-    protected $fillable = ['id_user','id_proyek','id_review','id_comment','action','description','meta'];
+    protected $fillable = ['id_user','id_proyek','id_review','id_comment','action','description','meta','created_at'];
     protected function casts(): array {
         return [
             'meta' => 'array',

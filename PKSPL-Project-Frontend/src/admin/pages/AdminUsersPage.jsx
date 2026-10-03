@@ -5,6 +5,7 @@ import UserProfileDetailModal from '../../components/UserProfileDetailModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { Users, Search, Mail, CheckCircle2, UserPlus, X } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { formatUserLastActive } from '../utils/formatter';
 
 /**
  * Check if a user is currently online based on the active authenticated session.
@@ -253,16 +254,15 @@ export const AdminUsersPage = () => {
           role: u.role?.nama_role || (typeof u.role === 'string' ? u.role : 'Peneliti'),
           institution: u.institusi || u.instansi || 'PKSPL IPB University',
           status: u.status || 'Aktif',
-          lastActive: u.last_seen_at
-            ? new Date(u.last_seen_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
-            : '09.33',
+          last_login_at: u.last_login_at || u.last_online_at || null,
+          last_online_at: u.last_online_at || null,
+          last_seen_at: u.last_seen_at || null,
           assignedProjectsCount: u.proyek_count ?? u.assignedProjectsCount ?? 1,
           foto: u.foto || null,
           google_id_exists: u.google_id_exists || false,
           created_at: u.created_at || null,
           updated_at: u.updated_at || null,
           is_verified: u.is_verified ?? u.email_verified_at ? true : false,
-          last_seen_at: u.last_seen_at || null,
         }));
         setUsersList(formatted);
       }
@@ -326,7 +326,9 @@ export const AdminUsersPage = () => {
         role: payload.role,
         institution: 'PKSPL IPB University',
         status: payload.status,
-        lastActive: 'Baru saja',
+        last_login_at: null,
+        last_online_at: null,
+        last_seen_at: null,
         assignedProjectsCount: 0,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -467,7 +469,16 @@ export const AdminUsersPage = () => {
               ) : (
                 filteredUsers.map((user) => {
                   const online = isUserOnline(user, currentAuthUser);
-                  const displayLastActive = online ? 'Sedang Online' : (user.lastActive || '09.33');
+                  const effectiveTimestamp =
+                    user.last_seen_at ||
+                    user.last_login_at ||
+                    user.last_online_at ||
+                    (typeof user.lastActive === 'string' && user.lastActive.includes('T') ? user.lastActive : null);
+                  const activityInfo = formatUserLastActive(effectiveTimestamp, new Date(), {
+                    isOnline: online,
+                    lastLoginAt: user.last_login_at || user.last_online_at || null,
+                    lastSeenAt: user.last_seen_at || null,
+                  });
 
                   return (
                     <tr key={user.id || user.id_user} className="hover:bg-slate-50/80 transition-colors">
@@ -501,8 +512,23 @@ export const AdminUsersPage = () => {
                       </td>
 
                       {/* Aktivitas Terakhir */}
-                      <td className="py-3 px-4 text-slate-500 font-mono text-[11px] whitespace-nowrap">
-                        {displayLastActive}
+                      <td className="py-3 px-4 whitespace-nowrap" title={activityInfo.tooltip}>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`w-2 h-2 rounded-full shrink-0 ${activityInfo.dotColor}`}
+                            title={activityInfo.categoryLabel}
+                          />
+                          <div className="flex flex-col min-w-0">
+                            <span className="font-semibold text-slate-800 text-[11px] leading-tight">
+                              {activityInfo.relativeText}
+                            </span>
+                            {activityInfo.secondaryText && (
+                              <span className="text-[10px] text-slate-400 font-mono leading-tight">
+                                {activityInfo.secondaryText}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </td>
 
                       {/* Status Akun */}

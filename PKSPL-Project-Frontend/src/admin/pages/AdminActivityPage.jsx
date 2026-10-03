@@ -17,8 +17,6 @@ import {
   Eye,
   Calendar,
   ChevronDown,
-  CheckCircle2,
-  AlertTriangle,
   X,
   FileSpreadsheet,
   FileText,
@@ -98,7 +96,7 @@ export const AdminActivityPage = () => {
   // Filtering Logic
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
-      // 1. Search Query
+      // 1. Search Query (Search across Actor, Action Title & Detail, Project, Module, Log ID, Role, Status)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchUser = (log.userName || '').toLowerCase().includes(q) || (log.userEmail || '').toLowerCase().includes(q);
@@ -108,8 +106,11 @@ export const AdminActivityPage = () => {
           (log.projectName && log.projectName.toLowerCase().includes(q));
         const matchModule = (log.moduleName || '').toLowerCase().includes(q);
         const matchId = (log.id || '').toLowerCase().includes(q);
+        const matchRole = (log.userRole || '').toLowerCase().includes(q);
+        const matchStatus = (log.status || '').toLowerCase().includes(q);
+        const matchType = (log.activityType || '').toLowerCase().includes(q);
 
-        if (!matchUser && !matchTitle && !matchProj && !matchModule && !matchId) {
+        if (!matchUser && !matchTitle && !matchProj && !matchModule && !matchId && !matchRole && !matchStatus && !matchType) {
           return false;
         }
       }
@@ -131,11 +132,23 @@ export const AdminActivityPage = () => {
       }
 
       // 5. Date Filter
-      if (dateFilter === 'TODAY' && !log.relativeTime.includes('ago') && !log.relativeTime.includes('lalu') && !log.relativeTime.includes('Menit') && !log.relativeTime.includes('Jam') && !log.relativeTime.includes('Hari ini')) {
-        return false;
-      }
-      if (dateFilter === 'YESTERDAY' && !log.relativeTime.includes('Kemarin') && !log.relativeTime.includes('yesterday') && !log.relativeTime.includes('1 day')) {
-        return false;
+      if (dateFilter !== 'ALL' && log.timestamp) {
+        const logTime = new Date(log.timestamp).getTime();
+        const now = Date.now();
+        const diffHours = (now - logTime) / (1000 * 60 * 60);
+
+        if (dateFilter === 'TODAY' && diffHours > 24) {
+          return false;
+        }
+        if (dateFilter === 'YESTERDAY' && (diffHours <= 24 || diffHours > 48)) {
+          return false;
+        }
+        if (dateFilter === 'WEEK' && diffHours > 24 * 7) {
+          return false;
+        }
+        if (dateFilter === 'MONTH' && diffHours > 24 * 30) {
+          return false;
+        }
       }
 
       return true;
@@ -152,7 +165,12 @@ export const AdminActivityPage = () => {
     setCurrentPage(1);
   };
 
-  const isFiltered = searchQuery !== '' || roleFilter !== 'ALL' || typeFilter !== 'ALL' || projectFilter !== 'ALL' || dateFilter !== 'ALL';
+  const isFiltered =
+    searchQuery !== '' ||
+    roleFilter !== 'ALL' ||
+    typeFilter !== 'ALL' ||
+    projectFilter !== 'ALL' ||
+    dateFilter !== 'ALL';
 
   // Pagination Slice
   const totalPages = Math.ceil(filteredLogs.length / pageSize) || 1;
@@ -170,17 +188,12 @@ export const AdminActivityPage = () => {
         return 'bg-blue-50 text-blue-700 border-blue-200';
       case 'Delete':
         return 'bg-rose-50 text-rose-700 border-rose-200';
-      case 'Submit':
-        return 'bg-purple-50 text-purple-700 border-purple-200';
-      case 'Review':
-        return 'bg-amber-50 text-amber-700 border-amber-200';
-      case 'Approve':
-        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-      case 'Reject':
-        return 'bg-rose-50 text-rose-700 border-rose-200';
       case 'Import':
       case 'Export':
         return 'bg-cyan-50 text-cyan-700 border-cyan-200';
+      case 'Login':
+      case 'Logout':
+        return 'bg-indigo-50 text-indigo-700 border-indigo-200';
       default:
         return 'bg-slate-100 text-slate-700 border-slate-200';
     }
@@ -192,10 +205,9 @@ export const AdminActivityPage = () => {
       case 'Super Admin':
       case 'Admin':
         return 'bg-purple-50 text-purple-700 border-purple-200';
-      case 'Guest':
-        return 'bg-slate-100 text-slate-700 border-slate-200';
+      case 'Peneliti':
       default:
-        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+        return 'bg-blue-50 text-blue-700 border-blue-200';
     }
   };
 
@@ -217,6 +229,7 @@ export const AdminActivityPage = () => {
       'IP Address': item.ipAddress,
       'Platform': item.userAgent,
       'Status': item.status,
+      'Pesan Error': item.errorMessage || '-',
       'Durasi (ms)': item.durationMs,
     }));
 
@@ -242,7 +255,7 @@ export const AdminActivityPage = () => {
             <span>Riwayat Aktivitas & Audit Log Sistem</span>
           </h1>
           <p className="text-xs md:text-sm text-slate-500 mt-1">
-            Audit trail komprehensif atas seluruh aksi pengguna, perubahan data valuasi, dan status verifikasi proyek riset.
+            Audit trail komprehensif atas seluruh aksi pengguna, perubahan data valuasi, dan rekam jejak aktivitas sistem.
           </p>
         </div>
 
@@ -341,7 +354,7 @@ export const AdminActivityPage = () => {
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Cari aktor, aksi, kode proyek, modul, ID log..."
+                placeholder="Cari aktor, aksi, peran, proyek, modul, ID log..."
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
@@ -371,8 +384,8 @@ export const AdminActivityPage = () => {
             )}
           </div>
 
-          {/* Filter Dropdowns Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 text-xs">
+          {/* Filter Dropdowns Grid (4 Dropdowns: Role, Type, Project, Time) */}
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-1 text-xs">
             {/* Role Filter */}
             <div>
               <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
@@ -389,14 +402,13 @@ export const AdminActivityPage = () => {
                 <option value="ALL">Semua Peran</option>
                 <option value="Peneliti">Peneliti</option>
                 <option value="Super Admin">Super Admin</option>
-                <option value="Guest">Guest</option>
               </select>
             </div>
 
             {/* Activity Type Filter */}
             <div>
               <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                Tipe Aktivitas
+                Tipe Aksi
               </label>
               <select
                 value={typeFilter}
@@ -407,14 +419,11 @@ export const AdminActivityPage = () => {
                 className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 cursor-pointer"
               >
                 <option value="ALL">Semua Tipe</option>
-                <option value="Create">Create (Buat Data/Proyek)</option>
-                <option value="Update">Update (Edit/Simpan Nilai)</option>
+                <option value="Create">Create (Tambah Proyek/Data)</option>
+                <option value="Update">Update (Ubah/Kalkulasi)</option>
                 <option value="Delete">Delete (Hapus Data)</option>
-                <option value="Review">Review (Telaah Laporan)</option>
-                <option value="Approve">Approve (Pengesahan)</option>
-                <option value="Reject">Reject (Catatan Revisi)</option>
-                <option value="Import">Import (Excel/Data)</option>
-                <option value="Export">Export (Unduh Dokumen)</option>
+                <option value="Import">Import (Impor Data/Spasial)</option>
+                <option value="Export">Export (Unduh Dokumen/Laporan)</option>
                 <option value="Login">Login</option>
                 <option value="Logout">Logout</option>
               </select>
@@ -456,8 +465,10 @@ export const AdminActivityPage = () => {
                 className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 cursor-pointer"
               >
                 <option value="ALL">Semua Waktu</option>
-                <option value="TODAY">Hari Ini</option>
+                <option value="TODAY">Hari Ini (24 Jam)</option>
                 <option value="YESTERDAY">Kemarin</option>
+                <option value="WEEK">7 Hari Terakhir</option>
+                <option value="MONTH">30 Hari Terakhir</option>
               </select>
             </div>
           </div>
@@ -468,20 +479,19 @@ export const AdminActivityPage = () => {
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200 text-[11px] uppercase tracking-wider">
-                <th className="py-3 px-4">Waktu</th>
-                <th className="py-3 px-4">Pengguna (Aktor)</th>
-                <th className="py-3 px-4">Peran</th>
-                <th className="py-3 px-4">Tipe Aksi</th>
-                <th className="py-3 px-4">Rincian Aktivitas</th>
-                <th className="py-3 px-4">Modul / Proyek</th>
-                <th className="py-3 px-4 text-center">Status</th>
-                <th className="py-3 px-4 text-center">Aksi</th>
+                <th className="py-3 px-4 w-36">Waktu</th>
+                <th className="py-3 px-4 min-w-[150px]">Pengguna (Aktor)</th>
+                <th className="py-3 px-4 whitespace-nowrap">Peran</th>
+                <th className="py-3 px-4 whitespace-nowrap">Tipe Aksi</th>
+                <th className="py-3 px-4 min-w-[240px]">Rincian Aktivitas</th>
+                <th className="py-3 px-4 min-w-[150px]">Modul / Proyek</th>
+                <th className="py-3 px-4 text-center whitespace-nowrap w-20">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {paginatedLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
+                  <td colSpan={7} className="py-12 text-center text-slate-400">
                     <div className="max-w-sm mx-auto space-y-2">
                       <p className="font-semibold text-slate-600">Tidak ada data aktivitas audit ditemukan</p>
                       <p className="text-[11px]">Silakan sesuaikan kata kunci pencarian atau reset filter untuk menampilkan log kembali.</p>
@@ -529,28 +539,12 @@ export const AdminActivityPage = () => {
                     </td>
                     <td className="py-3 px-4">
                       <div className="font-medium text-slate-800">{log.moduleName}</div>
-                      {log.projectCode && (
-                        <div className="font-mono text-[10px] text-blue-600">
+                      {log.projectCode ? (
+                        <div className="font-mono text-[10px] text-blue-600 font-semibold">
                           {log.projectCode}
                         </div>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      {log.status === 'SUCCESS' ? (
-                        <span className="inline-flex items-center gap-1 text-emerald-700 text-[10px] font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                          <span>OK</span>
-                        </span>
-                      ) : log.status === 'WARNING' ? (
-                        <span className="inline-flex items-center gap-1 text-amber-700 text-[10px] font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                          <AlertTriangle className="w-3 h-3 text-amber-500" />
-                          <span>Revisi</span>
-                        </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-rose-700 text-[10px] font-bold bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
-                          <X className="w-3 h-3 text-rose-500" />
-                          <span>Gagal</span>
-                        </span>
+                        <div className="text-[10px] text-slate-400">Sistem Global</div>
                       )}
                     </td>
                     <td className="py-3 px-4 text-center">

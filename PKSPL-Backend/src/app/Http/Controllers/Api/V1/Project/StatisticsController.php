@@ -86,14 +86,14 @@ class StatisticsController extends Controller
             ->map(fn ($c) => (int) $c)
             ->toArray();
 
-        // 8. Hitung Akumulasi TEV Nasional dari daftar proyek
+        // 8. Hitung Akumulasi TEV Nasional dan Komposisi Proyek dari daftar proyek
         $allProjects = Proyek::query()->get(['id_proyek', 'kode_proyek', 'nama_proyek', 'luas', 'tahun', 'created_at', 'updated_at']);
         $totalTev = 0;
         $ecosystemTev = [
-            'Mangrove' => ['value' => 0, 'areaHa' => 0, 'color' => '#0F766E'],
-            'Padang Lamun' => ['value' => 0, 'areaHa' => 0, 'color' => '#0284C7'],
-            'Terumbu Karang' => ['value' => 0, 'areaHa' => 0, 'color' => '#2563EB'],
-            'Estuari & Perairan' => ['value' => 0, 'areaHa' => 0, 'color' => '#6366F1'],
+            'Mangrove' => ['value' => 0, 'areaHa' => 0, 'projectsCount' => 0, 'color' => '#059669'],
+            'Padang Lamun' => ['value' => 0, 'areaHa' => 0, 'projectsCount' => 0, 'color' => '#0D9488'],
+            'Terumbu Karang' => ['value' => 0, 'areaHa' => 0, 'projectsCount' => 0, 'color' => '#D97706'],
+            'Estuari & Perairan' => ['value' => 0, 'areaHa' => 0, 'projectsCount' => 0, 'color' => '#1D4ED8'],
         ];
 
         foreach ($allProjects as $p) {
@@ -117,22 +117,29 @@ class StatisticsController extends Controller
             if (str_contains($nl, 'lamun')) {
                 $ecosystemTev['Padang Lamun']['value'] += $projTev;
                 $ecosystemTev['Padang Lamun']['areaHa'] += $area;
+                $ecosystemTev['Padang Lamun']['projectsCount'] += 1;
             } elseif (str_contains($nl, 'mangrove') || str_contains($nl, 'karbon biru')) {
                 $ecosystemTev['Mangrove']['value'] += $projTev;
                 $ecosystemTev['Mangrove']['areaHa'] += $area;
+                $ecosystemTev['Mangrove']['projectsCount'] += 1;
             } elseif (str_contains($nl, 'terumbu') || str_contains($nl, 'nusa penida')) {
                 $ecosystemTev['Terumbu Karang']['value'] += $projTev;
                 $ecosystemTev['Terumbu Karang']['areaHa'] += $area;
+                $ecosystemTev['Terumbu Karang']['projectsCount'] += 1;
             } else {
                 $ecosystemTev['Estuari & Perairan']['value'] += $projTev;
                 $ecosystemTev['Estuari & Perairan']['areaHa'] += $area;
+                $ecosystemTev['Estuari & Perairan']['projectsCount'] += 1;
             }
         }
 
-        // Format distribusi ekosistem untuk chart bar
+        // Format distribusi nilai ekosistem dan komposisi proyek
         $chartEcosystem = [];
+        $ecosystemProjects = [];
         foreach ($ecosystemTev as $ecoName => $ecoData) {
             $pct = $totalTev > 0 ? round(($ecoData['value'] / $totalTev) * 100, 1) : 0;
+            $projPct = $totalProjects > 0 ? round(($ecoData['projectsCount'] / $totalProjects) * 100, 1) : 0;
+
             $chartEcosystem[] = [
                 'name' => $ecoName,
                 'value' => $ecoData['value'],
@@ -140,6 +147,16 @@ class StatisticsController extends Controller
                 'percentage' => $pct,
                 'color' => $ecoData['color'],
                 'areaHa' => round($ecoData['areaHa'], 1),
+                'projectsCount' => $ecoData['projectsCount'],
+                'projectsPercentage' => $projPct,
+            ];
+
+            $ecosystemProjects[] = [
+                'name' => $ecoName,
+                'count' => $ecoData['projectsCount'],
+                'projectsCount' => $ecoData['projectsCount'],
+                'percentage' => $projPct,
+                'color' => $ecoData['color'],
             ];
         }
 
@@ -313,7 +330,8 @@ class StatisticsController extends Controller
             'status_workflow' => $donutStatus,
             'ecosystem_valuation' => $chartEcosystem,
             'monthly_projects' => $monthlyProjects,
-            'ecosystem_distribution' => $ecosystemData,
+            'ecosystem_distribution' => $ecosystemProjects,
+            'ecosystem_composition' => $ecosystemProjects,
             'monthly_trend' => $monthlyTrend,
             'yearly_trend' => $yearlyTrend,
             'monthly_trend_by_year' => $monthlyTrendByYear,

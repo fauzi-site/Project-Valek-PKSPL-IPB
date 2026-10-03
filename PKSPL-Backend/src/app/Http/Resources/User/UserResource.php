@@ -25,6 +25,7 @@ class UserResource extends JsonResource
             'email_verified_at' => $this->email_verified_at,
             'is_verified' => !empty($this->email_verified_at),
             'status' => $this->status,
+            'last_login_at' => $this->last_online_at,
             'last_online_at' => $this->last_online_at,
             'last_seen_at' => $this->last_seen_at,
             'is_online' => $this->last_seen_at ? $this->last_seen_at->gt(now()->subMinutes(2)) : false,

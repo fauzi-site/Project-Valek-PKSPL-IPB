@@ -41,7 +41,8 @@ import {
   GitCompare,
   CheckSquare,
   Check,
-  SlidersHorizontal
+  SlidersHorizontal,
+  X
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -1223,7 +1224,7 @@ export const AdminDashboardPage = () => {
       {/* ------------------------------------------------------------- */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 md:gap-6">
         {/* Left: Recent Projects Table (8 cols) */}
-        <div className="lg:col-span-8 bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col justify-between">
+        <div className="lg:col-span-8 bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col">
           <div className="p-5 border-b border-slate-200 bg-slate-50/50 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
@@ -1245,36 +1246,36 @@ export const AdminDashboardPage = () => {
             </div>
 
             {/* Filter & Search Toolbar */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-1 text-xs">
-              <div className="relative w-full sm:w-64">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 text-xs">
+              <div className="relative w-full sm:w-80">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   placeholder="Cari kode, nama, lokasi..."
                   value={projectSearch}
                   onChange={(e) => setProjectSearch(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full pl-8 pr-8 py-1.5 bg-white border border-slate-300 rounded-lg text-xs placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
                 />
+                {projectSearch && (
+                  <button
+                    onClick={() => setProjectSearch('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+                    title="Hapus pencarian"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
-
-              {/* Table search toolbar */}
-              <div className="w-full sm:w-64">
-                <div className="relative w-full">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="Cari kode, nama, lokasi..."
-                    value={projectSearch}
-                    onChange={(e) => setProjectSearch(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
+              {projectSearch && (
+                <div className="text-[11px] text-slate-500 self-start sm:self-auto">
+                  Ditemukan <strong className="text-slate-700">{filteredProjects.length}</strong> proyek
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
           {/* Table container */}
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto flex-1">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200 text-[11px] uppercase tracking-wider">
@@ -1329,7 +1330,7 @@ export const AdminDashboardPage = () => {
             </table>
           </div>
 
-          <div className="p-3 bg-slate-50 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between">
+          <div className="p-3 bg-slate-50 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between mt-auto">
             <span>Menampilkan {filteredProjects.length} dari {projectsList.length} proyek penelitian</span>
             <span className="font-medium text-slate-600">Terakhir diperbarui: Hari ini</span>
           </div>
