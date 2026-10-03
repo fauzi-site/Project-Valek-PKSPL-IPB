@@ -19,6 +19,7 @@ export interface HeatmapConfig {
   preset: GradientPreset;
   opacity?: number;
   minTev?: number;
+  maxTev?: number;
 }
 
 // ─── Gradient Presets ────────────────────────────────────────────────────────

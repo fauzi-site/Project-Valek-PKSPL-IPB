@@ -22,7 +22,10 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  RotateCcw
+  RotateCcw,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -70,6 +73,28 @@ export const IndexPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'Draft' | 'Selesai'>('ALL');
   const [filterSpatial, setFilterSpatial] = useState<'ALL' | 'connected' | 'unconnected'>('ALL');
+
+  // Sorting state
+  type SortColumn = 'INDEX' | 'TUTUPAN' | 'LUAS' | 'SPASIAL';
+  type SortDirection = 'ASC' | 'DESC';
+  const [sortCol, setSortCol] = useState<SortColumn>('INDEX');
+  const [sortDir, setSortDir] = useState<SortDirection>('ASC');
+
+  const handleSort = (col: SortColumn) => {
+    if (sortCol === col) {
+      setSortDir(prev => prev === 'ASC' ? 'DESC' : 'ASC');
+    } else {
+      setSortCol(col);
+      setSortDir('ASC');
+    }
+  };
+
+  const renderSortIcon = (col: SortColumn) => {
+    if (sortCol !== col) return <ArrowUpDown className="w-3 h-3 text-slate-300 ml-1 shrink-0" />;
+    return sortDir === 'ASC' 
+      ? <ArrowUp className="w-3 h-3 text-blue-500 ml-1 shrink-0" /> 
+      : <ArrowDown className="w-3 h-3 text-blue-500 ml-1 shrink-0" />;
+  };
 
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -153,9 +178,9 @@ export const IndexPage: React.FC = () => {
     return linked.some(lc => Array.isArray(lc.coordinates) && lc.coordinates.length > 0);
   };
 
-  // Filtered indices list with robust search
+  // Filtered indices list with robust search & sorting
   const filteredIndices = useMemo(() => {
-    return indices.filter(item => {
+    const filtered = indices.filter(item => {
       const isConnected = checkIsConnected(item);
       const matchesStatus = filterStatus === 'ALL' || item.status === filterStatus;
       const matchesSpatial =
@@ -180,7 +205,34 @@ export const IndexPage: React.FC = () => {
         coverNames.includes(q)
       );
     });
-  }, [indices, landCovers, searchQuery, filterStatus, filterSpatial]);
+
+    return filtered.sort((a, b) => {
+      let valA: any = 0;
+      let valB: any = 0;
+
+      if (sortCol === 'INDEX') {
+        valA = indexLabelMap.get(a.code) || a.code || '';
+        valB = indexLabelMap.get(b.code) || b.code || '';
+      } else if (sortCol === 'TUTUPAN') {
+        const linkedA = getLinkedLandCovers(a);
+        const linkedB = getLinkedLandCovers(b);
+        valA = linkedA.map(lc => lc.name).join(' ');
+        valB = linkedB.map(lc => lc.name).join(' ');
+      } else if (sortCol === 'LUAS') {
+        const linkedA = getLinkedLandCovers(a);
+        const linkedB = getLinkedLandCovers(b);
+        valA = linkedA.length > 0 ? linkedA.reduce((s, lc) => s + (Number(lc.areaHa) || 0), 0) : (Number(a.areaHa) || 0);
+        valB = linkedB.length > 0 ? linkedB.reduce((s, lc) => s + (Number(lc.areaHa) || 0), 0) : (Number(b.areaHa) || 0);
+      } else if (sortCol === 'SPASIAL') {
+        valA = checkIsConnected(a) ? 1 : 0;
+        valB = checkIsConnected(b) ? 1 : 0;
+      }
+
+      if (valA < valB) return sortDir === 'ASC' ? -1 : 1;
+      if (valA > valB) return sortDir === 'ASC' ? 1 : -1;
+      return 0;
+    });
+  }, [indices, landCovers, searchQuery, filterStatus, filterSpatial, sortCol, sortDir, indexLabelMap]);
 
   // Overall Statistics for quick KPI cards
   const stats = useMemo(() => {
@@ -499,11 +551,27 @@ export const IndexPage: React.FC = () => {
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200 text-[11px] uppercase tracking-wider">
-                <th className="py-3 px-4 w-32">Index</th>
-                <th className="py-3 px-4 min-w-[240px] max-w-[320px]">Area Tutupan Lahan</th>
-                <th className="py-3 px-4 text-right w-28">Total Luas</th>
-                <th className="py-3 px-4 w-36 text-center">Data Spasial</th>
-                <th className="py-3 px-4 text-right min-w-[190px]">Aksi</th>
+                <th className="py-3 px-4 w-[15%] min-w-[120px] select-none">
+                  <div className="flex items-center cursor-pointer group" onClick={() => handleSort('INDEX')}>
+                    Index {renderSortIcon('INDEX')}
+                  </div>
+                </th>
+                <th className="py-3 px-4 w-[35%] min-w-[250px] select-none">
+                  <div className="flex items-center cursor-pointer group" onClick={() => handleSort('TUTUPAN')}>
+                    Area Tutupan Lahan {renderSortIcon('TUTUPAN')}
+                  </div>
+                </th>
+                <th className="py-3 px-4 w-[15%] min-w-[120px] text-right select-none">
+                  <div className="flex items-center justify-end cursor-pointer group" onClick={() => handleSort('LUAS')}>
+                    Total Luas {renderSortIcon('LUAS')}
+                  </div>
+                </th>
+                <th className="py-3 px-4 w-[15%] min-w-[130px] text-center select-none">
+                  <div className="flex items-center justify-center cursor-pointer group" onClick={() => handleSort('SPASIAL')}>
+                    Data Spasial {renderSortIcon('SPASIAL')}
+                  </div>
+                </th>
+                <th className="py-3 px-4 w-[20%] min-w-[180px] text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">

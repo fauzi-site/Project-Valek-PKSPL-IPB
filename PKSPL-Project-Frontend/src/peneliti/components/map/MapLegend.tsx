@@ -120,6 +120,12 @@ export const MapLegend: React.FC<MapLegendProps> = ({
 
   const currentPreset = GRADIENT_PRESETS[heatmapConfig.preset];
 
+  const absoluteMax = (tevMax ?? 0) > 0 ? (tevMax ?? 0) * 1.2 : 100;
+  const currentMin = heatmapConfig?.minTev ?? 0;
+  const currentMax = (heatmapConfig?.maxTev === undefined || heatmapConfig?.maxTev === Infinity) ? (tevMax ?? 0) : heatmapConfig.maxTev;
+  const minPercent = absoluteMax > 0 ? (currentMin / absoluteMax) * 100 : 0;
+  const maxPercent = absoluteMax > 0 ? (currentMax / absoluteMax) * 100 : 100;
+
   return (
     <div className="w-full select-none text-xs">
 
@@ -214,7 +220,7 @@ export const MapLegend: React.FC<MapLegendProps> = ({
                 <button
                   key={m.id}
                   type="button"
-                  onClick={() => updateConfig({ metric: m.id, minTev: 0 })}
+                  onClick={() => updateConfig({ metric: m.id, minTev: 0, maxTev: undefined })}
                   className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
                     heatmapConfig.metric === m.id
                       ? `${m.color} border-transparent shadow-xs scale-105`
@@ -257,32 +263,86 @@ export const MapLegend: React.FC<MapLegendProps> = ({
             </div>
           </div>
 
-          {/* Total TEV Threshold (starting from 0) */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                {heatmapConfig.metric === 'per_ha' ? 'TEV / Ha Threshold' : 'Total TEV Threshold'}
-              </p>
-              <span className="text-[11px] font-mono font-bold text-slate-700">
-                {(heatmapConfig.minTev ?? 0) === 0
-                  ? 'From Rp 0 (All)'
-                  : `≥ Rp ${formatNumber(heatmapConfig.minTev ?? 0)}${heatmapConfig.metric === 'per_ha' ? '/ha' : ''}`}
-              </span>
+          {/* TEV Range Thresholds */}
+          <div className="pt-2">
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
+              Filter Rentang {heatmapConfig.metric === 'per_ha' ? 'TEV/Ha' : 'Total TEV'}
+            </p>
+
+            {/* Manual Number Inputs */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex-1">
+                <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Min (Rp)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={currentMax}
+                  value={Math.round(currentMin)}
+                  onChange={e => {
+                    const val = Number(e.target.value);
+                    updateConfig({ minTev: val > currentMax ? currentMax : Math.max(0, val) });
+                  }}
+                  className="w-full px-2 py-1 text-[10px] font-mono border border-slate-300 rounded focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+              <div className="text-slate-300 mt-4">-</div>
+              <div className="flex-1">
+                <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Max (Rp)</label>
+                <input
+                  type="number"
+                  min={currentMin}
+                  max={absoluteMax}
+                  value={Math.round(currentMax)}
+                  onChange={e => {
+                    const val = Number(e.target.value);
+                    const finalVal = val > absoluteMax ? absoluteMax : (val < currentMin ? currentMin : val);
+                    updateConfig({ maxTev: finalVal });
+                  }}
+                  className="w-full px-2 py-1 text-[10px] font-mono border border-slate-300 rounded focus:border-blue-500 focus:outline-none"
+                />
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-slate-400 w-12 text-left">Rp 0</span>
+
+            {/* Dual Range Slider */}
+            <div className="relative w-full h-1.5 bg-slate-200 rounded mt-2 mb-2 px-1">
+              {/* Active Track */}
+              <div
+                className="absolute h-full bg-blue-500 rounded"
+                style={{ left: `${minPercent}%`, right: `${100 - maxPercent}%` }}
+              />
+              
+              {/* Min Thumb */}
               <input
                 type="range"
                 min={0}
-                max={tevMax || 100}
-                step={tevMax > 1000 ? Math.round(tevMax / 100) : 1}
-                value={heatmapConfig.minTev ?? 0}
-                onChange={e => updateConfig({ minTev: Number(e.target.value) })}
-                className="flex-1 h-1.5 accent-blue-600 cursor-pointer"
+                max={absoluteMax}
+                step={absoluteMax > 1000 ? Math.round(absoluteMax / 100) : 1}
+                value={currentMin}
+                onChange={e => {
+                  const val = Number(e.target.value);
+                  updateConfig({ minTev: Math.min(val, currentMax) });
+                }}
+                className="absolute w-full -top-1.5 h-1.5 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:bg-blue-600 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:appearance-none"
               />
-              <span className="text-[10px] text-slate-400 w-24 text-right truncate">
-                Rp {formatNumber(Math.round(tevMax))}{heatmapConfig.metric === 'per_ha' ? '/ha' : ''}
-              </span>
+
+              {/* Max Thumb */}
+              <input
+                type="range"
+                min={0}
+                max={absoluteMax}
+                step={absoluteMax > 1000 ? Math.round(absoluteMax / 100) : 1}
+                value={currentMax}
+                onChange={e => {
+                  const val = Number(e.target.value);
+                  updateConfig({ maxTev: Math.max(val, currentMin) });
+                }}
+                className="absolute w-full -top-1.5 h-1.5 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:bg-blue-600 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:appearance-none"
+              />
+            </div>
+            
+            <div className="flex justify-between text-[9px] text-slate-400 font-mono mt-2">
+              <span>0</span>
+              <span>Max Limit: {formatNumber(Math.round(absoluteMax))}</span>
             </div>
           </div>
         </div>

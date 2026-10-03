@@ -8,9 +8,10 @@ import { MapLayerControl } from './MapLayerControl';
 import { PolygonDetailDrawer } from './PolygonDetailDrawer';
 import { useProject } from '../../context/ProjectContext';
 import { MAP_CONFIG, TileProvider } from '../../config/mapConfig';
-import { AlertTriangle, Info } from 'lucide-react';
+import { AlertTriangle, Info, Focus } from 'lucide-react';
 import { isValidPoint, filterValidPolygons } from '../../utils/geoValidation';
 import { getPolygonColor } from '../../utils/spatialColors';
+import { getIndexLabel } from '../../utils/indexLabel';
 import {
   ColorMode,
   HeatmapConfig,
@@ -63,6 +64,42 @@ const MapRecenter: React.FC<{
   return null;
 };
 
+// ─── MapResetControl ──────────────────────────────────────────────────────────
+
+const MapResetControl: React.FC<{
+  center: [number, number];
+  bounds?: [[number, number], [number, number]];
+  zoom: number;
+}> = ({ center, bounds, zoom }) => {
+  const map = useMap();
+
+  const handleReset = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (bounds) {
+      map.fitBounds(bounds, { padding: [30, 30], maxZoom: 16 });
+    } else {
+      map.setView(center, zoom);
+    }
+  };
+
+  return (
+    <div className="leaflet-top leaflet-left !top-[70px]">
+      <div className="leaflet-control leaflet-bar">
+        <a 
+          href="#"
+          onClick={handleReset}
+          title="Reset Map View"
+          className="!flex items-center justify-center !w-[34px] !h-[34px] bg-white hover:bg-slate-50 text-slate-700 hover:text-blue-600 transition-colors"
+          style={{ display: 'flex', outline: 'none' }}
+        >
+          <Focus className="w-[18px] h-[18px]" />
+        </a>
+      </div>
+    </div>
+  );
+};
+
 // ─── MapView ──────────────────────────────────────────────────────────────────
 
 export const MapView: React.FC<MapViewProps> = ({
@@ -74,6 +111,7 @@ export const MapView: React.FC<MapViewProps> = ({
   const context = useProject();
   const landCovers = propLandCovers || context.landCovers;
   const layers = propLayers || context.layers;
+  const indices = context.indices || [];
   const [internalSelected, setInternalSelected] = useState<LandCoverPolygon | null>(null);
 
   // Color mode & heatmap config
@@ -214,14 +252,21 @@ export const MapView: React.FC<MapViewProps> = ({
             bounds={currentPolygon ? undefined : bounds}
           />
 
+          <MapResetControl
+            center={defaultCenter}
+            bounds={bounds}
+            zoom={MAP_CONFIG.defaultZoom}
+          />
+
           {isTutupanVisible && (() => {
             const hasSelection = currentPolygon !== null;
             const minTevThreshold = heatmapConfig.minTev ?? 0;
+            const maxTevThreshold = heatmapConfig.maxTev ?? Infinity;
             return validLandCovers.map((poly) => {
               const isSelected = currentPolygon?.id === poly.id;
               const val = getMetricValue(poly, heatmapConfig.metric);
-              const belowThreshold = colorMode === 'heatmap' && minTevThreshold > 0 && val < minTevThreshold;
-              const isDimmed   = (hasSelection && !isSelected) || belowThreshold;
+              const outOfRange = colorMode === 'heatmap' && ((minTevThreshold > 0 && val < minTevThreshold) || (maxTevThreshold !== Infinity && val > maxTevThreshold));
+              const isDimmed   = (hasSelection && !isSelected) || outOfRange;
               const { fill: fillColor, stroke: strokeColor } = getPolyColors(poly);
 
               return (
@@ -261,11 +306,11 @@ export const MapView: React.FC<MapViewProps> = ({
                         </div>
                       ) : isIndexVisible && (
                         <div className={`text-[9px] font-mono font-semibold mt-0.5 px-1.5 py-0.5 rounded border ${
-                          poly.indexCode
+                          (poly.indexCode || poly.indexId)
                             ? 'text-blue-700 bg-blue-50 border-blue-200'
                             : 'text-amber-700 bg-amber-50 border-amber-200'
                         }`}>
-                          {poly.indexCode ? `${poly.indexCode} • ` : '⚠ Belum Ada Index • '}
+                          {(poly.indexCode || poly.indexId) ? `${getIndexLabel(indices, poly.indexId, poly.indexCode)} • ` : '⚠ Belum Ada Index • '}
                           {formatNumber(poly.areaHa)} ha
                         </div>
                       )}

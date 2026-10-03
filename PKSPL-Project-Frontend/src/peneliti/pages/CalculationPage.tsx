@@ -31,7 +31,10 @@ import {
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
-  Search
+  Search,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown
 } from 'lucide-react';
 import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
@@ -245,6 +248,10 @@ const CalculationPageContent: React.FC = () => {
   // Active modal state for [ Lihat Detail Perhitungan ]
   const [detailModalService, setDetailModalService] = useState<EcosystemServiceId | null>(null);
 
+  // Search states for Multi-Select Filters
+  const [filterIndexSearch, setFilterIndexSearch] = useState('');
+  const [filterTutupanSearch, setFilterTutupanSearch] = useState('');
+
   // Filtered land covers based on selected scope
   const targetLandCovers = useMemo(() => {
     return landCovers.filter(lc => selectedLandCoverIds.includes(lc.id));
@@ -262,17 +269,77 @@ const CalculationPageContent: React.FC = () => {
   const [isCustomMode, setIsCustomMode] = useState<boolean>(false);
   const [tableCurrentPage, setTableCurrentPage] = useState<number>(1);
   const [tableSearchQuery, setTableSearchQuery] = useState<string>('');
+  
+  type SortColumn = 'TUTUPAN' | 'INDEX' | 'LUAS' | 'JASA' | 'NILAI' | 'KONTRIBUSI';
+  type SortDirection = 'ASC' | 'DESC';
+  const [tableSortCol, setTableSortCol] = useState<SortColumn>('TUTUPAN');
+  const [tableSortDir, setTableSortDir] = useState<SortDirection>('ASC');
+
+  const handleTableSort = (col: SortColumn) => {
+    if (tableSortCol === col) {
+      setTableSortDir(prev => prev === 'ASC' ? 'DESC' : 'ASC');
+    } else {
+      setTableSortCol(col);
+      setTableSortDir('ASC');
+    }
+  };
+
+  const renderTableSortIcon = (col: SortColumn) => {
+    if (tableSortCol !== col) return <ArrowUpDown className="w-3 h-3 text-slate-300 ml-1 shrink-0" />;
+    return tableSortDir === 'ASC' 
+      ? <ArrowUp className="w-3 h-3 text-blue-500 ml-1 shrink-0" /> 
+      : <ArrowDown className="w-3 h-3 text-blue-500 ml-1 shrink-0" />;
+  };
 
   // Filtered land covers based on search query in the table
   const tableFilteredLandCovers = useMemo(() => {
-    if (!tableSearchQuery.trim()) return landCovers;
-    const q = tableSearchQuery.toLowerCase().trim();
-    return landCovers.filter(lc =>
-      (lc.name || '').toLowerCase().includes(q) ||
-      (lc.indexCode || '').toLowerCase().includes(q) ||
-      (lc.type || '').toLowerCase().includes(q)
-    );
-  }, [landCovers, tableSearchQuery]);
+    let filtered = landCovers;
+    if (tableSearchQuery.trim()) {
+      const q = tableSearchQuery.toLowerCase().trim();
+      filtered = landCovers.filter(lc =>
+        (lc.name || '').toLowerCase().includes(q) ||
+        (lc.indexCode || '').toLowerCase().includes(q) ||
+        (lc.type || '').toLowerCase().includes(q)
+      );
+    }
+    
+    // Sort logic
+    const sorted = [...filtered].sort((a, b) => {
+      let valA: any = 0;
+      let valB: any = 0;
+
+      const cfgA = getAreaConfig(a.id);
+      const cfgB = getAreaConfig(b.id);
+      
+      const totalA = getGrandTotalForArea(activeProjectId, a.id, cfgA.activeServices, cfgA.selectedMethods, 'flora');
+      const totalB = getGrandTotalForArea(activeProjectId, b.id, cfgB.activeServices, cfgB.selectedMethods, 'flora');
+
+      // (Note: projectGrandTEV is the same for all, so contribution sort is same as total value sort)
+
+      if (tableSortCol === 'TUTUPAN') {
+        valA = a.name || '';
+        valB = b.name || '';
+      } else if (tableSortCol === 'INDEX') {
+        valA = a.indexCode || '';
+        valB = b.indexCode || '';
+      } else if (tableSortCol === 'LUAS') {
+        valA = a.areaHa || 0;
+        valB = b.areaHa || 0;
+      } else if (tableSortCol === 'JASA') {
+        valA = Object.values(cfgA.activeServices).filter(Boolean).length;
+        valB = Object.values(cfgB.activeServices).filter(Boolean).length;
+      } else if (tableSortCol === 'NILAI' || tableSortCol === 'KONTRIBUSI') {
+        valA = totalA;
+        valB = totalB;
+      }
+
+      if (valA < valB) return tableSortDir === 'ASC' ? -1 : 1;
+      if (valA > valB) return tableSortDir === 'ASC' ? 1 : -1;
+      return 0;
+    });
+
+    return sorted;
+  }, [landCovers, tableSearchQuery, tableSortCol, tableSortDir, activeProjectId, getAreaConfig, getGrandTotalForArea]);
 
   // Total pages
   const tableTotalPages = useMemo(() => {
@@ -746,9 +813,32 @@ const CalculationPageContent: React.FC = () => {
               </div>
             </div>
 
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={filterIndexSearch}
+                onChange={(e) => setFilterIndexSearch(e.target.value)}
+                placeholder="Cari Indeks..."
+                className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              {filterIndexSearch && (
+                <button
+                  type="button"
+                  onClick={() => setFilterIndexSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+
             {/* List of indices */}
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-              {availableIndices.map((idx) => {
+              {availableIndices.filter(idx => {
+                const label = indexLabelMap.get(idx.code) ?? idx.code;
+                return label.toLowerCase().includes(filterIndexSearch.toLowerCase());
+              }).map((idx) => {
                 const totalLc = idx.landCoverIds.length;
                 const selectedLc = idx.landCoverIds.filter(id => selectedLandCoverIds.includes(id)).length;
                 const isAllInIdx = selectedLc === totalLc && totalLc > 0;
@@ -838,11 +928,39 @@ const CalculationPageContent: React.FC = () => {
                 </button>
               </div>
             </div>
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={filterTutupanSearch}
+                onChange={(e) => setFilterTutupanSearch(e.target.value)}
+                placeholder="Cari Tutupan Lahan..."
+                className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              />
+              {filterTutupanSearch && (
+                <button
+                  type="button"
+                  onClick={() => setFilterTutupanSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
 
             {/* List of land covers grouped by Index */}
             <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
               {availableIndices.map((idx) => {
-                const idxLandCovers = landCovers.filter(lc => idx.landCoverIds.includes(lc.id));
+                let idxLandCovers = landCovers.filter(lc => idx.landCoverIds.includes(lc.id));
+                
+                if (filterTutupanSearch.trim()) {
+                  const q = filterTutupanSearch.toLowerCase();
+                  idxLandCovers = idxLandCovers.filter(lc => 
+                    (lc.name || '').toLowerCase().includes(q) ||
+                    (lc.type || '').toLowerCase().includes(q)
+                  );
+                }
+
                 if (idxLandCovers.length === 0) return null;
                 const selectedInIdx = idxLandCovers.filter(lc => selectedLandCoverIds.includes(lc.id)).length;
 
@@ -1284,13 +1402,37 @@ const CalculationPageContent: React.FC = () => {
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200 text-[11px] uppercase">
-                <th className="py-3 px-3 w-12 text-center">No</th>
-                <th className="py-3 px-4">Area Tutupan Lahan</th>
-                <th className="py-3 px-4 w-28">Index</th>
-                <th className="py-3 px-4 text-right w-28">Luas (Ha)</th>
-                <th className="py-3 px-4">Jasa Aktif</th>
-                <th className="py-3 px-4 text-right min-w-[180px]">Total Nilai Area (Rp)</th>
-                <th className="py-3 px-4 text-right w-28">Kontribusi TEV</th>
+                <th className="py-3 px-3 w-12 text-center select-none">No</th>
+                <th className="py-3 px-4 select-none">
+                  <div className="flex items-center cursor-pointer group" onClick={() => handleTableSort('TUTUPAN')}>
+                    Area Tutupan Lahan {renderTableSortIcon('TUTUPAN')}
+                  </div>
+                </th>
+                <th className="py-3 px-4 w-28 select-none">
+                  <div className="flex items-center cursor-pointer group" onClick={() => handleTableSort('INDEX')}>
+                    Index {renderTableSortIcon('INDEX')}
+                  </div>
+                </th>
+                <th className="py-3 px-4 text-right w-28 select-none">
+                  <div className="flex items-center justify-end cursor-pointer group" onClick={() => handleTableSort('LUAS')}>
+                    Luas (Ha) {renderTableSortIcon('LUAS')}
+                  </div>
+                </th>
+                <th className="py-3 px-4 select-none">
+                  <div className="flex items-center cursor-pointer group" onClick={() => handleTableSort('JASA')}>
+                    Jasa Aktif {renderTableSortIcon('JASA')}
+                  </div>
+                </th>
+                <th className="py-3 px-4 text-right min-w-[180px] select-none">
+                  <div className="flex items-center justify-end cursor-pointer group" onClick={() => handleTableSort('NILAI')}>
+                    Total Nilai Area (Rp) {renderTableSortIcon('NILAI')}
+                  </div>
+                </th>
+                <th className="py-3 px-4 text-right w-28 select-none">
+                  <div className="flex items-center justify-end cursor-pointer group" onClick={() => handleTableSort('KONTRIBUSI')}>
+                    Kontribusi TEV {renderTableSortIcon('KONTRIBUSI')}
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">

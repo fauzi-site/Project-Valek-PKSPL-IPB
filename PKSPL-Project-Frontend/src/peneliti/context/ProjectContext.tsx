@@ -46,7 +46,7 @@ interface ProjectContextType {
   layers: MapLayer[];
   areaConfigs: Record<string, AreaServiceConfig>;
   setActiveProjectId: (id: string) => void;
-  createProject: (name: string, description: string) => Promise<Project>;
+  createProject: (name: string, description: string, location?: string) => Promise<Project>;
   deleteProject: (id: string) => Promise<void>;
   updateProjectStatus: (id: string, status: ProjectStatus, notes?: string, reviewer?: string) => void;
   addShpLayer: (name: string, featureCount: number, crs: string, targetProjId?: string, geojson?: any) => void;
@@ -852,9 +852,14 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   };
 
-  const createProject = async (name: string, description: string): Promise<Project> => {
-    const response = await createProyek({ nama_proyek: name, deskripsi: description });
+  const createProject = async (name: string, description: string, location?: string): Promise<Project> => {
+    const payload: any = { nama_proyek: name, deskripsi: description };
+    if (location) payload.lokasi = location;
+    
+    const response = await createProyek(payload);
     const newProj = fromApiProject(response, user?.nama || 'Peneliti Utama (Saya)');
+
+    if (location) newProj.location = location;
 
     setProjects(prev => [newProj, ...prev]);
     setActiveProjectIdState(newProj.id);

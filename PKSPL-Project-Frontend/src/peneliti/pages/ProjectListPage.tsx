@@ -14,9 +14,11 @@ import {
   X,
   Clock,
   ArrowRight,
-  Trash2
+  Trash2,
+  MapPin
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { LocationSelector } from '../components/LocationSelector';
 
 type MenuPosition = { top: number; left: number };
 
@@ -43,12 +45,14 @@ export const ProjectListPage: React.FC = () => {
   // New project modal form state
   const [newProjCode, setNewProjCode] = useState(generateProjectCode());
   const [newProjName, setNewProjName] = useState('');
+  const [newProjLocation, setNewProjLocation] = useState('');
   const [newProjDesc, setNewProjDesc] = useState('');
   const [formError, setFormError] = useState('');
 
   const handleOpenCreateModal = () => {
     setNewProjCode(generateProjectCode());
     setNewProjName('');
+    setNewProjLocation('');
     setNewProjDesc('');
     setFormError('');
     setIsCreateModalOpen(true);
@@ -60,9 +64,13 @@ export const ProjectListPage: React.FC = () => {
       setFormError('Nama penelitian wajib diisi.');
       return;
     }
+    if (!newProjLocation.trim()) {
+      setFormError('Lokasi wajib dipilih (Provinsi & Kota).');
+      return;
+    }
 
     try {
-      const created = await createProject(newProjName.trim(), newProjDesc.trim());
+      const created = await createProject(newProjName.trim(), newProjDesc.trim(), newProjLocation.trim());
       setIsCreateModalOpen(false);
       navigate(`/peneliti/projects/${created.id}/maps`);
     } catch {
@@ -165,6 +173,7 @@ export const ProjectListPage: React.FC = () => {
                 <th className="py-3 px-4 w-12 text-center">No</th>
                 <th className="py-3 px-4 w-32">Kode Proyek</th>
                 <th className="py-3 px-4 min-w-[240px]">Nama Penelitian</th>
+                <th className="py-3 px-4 min-w-[200px]">Lokasi</th>
                 <th className="py-3 px-4 min-w-[280px]">Deskripsi</th>
                 <th className="py-3 px-4 w-32">Last Update</th>
                 <th className="py-3 px-4 w-16 text-center">Action</th>
@@ -173,7 +182,7 @@ export const ProjectListPage: React.FC = () => {
             <tbody className="divide-y divide-slate-200">
               {filteredProjects.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400">
+                  <td colSpan={7} className="py-12 text-center text-slate-400">
                     Tidak ditemukan proyek yang cocok dengan kriteria pencarian.
                   </td>
                 </tr>
@@ -199,6 +208,13 @@ export const ProjectListPage: React.FC = () => {
                       </div>
                       <div className="text-[11px] text-slate-400 font-normal mt-0.5">
                         Peneliti: {proj.lead}
+                      </div>
+                    </td>
+
+                    <td className="py-3 px-4 text-slate-600">
+                      <div className="flex items-start gap-1.5 max-w-[250px]">
+                        <MapPin className="w-3.5 h-3.5 text-rose-500 mt-0.5 shrink-0" />
+                        <span className="line-clamp-2 leading-snug">{proj.location || '-'}</span>
                       </div>
                     </td>
 
@@ -338,6 +354,19 @@ export const ProjectListPage: React.FC = () => {
                   className="w-full px-3 py-2 border border-slate-300 rounded text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
                   autoFocus
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Lokasi <span className="text-rose-500">*</span>
+                </label>
+                <LocationSelector 
+                  value={newProjLocation} 
+                  onChange={setNewProjLocation} 
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Pilih Provinsi dan Kota/Kabupaten area kajian penelitian.
+                </p>
               </div>
 
               <div>
