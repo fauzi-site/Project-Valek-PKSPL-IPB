@@ -85,7 +85,7 @@ const DataValuationPageContent: React.FC = () => {
 
   // Accordion state: controls which sections are expanded on this single page
   const [openSections, setOpenSections] = useState<Record<EcosystemServiceId, boolean>>({
-    provisioning: true,
+    provisioning: false,
     regulating: false,
     supporting: false,
     cultural: false,

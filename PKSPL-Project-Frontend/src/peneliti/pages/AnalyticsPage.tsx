@@ -167,7 +167,12 @@ const AnalyticsPageContent: React.FC = () => {
     lcAreaHa: number;
   } | null>(null);
   const [expandedLandCovers, setExpandedLandCovers] = useState<Record<string, boolean>>({});
-  const [collapsedServices, setCollapsedServices] = useState<Record<string, boolean>>({});
+  const [collapsedServices, setCollapsedServices] = useState<Record<string, boolean>>({
+    provisioning: true,
+    regulating: true,
+    supporting: true,
+    cultural: true
+  });
 
   // Lock body scroll and handle ESC key when row detail modal is open
   useEffect(() => {
