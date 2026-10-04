@@ -230,7 +230,16 @@ class ProyekController extends ApiResourceController
 
         $this->storeUploadedFiles($request, $proyek);
 
-        return (new ProyekResource($proyek->refresh()))
+        $proyek->refresh();
+        $proyek->load([
+            'user.role',
+            'provinsi',
+            'kabupatenKota',
+            'kecamatan',
+            'desaKelurahan',
+        ]);
+
+        return (new ProyekResource($proyek))
             ->response()
             ->setStatusCode(201);
     }
@@ -305,14 +314,16 @@ class ProyekController extends ApiResourceController
         $proyek->update($payload);
         $this->storeUploadedFiles($request, $proyek);
 
+        $proyek->refresh();
         $proyek->load([
+            'user.role',
             'provinsi',
             'kabupatenKota',
             'kecamatan',
             'desaKelurahan',
         ]);
 
-        return new ProyekResource($proyek->refresh());
+        return new ProyekResource($proyek);
     }
 
     /**
@@ -410,10 +421,59 @@ class ProyekController extends ApiResourceController
     {
         // 1. Ekstrak data tervalidasi tanpa atribut berkas dan id_user awal
         $payload = collect($request->validated())
-            ->except(['id_user', 'shp', 'shx', 'dbf', 'prj', 'zip', 'shapefile_files'])
+            ->except(['id_user', 'shp', 'shx', 'dbf', 'prj', 'zip', 'shapefile_files', 'lokasi', 'location'])
             ->all();
 
-        // 2. Keamanan: Tetapkan id_user dari pengguna terautentikasi
+        // 2. Pemetaan fleksibel lokasi / location ke kolom alamat_lengkap
+        $incomingLocation = $request->input('alamat_lengkap')
+            ?: $request->input('lokasi')
+            ?: $request->input('location');
+
+        if (!empty($incomingLocation) && empty($payload['alamat_lengkap'])) {
+            $payload['alamat_lengkap'] = trim((string) $incomingLocation);
+        }
+
+        // 3. Resolusi otomatis wilayah administratif jika alamat_lengkap tersedia
+        if (!empty($payload['alamat_lengkap'])) {
+            $locText = strtolower((string) $payload['alamat_lengkap']);
+
+            if (empty($payload['id_kabupaten_kota'])) {
+                $allKabs = \App\Models\KabupatenKota::query()->get();
+                // 1. Coba kecocokan nama lengkap spesifik (misal "kota bandung" vs "kabupaten bandung")
+                $kab = $allKabs->first(function ($item) use ($locText) {
+                    $kabName = strtolower($item->nama_kabupaten_kota);
+                    return str_contains($locText, $kabName);
+                });
+
+                // 2. Jika tidak cocok nama lengkap, coba nama dasar tanpa 'kabupaten'/'kota'
+                if (!$kab) {
+                    $kab = $allKabs->first(function ($item) use ($locText) {
+                        $kabName = strtolower($item->nama_kabupaten_kota);
+                        $cleanKab = trim(str_replace(['kabupaten', 'kota'], '', $kabName));
+                        return $cleanKab !== '' && str_contains($locText, $cleanKab);
+                    });
+                }
+
+                if ($kab) {
+                    $payload['id_kabupaten_kota'] = $kab->id_kabupaten_kota;
+                    if (empty($payload['id_provinsi'])) {
+                        $payload['id_provinsi'] = $kab->id_provinsi;
+                    }
+                }
+            }
+
+            if (empty($payload['id_provinsi'])) {
+                $prov = \App\Models\Provinsi::query()->get()->first(function ($item) use ($locText) {
+                    $provName = strtolower($item->nama_provinsi);
+                    return str_contains($locText, $provName);
+                });
+                if ($prov) {
+                    $payload['id_provinsi'] = $prov->id_provinsi;
+                }
+            }
+        }
+
+        // 4. Keamanan: Tetapkan id_user dari pengguna terautentikasi
         $user = $request->user() ?? $request->user('sanctum') ?? auth('sanctum')->user();
         if ($user) {
             $payload['id_user'] = $user->id_user;

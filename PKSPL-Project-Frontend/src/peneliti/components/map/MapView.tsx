@@ -186,7 +186,9 @@ export const MapView: React.FC<MapViewProps> = ({
       ? validLandCovers[0].center
       : (landCovers[0]?.center && isValidPoint(landCovers[0].center))
         ? landCovers[0].center
-        : MAP_CONFIG.defaultCenter;
+        : (context.activeProject?.latitude && context.activeProject?.longitude && Number.isFinite(Number(context.activeProject.latitude)) && Number.isFinite(Number(context.activeProject.longitude)))
+          ? [Number(context.activeProject.latitude), Number(context.activeProject.longitude)]
+          : MAP_CONFIG.defaultCenter;
 
   const isPermanent = validLandCovers.length <= 15 && isIndexVisible;
 

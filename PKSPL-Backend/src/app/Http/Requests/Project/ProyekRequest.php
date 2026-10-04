@@ -42,6 +42,8 @@ class ProyekRequest extends FormRequest
             'nama_proyek' => [$required, 'string', 'max:150'],
             'tujuan_valuasi' => ['nullable', 'string'],
             'alamat_lengkap' => ['nullable', 'string'],
+            'lokasi' => ['nullable', 'string'],
+            'location' => ['nullable', 'string'],
             'latitude' => ['nullable', 'numeric'],
             'longitude' => ['nullable', 'numeric'],
             'luas' => ['nullable', 'numeric'],

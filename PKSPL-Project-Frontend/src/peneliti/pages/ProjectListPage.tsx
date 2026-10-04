@@ -15,7 +15,8 @@ import {
   Clock,
   ArrowRight,
   Trash2,
-  MapPin
+  MapPin,
+  Edit3
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { LocationSelector } from '../components/LocationSelector';
@@ -40,7 +41,7 @@ const formatLastUpdate = (value: string): string => {
 };
 
 export const ProjectListPage: React.FC = () => {
-  const { projects, projectsLoading, projectsError, createProject, deleteProject, setActiveProjectId } = useProject();
+  const { projects, projectsLoading, projectsError, createProject, updateProjectInfo, deleteProject, setActiveProjectId } = useProject();
   const navigate = useNavigate();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -54,13 +55,24 @@ export const ProjectListPage: React.FC = () => {
   const [newProjCode, setNewProjCode] = useState(generateProjectCode());
   const [newProjName, setNewProjName] = useState('');
   const [newProjLocation, setNewProjLocation] = useState('');
+  const [newProjCoords, setNewProjCoords] = useState<{ lat?: number; lng?: number }>({});
   const [newProjDesc, setNewProjDesc] = useState('');
   const [formError, setFormError] = useState('');
+
+  // Edit project modal state
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [editProjName, setEditProjName] = useState('');
+  const [editProjLocation, setEditProjLocation] = useState('');
+  const [editProjCoords, setEditProjCoords] = useState<{ lat?: number; lng?: number }>({});
+  const [editProjDesc, setEditProjDesc] = useState('');
+  const [editFormError, setEditFormError] = useState('');
+  const [isEditSubmitting, setIsEditSubmitting] = useState(false);
 
   const handleOpenCreateModal = () => {
     setNewProjCode(generateProjectCode());
     setNewProjName('');
     setNewProjLocation('');
+    setNewProjCoords({});
     setNewProjDesc('');
     setFormError('');
     setIsCreateModalOpen(true);
@@ -79,13 +91,60 @@ export const ProjectListPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const created = await createProject(newProjName.trim(), newProjDesc.trim(), newProjLocation.trim());
+      const created = await createProject(
+        newProjName.trim(), 
+        newProjDesc.trim(), 
+        newProjLocation.trim(),
+        newProjCoords
+      );
       setIsCreateModalOpen(false);
       navigate(`/peneliti/projects/${created.id}/maps`);
     } catch {
       setFormError('Proyek gagal dibuat. Periksa koneksi ke server.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleOpenEditModal = (project: Project) => {
+    setActiveMenuId(null);
+    setEditingProject(project);
+    setEditProjName(project.name);
+    setEditProjLocation(project.location !== '-' && project.location !== 'Indonesia' ? project.location : '');
+    setEditProjDesc(project.description || '');
+    setEditProjCoords({
+      lat: project.latitude ? Number(project.latitude) : undefined,
+      lng: project.longitude ? Number(project.longitude) : undefined,
+    });
+    setEditFormError('');
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProject) return;
+    if (!editProjName.trim()) {
+      setEditFormError('Nama penelitian wajib diisi.');
+      return;
+    }
+    if (!editProjLocation.trim()) {
+      setEditFormError('Lokasi penelitian wajib diisi.');
+      return;
+    }
+
+    setIsEditSubmitting(true);
+    try {
+      await updateProjectInfo(editingProject.id, {
+        name: editProjName.trim(),
+        description: editProjDesc.trim(),
+        location: editProjLocation.trim(),
+        latitude: editProjCoords.lat,
+        longitude: editProjCoords.lng,
+      });
+      setEditingProject(null);
+    } catch {
+      setEditFormError('Gagal memperbarui informasi proyek.');
+    } finally {
+      setIsEditSubmitting(false);
     }
   };
 
@@ -312,6 +371,13 @@ export const ProjectListPage: React.FC = () => {
                             <span>Review & Laporan</span>
                           </button>
                           <button
+                            onClick={() => handleOpenEditModal(proj)}
+                            className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700 flex items-center gap-2 border-t border-slate-100"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-blue-600" />
+                            <span>Edit Info Proyek</span>
+                          </button>
+                          <button
                             onClick={() => handleDeleteProject(proj)}
                             className="w-full text-left px-3 py-2 hover:bg-rose-50 text-rose-700 flex items-center gap-2 border-t border-slate-100"
                           >
@@ -386,7 +452,12 @@ export const ProjectListPage: React.FC = () => {
                 </label>
                 <LocationSelector 
                   value={newProjLocation} 
-                  onChange={setNewProjLocation} 
+                  onChange={(loc, details) => {
+                    setNewProjLocation(loc);
+                    if (details?.lat && details?.lng) {
+                      setNewProjCoords({ lat: details.lat, lng: details.lng });
+                    }
+                  }} 
                 />
                 <p className="text-[10px] text-slate-500 mt-1">
                   Pilih Provinsi dan Kota/Kabupaten area kajian penelitian.
@@ -426,6 +497,109 @@ export const ProjectListPage: React.FC = () => {
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold shadow-xs"
                 >
                   Buat Proyek
+                </LoadingButton>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Edit Informasi Proyek */}
+      {editingProject && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-2xs z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-lg border border-slate-200 shadow-xl max-w-md w-full overflow-hidden text-sm max-h-[90vh] flex flex-col">
+            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
+              <div className="flex items-center gap-2">
+                <Edit3 className="w-4 h-4 text-blue-600" />
+                <h3 className="font-bold text-slate-800 text-sm">Edit Informasi Proyek</h3>
+              </div>
+              <button
+                onClick={() => setEditingProject(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSubmit} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
+              {editFormError && (
+                <div className="p-2.5 bg-rose-50 border border-rose-200 rounded text-xs text-rose-700">
+                  {editFormError}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Kode Proyek
+                </label>
+                <input
+                  type="text"
+                  value={editingProject.code}
+                  disabled
+                  className="w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded text-xs font-mono font-bold text-slate-600 cursor-not-allowed"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Nama Penelitian <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editProjName}
+                  onChange={(e) => setEditProjName(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Lokasi Penelitian <span className="text-rose-500">*</span>
+                </label>
+                <LocationSelector 
+                  value={editProjLocation} 
+                  onChange={(loc, details) => {
+                    setEditProjLocation(loc);
+                    if (details?.lat && details?.lng) {
+                      setEditProjCoords({ lat: details.lat, lng: details.lng });
+                    }
+                  }} 
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Pilih Provinsi dan Kota/Kabupaten atau ketik nama lokasi kajian.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Deskripsi Penelitian
+                </label>
+                <textarea
+                  rows={3}
+                  value={editProjDesc}
+                  onChange={(e) => setEditProjDesc(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setEditingProject(null)}
+                  disabled={isEditSubmitting}
+                  className="px-4 py-2 border border-slate-300 bg-white hover:bg-slate-100 rounded text-xs font-medium text-slate-700 disabled:opacity-50 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <LoadingButton
+                  type="submit"
+                  isLoading={isEditSubmitting}
+                  loadingText="Menyimpan..."
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold shadow-xs"
+                >
+                  Simpan Perubahan
                 </LoadingButton>
               </div>
             </form>

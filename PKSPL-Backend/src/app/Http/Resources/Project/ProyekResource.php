@@ -78,9 +78,10 @@ class ProyekResource extends JsonResource
 
             // Data lokasi, koordinat, dan geometri
             'alamat_lengkap' => $this->alamat_lengkap,
+            'lokasi' => $this->alamat_lengkap,
             'location' => $this->kabupatenKota?->nama_kabupaten_kota
                 ? "{$this->kabupatenKota->nama_kabupaten_kota}, {$this->provinsi?->nama_provinsi}"
-                : ($this->alamat_lengkap ?: 'Indonesia'),
+                : ($this->alamat_lengkap ?: '-'),
             'latitude' => $this->latitude,
             'longitude' => $this->longitude,
             'luas' => $this->luas,

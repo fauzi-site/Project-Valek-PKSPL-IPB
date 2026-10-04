@@ -46,7 +46,8 @@ interface ProjectContextType {
   layers: MapLayer[];
   areaConfigs: Record<string, AreaServiceConfig>;
   setActiveProjectId: (id: string) => void;
-  createProject: (name: string, description: string, location?: string) => Promise<Project>;
+  createProject: (name: string, description: string, location?: string, coords?: { lat?: number; lng?: number }) => Promise<Project>;
+  updateProjectInfo: (id: string, updates: { name?: string; description?: string; location?: string; latitude?: number; longitude?: number }) => Promise<Project>;
   deleteProject: (id: string) => Promise<void>;
   updateProjectStatus: (id: string, status: ProjectStatus, notes?: string, reviewer?: string) => void;
   addShpLayer: (name: string, featureCount: number, crs: string, targetProjId?: string, geojson?: any) => void;
@@ -191,7 +192,9 @@ const fromApiProject = (project: any, fallbackLead = 'Peneliti Utama'): Project 
     reviewedBy,
     reviewers: uniqueReviewers,
     lead: project.user?.nama || project.lead || fallbackLead,
-    location: project.location || project.alamat_lengkap || project.kabupaten_kota?.nama || project.provinsi?.nama || '-',
+    location: (project.location && project.location !== 'Indonesia' && project.location !== '-')
+      ? project.location
+      : (project.alamat_lengkap || project.lokasi || (project.kabupaten_kota?.nama ? `${project.kabupaten_kota.nama}, ${project.provinsi?.nama || ''}`.trim() : '') || project.provinsi?.nama || project.location || '-'),
     ecosystem: project.ecosystem || project.ekosistem || 'Ekosistem Pesisir',
     year: Number(project.tahun || project.year || new Date().getFullYear()),
     createdAt: project.created_at || '',
@@ -852,14 +855,36 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   };
 
-  const createProject = async (name: string, description: string, location?: string): Promise<Project> => {
-    const payload: any = { nama_proyek: name, deskripsi: description };
-    if (location) payload.lokasi = location;
+  const createProject = async (
+    name: string,
+    description: string,
+    location?: string,
+    coords?: { lat?: number; lng?: number }
+  ): Promise<Project> => {
+    const payload: any = {
+      nama_proyek: name,
+      deskripsi: description,
+      tujuan_valuasi: 'Valuasi Ekonomi Ekosistem',
+      tahun: new Date().getFullYear(),
+    };
+    if (location) {
+      payload.lokasi = location;
+      payload.alamat_lengkap = location;
+      payload.location = location;
+    }
+    if (coords?.lat && coords?.lng) {
+      payload.latitude = coords.lat;
+      payload.longitude = coords.lng;
+    }
     
     const response = await createProyek(payload);
     const newProj = fromApiProject(response, user?.nama || 'Peneliti Utama (Saya)');
 
     if (location) newProj.location = location;
+    if (coords?.lat && coords?.lng) {
+      newProj.latitude = coords.lat;
+      newProj.longitude = coords.lng;
+    }
 
     setProjects(prev => [newProj, ...prev]);
     setActiveProjectIdState(newProj.id);
@@ -867,6 +892,31 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setProjectIndices(prev => ({ ...prev, [newProj.id]: [] }));
     setProjectLayers(prev => ({ ...prev, [newProj.id]: [] }));
     return newProj;
+  };
+
+  const updateProjectInfo = async (
+    id: string,
+    data: { name?: string; description?: string; location?: string; latitude?: number; longitude?: number }
+  ): Promise<Project> => {
+    const payload: any = {};
+    if (data.name !== undefined) payload.nama_proyek = data.name;
+    if (data.description !== undefined) payload.deskripsi = data.description;
+    if (data.location !== undefined) {
+      payload.lokasi = data.location;
+      payload.alamat_lengkap = data.location;
+      payload.location = data.location;
+    }
+    if (data.latitude !== undefined) payload.latitude = data.latitude;
+    if (data.longitude !== undefined) payload.longitude = data.longitude;
+
+    const response = await updateProyek(id, payload);
+    const updated = fromApiProject(response, user?.nama || 'Peneliti Utama (Saya)');
+    if (data.location) updated.location = data.location;
+    if (data.latitude !== undefined) updated.latitude = data.latitude;
+    if (data.longitude !== undefined) updated.longitude = data.longitude;
+
+    setProjects(prev => prev.map(p => (p.id === id || p.code === id) ? { ...p, ...updated, location: data.location || updated.location } : p));
+    return updated;
   };
 
   const deleteProject = async (id: string): Promise<void> => {
@@ -1776,6 +1826,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         areaConfigs,
         setActiveProjectId,
         createProject,
+        updateProjectInfo,
         deleteProject,
         updateProjectStatus,
         addShpLayer,

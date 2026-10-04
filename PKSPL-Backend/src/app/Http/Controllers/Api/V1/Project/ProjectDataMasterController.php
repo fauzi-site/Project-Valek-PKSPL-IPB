@@ -95,24 +95,57 @@ class ProjectDataMasterController extends Controller
         $landCovers = $proyek->indexes->flatMap->jenisTutupanLahan;
         $landCoverIds = $landCovers->pluck('id_jenis_tutupan_lahan')->filter()->unique()->values()->all();
 
-        // 3. Query 4 Kategori Jasa Ekosistem: ISOLASI WILAYAH DENGAN FALLBACK PROVINSI & KATALOG
-        // Memprioritaskan data master tingkat kabupaten/kota, kemudian provinsi, dan fallback katalog umum
+        // 3. Query 4 Kategori Jasa Ekosistem: ISOLASI INDEX & TUTUPAN LAHAN PROYEK AKTIF
+        // Memprioritaskan data master yang terikat langsung dengan indeks proyek aktif
         $relations = ['jenisTutupanLahan.index', 'kabupatenKota', 'provinsi'];
 
-        $fetchServices = function ($modelClass) use ($relations, $idKabupatenKota, $idProvinsi) {
+        $requestedKabId = $request->input('kabupaten_kota_id') ?? $request->input('id_kabupaten_kota');
+        $requestedDaerah = $request->input('daerah');
+
+        $fetchServices = function ($modelClass) use ($relations, $landCoverIds, $idKabupatenKota, $idProvinsi, $requestedKabId, $requestedDaerah) {
+            // 1. Prioritas Utama: Ambil HANYA data master yang terikat dengan Index & Tutupan Lahan proyek aktif
+            if (!empty($landCoverIds)) {
+                $projectServices = $modelClass::query()
+                    ->with($relations)
+                    ->whereIn('id_jenis_tutupan_lahan', $landCoverIds)
+                    ->get();
+
+                if ($projectServices->isNotEmpty()) {
+                    return $projectServices;
+                }
+            }
+
+            // 2. Filter eksplisit daerah jika dikirim dari frontend
+            if (!empty($requestedKabId)) {
+                return $modelClass::query()->with($relations)->where('id_kabupaten_kota', $requestedKabId)->get();
+            }
+            if (!empty($requestedDaerah) && strtolower($requestedDaerah) !== 'all') {
+                $matched = $modelClass::query()->with($relations)
+                    ->whereHas('kabupatenKota', fn($q) => $q->where('nama_kabupaten_kota', 'ilike', "%{$requestedDaerah}%"))
+                    ->get();
+                if ($matched->isNotEmpty()) {
+                    return $matched;
+                }
+            }
+
+            // 3. Berdasarkan wilayah kabupaten/kota proyek aktif
             if ($idKabupatenKota) {
                 $list = $modelClass::query()->with($relations)->where('id_kabupaten_kota', $idKabupatenKota)->get();
                 if ($list->isNotEmpty()) {
                     return $list;
                 }
             }
+
+            // 4. Fallback ke provinsi proyek aktif
             if ($idProvinsi) {
                 $list = $modelClass::query()->with($relations)->where('id_provinsi', $idProvinsi)->get();
                 if ($list->isNotEmpty()) {
                     return $list;
                 }
             }
-            return $modelClass::query()->with($relations)->take(25)->get();
+
+            // 5. Fallback katalog jika proyek belum memiliki wilayah spesifik di database
+            return $modelClass::query()->with($relations)->take(50)->get();
         };
 
         $provList = $fetchServices(ProvisioningService::class);
@@ -120,10 +153,10 @@ class ProjectDataMasterController extends Controller
         $supList = $fetchServices(SupportingService::class);
         $culList = $fetchServices(CulturalService::class);
 
-        // Helper status penggunaan
-        $formatUsage = function ($service) {
+        // Helper status penggunaan: HANYA index dari proyek aktif yang dianggap valid
+        $formatUsage = function ($service) use ($proyek) {
             $index = $service->jenisTutupanLahan?->index;
-            if (!$index) {
+            if (!$index || (int) $index->id_proyek !== (int) $proyek->id_proyek) {
                 return ['used' => false];
             }
             $indexCode = $index->kode_index ?: ('IDX-' . str_pad((string) $index->id_index, 3, '0', STR_PAD_LEFT));
@@ -211,6 +244,11 @@ class ProjectDataMasterController extends Controller
                 'kabupaten_kota' => $namaKabupaten ?: 'Wilayah Penelitian',
                 'provinsi' => $namaProvinsi ?: '',
                 'ecosystem' => $ecosystemName,
+                'indexes' => $proyek->indexes->map(fn($idx) => [
+                    'id' => (string) $idx->id_index,
+                    'code' => $idx->kode_index ?: ('IDX-' . str_pad((string) $idx->id_index, 3, '0', STR_PAD_LEFT)),
+                    'name' => $idx->nama_index,
+                ])->values(),
                 'land_covers' => $landCovers->map(fn($lc) => [
                     'id' => (string) $lc->id_jenis_tutupan_lahan,
                     'name' => $lc->nama_tutupan_lahan,

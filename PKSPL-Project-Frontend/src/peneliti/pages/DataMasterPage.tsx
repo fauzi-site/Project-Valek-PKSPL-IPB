@@ -18,7 +18,8 @@ import {
   MapPin,
   ChevronDown,
   Check,
-  Sparkles
+  Sparkles,
+  Layers
 } from 'lucide-react';
 import {
   UsageStatus,
@@ -219,7 +220,7 @@ const usageFromApi = (item: any): UsageStatus => {
 export const DataMasterPage: React.FC = () => {
   const params = useParams<{ projectId?: string }>();
   const navigate = useNavigate();
-  const { activeProject, activeProjectId, projects, landCovers, setActiveProjectId } = useProject();
+  const { activeProject, activeProjectId, projects, landCovers, getProjectIndices, setActiveProjectId } = useProject();
 
   // Resolve current active project ID dynamically based on URL parameter
   const effectiveProjectId = params.projectId || activeProjectId || '1';
@@ -236,6 +237,7 @@ export const DataMasterPage: React.FC = () => {
     kabupaten_kota: string;
     provinsi: string;
     ecosystem: string;
+    indexes: Array<{ id: string; code: string; name: string }>;
   }>({
     id: String(effectiveProjectId),
     code: currentContextProject?.code || (effectiveProjectId ? `PRJ-${String(effectiveProjectId).padStart(3, '0')}` : 'PRJ-001'),
@@ -244,6 +246,7 @@ export const DataMasterPage: React.FC = () => {
     kabupaten_kota: '',
     provinsi: '',
     ecosystem: currentContextProject?.ecosystem && currentContextProject.ecosystem !== '-' ? currentContextProject.ecosystem : 'Ekosistem Pesisir',
+    indexes: [],
   });
 
   const kodeProyek = projectInfo.code;
@@ -257,6 +260,7 @@ export const DataMasterPage: React.FC = () => {
   const [loadError, setLoadError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedUsage, setSelectedUsage] = useState<string>('all');
   const [sort, setSort] = useState<SortState>({ key: '', direction: null });
   const [page, setPage] = useState(1);
 
@@ -282,6 +286,17 @@ export const DataMasterPage: React.FC = () => {
     }
 
     const populateFallback = () => {
+      const ctxIndices = getProjectIndices ? getProjectIndices(effectiveProjectId) : [];
+      const validCodes = new Set(ctxIndices.map((i) => i.code));
+
+      const sanitizeUsage = (usage: UsageStatus): UsageStatus => {
+        if (!usage.used) return usage;
+        if (validCodes.size > 0 && !validCodes.has(usage.indexCode || '')) {
+          return { used: false };
+        }
+        return usage;
+      };
+
       const fallbackList: UnifiedMasterItem[] = [
         ...PROVISIONING_DATA.map((item) => ({
           id: item.id,
@@ -291,7 +306,7 @@ export const DataMasterPage: React.FC = () => {
           namaDaerah: item.namaDaerah,
           daerah: item.daerah || currentContextProject?.location || 'Wilayah Penelitian',
           landCoverId: item.landCoverId,
-          usage: item.usage,
+          usage: sanitizeUsage(item.usage),
           apiData: item.apiData,
         })),
         ...REGULATING_DATA.map((item) => ({
@@ -302,7 +317,7 @@ export const DataMasterPage: React.FC = () => {
           namaDaerah: item.satuan,
           daerah: item.daerah || currentContextProject?.location || 'Wilayah Penelitian',
           landCoverId: item.landCoverId,
-          usage: item.usage,
+          usage: sanitizeUsage(item.usage),
           apiData: item.apiData,
         })),
         ...SUPPORTING_DATA.map((item) => ({
@@ -313,7 +328,7 @@ export const DataMasterPage: React.FC = () => {
           namaDaerah: '-',
           daerah: item.daerah || currentContextProject?.location || 'Wilayah Penelitian',
           landCoverId: item.landCoverId,
-          usage: item.usage,
+          usage: sanitizeUsage(item.usage),
           apiData: item.apiData,
         })),
         ...CULTURAL_DATA.map((item) => ({
@@ -324,7 +339,7 @@ export const DataMasterPage: React.FC = () => {
           namaDaerah: '-',
           daerah: item.daerah || currentContextProject?.location || 'Wilayah Penelitian',
           landCoverId: item.landCoverId,
-          usage: item.usage,
+          usage: sanitizeUsage(item.usage),
           apiData: item.apiData,
         })),
       ];
@@ -337,8 +352,9 @@ export const DataMasterPage: React.FC = () => {
       .then((res: any) => {
         if (!mounted) return;
 
-        // 1. Ekstrak informasi resmi wilayah proyek aktif dari backend
+        // 1. Ekstrak informasi resmi wilayah dan index proyek aktif dari backend
         if (res.project) {
+          const projectIndexes = Array.isArray(res.project.indexes) ? res.project.indexes : [];
           setProjectInfo({
             id: String(res.project.id || effectiveProjectId),
             code: res.project.code || `PRJ-${String(effectiveProjectId).padStart(3, '0')}`,
@@ -347,22 +363,37 @@ export const DataMasterPage: React.FC = () => {
             kabupaten_kota: res.project.kabupaten_kota || '',
             provinsi: res.project.provinsi || '',
             ecosystem: res.project.ecosystem || currentContextProject?.ecosystem || 'Ekosistem Pesisir',
+            indexes: projectIndexes,
           });
         }
 
         // 2. Petakan dataset terisolasi wilayah ke dalam satu tabel terpadu
+        // HANYA index milik proyek aktif yang diperbolehkan berstatus used
         if (Array.isArray(res.data) && res.data.length > 0) {
-          const list: UnifiedMasterItem[] = res.data.map((item: any, idx: number) => ({
-            id: item.id || `item-${idx}`,
-            category: item.category as JenisJasaCategory,
-            namaIndonesia: item.nama_indonesia || item.nama_objek || item.jenis_regulating || item.fungsi_pendukung || item.nama_aktivitas || '-',
-            namaLatin: item.nama_latin || item.indikator || item.deskripsi || '-',
-            namaDaerah: item.nama_daerah || item.satuan || '-',
-            daerah: item.daerah || res.project?.kabupaten_kota || res.project?.wilayah || 'Wilayah Penelitian',
-            landCoverId: item.landCoverId ? String(item.landCoverId) : undefined,
-            usage: item.usage || { used: false },
-            apiData: item.raw || item,
-          }));
+          const validCodes = new Set(
+            (Array.isArray(res.project?.indexes) ? res.project.indexes : [])
+              .map((i: any) => i.code)
+              .filter(Boolean)
+          );
+
+          const list: UnifiedMasterItem[] = res.data.map((item: any, idx: number) => {
+            const rawUsage = item.usage || { used: false };
+            const isUsedForThisProject =
+              rawUsage.used &&
+              (validCodes.size === 0 || validCodes.has(rawUsage.indexCode));
+
+            return {
+              id: item.id || `item-${idx}`,
+              category: item.category as JenisJasaCategory,
+              namaIndonesia: item.nama_indonesia || item.nama_objek || item.jenis_regulating || item.fungsi_pendukung || item.nama_aktivitas || '-',
+              namaLatin: item.nama_latin || item.indikator || item.deskripsi || '-',
+              namaDaerah: item.nama_daerah || item.satuan || '-',
+              daerah: item.daerah || res.project?.kabupaten_kota || res.project?.wilayah || 'Wilayah Penelitian',
+              landCoverId: item.landCoverId ? String(item.landCoverId) : undefined,
+              usage: isUsedForThisProject ? rawUsage : { used: false },
+              apiData: item.raw || item,
+            };
+          });
           setMasterList(list);
         } else {
           populateFallback();
@@ -388,9 +419,70 @@ export const DataMasterPage: React.FC = () => {
     return () => {
       mounted = false;
     };
-  }, [effectiveProjectId, params.projectId, currentContextProject]);
+  }, [effectiveProjectId, params.projectId, currentContextProject, getProjectIndices]);
 
   // ─── Filter & Search Handling ──────────────────────────────────────────────
+
+  // Daftar unik Index & Tutupan Lahan yang HANYA berasal dari proyek aktif
+  const availableIndices = useMemo(() => {
+    const map = new Map<string, { code: string; name: string; count: number }>();
+
+    // 1. Inisialisasi dari daftar index resmi milik proyek aktif jika tersedia
+    if (projectInfo.indexes && projectInfo.indexes.length > 0) {
+      projectInfo.indexes.forEach((idx) => {
+        if (idx.code) {
+          map.set(idx.code, {
+            code: idx.code,
+            name: idx.name || idx.code,
+            count: 0,
+          });
+        }
+      });
+    } else if (getProjectIndices) {
+      const ctxIndices = getProjectIndices(effectiveProjectId);
+      ctxIndices.forEach((idx) => {
+        if (idx.code) {
+          map.set(idx.code, {
+            code: idx.code,
+            name: idx.name || idx.code,
+            count: 0,
+          });
+        }
+      });
+    }
+
+    // 2. Hitung jumlah penggunaan di masterList (hanya yang cocok dengan index proyek ini)
+    masterList.forEach((item) => {
+      if (item.usage.used && item.usage.indexCode) {
+        const key = item.usage.indexCode;
+        const existing = map.get(key);
+        if (existing) {
+          existing.count += 1;
+        } else if (map.size === 0) {
+          // Fallback jika belum ada metadata index proyek sama sekali
+          map.set(key, {
+            code: item.usage.indexCode,
+            name: item.usage.indexName || item.usage.indexCode,
+            count: 1,
+          });
+        }
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.code.localeCompare(b.code, 'id'));
+  }, [projectInfo.indexes, effectiveProjectId, getProjectIndices, masterList]);
+
+  // Statistik status penggunaan untuk wilayah proyek aktif
+  const usageCounts = useMemo(() => {
+    const usedCount = masterList.filter((i) => i.usage.used).length;
+    const unusedCount = masterList.filter((i) => !i.usage.used).length;
+
+    return {
+      all: masterList.length,
+      used: usedCount,
+      unused: unusedCount,
+    };
+  }, [masterList]);
 
   const handleSort = (key: string) => {
     setSort((prev) => {
@@ -404,6 +496,18 @@ export const DataMasterPage: React.FC = () => {
 
   const filtered = useMemo(() => {
     return masterList.filter((item) => {
+      // Filter per status penggunaan / Index tutupan lahan
+      if (selectedUsage === 'used') {
+        if (!item.usage.used) return false;
+      } else if (selectedUsage === 'unused') {
+        if (item.usage.used) return false;
+      } else if (selectedUsage.startsWith('index:')) {
+        const targetCode = selectedUsage.replace('index:', '');
+        if (!item.usage.used || item.usage.indexCode !== targetCode) {
+          return false;
+        }
+      }
+
       // Category filter
       if (selectedCategory !== 'all' && item.category !== selectedCategory) {
         return false;
@@ -417,13 +521,14 @@ export const DataMasterPage: React.FC = () => {
           item.namaLatin.toLowerCase().includes(term) ||
           item.namaDaerah.toLowerCase().includes(term) ||
           item.daerah.toLowerCase().includes(term) ||
-          item.category.toLowerCase().includes(term)
+          item.category.toLowerCase().includes(term) ||
+          (item.usage.used && (item.usage.indexCode.toLowerCase().includes(term) || item.usage.indexName.toLowerCase().includes(term)))
         );
       }
 
       return true;
     });
-  }, [masterList, selectedCategory, searchTerm]);
+  }, [masterList, selectedCategory, selectedUsage, searchTerm]);
 
   const sorted = useMemo(() => {
     return sortMasterData(filtered, sort);
@@ -433,16 +538,26 @@ export const DataMasterPage: React.FC = () => {
   const totalPages = Math.ceil(sorted.length / ITEMS_PER_PAGE);
   const paged = sorted.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
-  // Category counts breakdown
+  // Category counts breakdown (menyesuaikan filter penggunaan yang aktif)
   const categoryCounts = useMemo(() => {
+    let scopeList = masterList;
+    if (selectedUsage === 'used') {
+      scopeList = scopeList.filter((i) => i.usage.used);
+    } else if (selectedUsage === 'unused') {
+      scopeList = scopeList.filter((i) => !i.usage.used);
+    } else if (selectedUsage.startsWith('index:')) {
+      const targetCode = selectedUsage.replace('index:', '');
+      scopeList = scopeList.filter((i) => i.usage.used && i.usage.indexCode === targetCode);
+    }
+
     return {
-      all: masterList.length,
-      provisioning: masterList.filter((i) => i.category === 'Provisioning').length,
-      regulating: masterList.filter((i) => i.category === 'Regulating').length,
-      supporting: masterList.filter((i) => i.category === 'Supporting').length,
-      cultural: masterList.filter((i) => i.category === 'Cultural').length,
+      all: scopeList.length,
+      provisioning: scopeList.filter((i) => i.category === 'Provisioning').length,
+      regulating: scopeList.filter((i) => i.category === 'Regulating').length,
+      supporting: scopeList.filter((i) => i.category === 'Supporting').length,
+      cultural: scopeList.filter((i) => i.category === 'Cultural').length,
     };
-  }, [masterList]);
+  }, [masterList, selectedUsage]);
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
@@ -620,6 +735,56 @@ export const DataMasterPage: React.FC = () => {
               </select>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
+
+            {/* Filter Digunakan Pada (Usage & Index) */}
+            <div className="relative">
+              <select
+                value={selectedUsage}
+                onChange={(e) => {
+                  setSelectedUsage(e.target.value);
+                  setPage(1);
+                }}
+                className="appearance-none bg-white border border-slate-200 rounded-lg pl-7 pr-8 py-1.5 text-xs font-semibold text-slate-700 cursor-pointer hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-colors"
+                title="Filter berdasarkan kolom Digunakan pada Index & Tutupan Lahan"
+              >
+                <option value="all">Semua Penggunaan ({usageCounts.all})</option>
+                <option value="used">Sudah Digunakan ({usageCounts.used})</option>
+                <option value="unused">Belum Digunakan ({usageCounts.unused})</option>
+                {availableIndices.length > 0 && (
+                  <optgroup label={`Index Proyek Ini (${kodeProyek})`}>
+                    {availableIndices.map((idx) => (
+                      <option key={idx.code} value={`index:${idx.code}`}>
+                        {idx.code} — {idx.name} ({idx.count})
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+              <Layers className="w-3.5 h-3.5 text-blue-600 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+
+            {/* Active Usage Filter Pill */}
+            {selectedUsage !== 'all' && (
+              <button
+                onClick={() => {
+                  setSelectedUsage('all');
+                  setPage(1);
+                }}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors cursor-pointer"
+                title="Reset filter penggunaan"
+              >
+                <span>
+                  Digunakan:{' '}
+                  {selectedUsage === 'used'
+                    ? 'Sudah Digunakan'
+                    : selectedUsage === 'unused'
+                    ? 'Belum Digunakan'
+                    : availableIndices.find((i) => `index:${i.code}` === selectedUsage)?.code || selectedUsage}
+                </span>
+                <X className="w-3 h-3 text-blue-600" />
+              </button>
+            )}
           </div>
 
           {/* Search Box */}
@@ -670,9 +835,33 @@ export const DataMasterPage: React.FC = () => {
                   <td colSpan={8} className="py-12 text-center">
                     <EmptyState
                       title="Tidak Ada Data Master yang Ditemukan"
-                      description={searchTerm ? 'Coba ubah kata kunci pencarian Anda.' : 'Gunakan tombol "+ Tambah Data Master" untuk menambahkan data baru.'}
-                      actionText={searchTerm ? 'Reset Pencarian' : '+ Tambah Data Master'}
-                      onAction={searchTerm ? () => setSearchTerm('') : () => setIsAddModalOpen(true)}
+                      description={
+                        searchTerm
+                          ? 'Coba ubah kata kunci pencarian Anda.'
+                          : selectedUsage !== 'all'
+                          ? `Tidak ada data master untuk filter status penggunaan "${
+                              selectedUsage === 'used'
+                                ? 'Sudah Digunakan'
+                                : selectedUsage === 'unused'
+                                ? 'Belum Digunakan'
+                                : selectedUsage.replace('index:', 'Index ')
+                            }". Coba reset filter.`
+                          : 'Gunakan tombol "+ Tambah Data Master" untuk menambahkan data baru.'
+                      }
+                      actionText={
+                        searchTerm
+                          ? 'Reset Pencarian'
+                          : selectedUsage !== 'all'
+                          ? 'Reset Filter Penggunaan'
+                          : '+ Tambah Data Master'
+                      }
+                      onAction={
+                        searchTerm
+                          ? () => setSearchTerm('')
+                          : selectedUsage !== 'all'
+                          ? () => setSelectedUsage('all')
+                          : () => setIsAddModalOpen(true)
+                      }
                     />
                   </td>
                 </tr>
