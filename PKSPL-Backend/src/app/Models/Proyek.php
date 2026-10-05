@@ -7,6 +7,45 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * Model Proyek
+ *
+ * @property int $id_proyek
+ * @property int $id_user
+ * @property string $kode_proyek
+ * @property int|null $id_provinsi
+ * @property int|null $id_kabupaten_kota
+ * @property int|null $id_kecamatan
+ * @property int|null $id_desa_kelurahan
+ * @property string $nama_proyek
+ * @property string|null $tujuan_valuasi
+ * @property string|null $alamat_lengkap
+ * @property float|null $latitude
+ * @property float|null $longitude
+ * @property float|null $luas
+ * @property string|null $satuan_luas
+ * @property array|null $geometry
+ * @property array|null $shapefile_files
+ * @property int|null $tahun
+ * @property string|null $deskripsi
+ * @property \Carbon\Carbon|null $created_at
+ * @property \Carbon\Carbon|null $updated_at
+ *
+ * @property-read \App\Models\User|null $user
+ * @property-read \App\Models\Provinsi|null $provinsi
+ * @property-read \App\Models\KabupatenKota|null $kabupatenKota
+ * @property-read \App\Models\Kecamatan|null $kecamatan
+ * @property-read \App\Models\DesaKelurahan|null $desaKelurahan
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\AreaTerdampak> $areaTerdampak
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Index> $indexes
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\AnalisisAi> $analisisAi
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Histori> $histori
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Review> $reviews
+ *
+ * @mixin \Illuminate\Database\Eloquent\Builder
+ * @method static \Illuminate\Database\Eloquent\Builder|Proyek query()
+ * @method static \Illuminate\Database\Eloquent\Builder|Proyek where($column, $operator = null, $value = null, $boolean = 'and')
+ */
 class Proyek extends Model
 {
     use HasFactory;

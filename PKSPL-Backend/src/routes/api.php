@@ -197,8 +197,17 @@ Route::prefix('v1')->group(function (): void {
         // 3.2.2 Menyajikan dan mengelola Data Master terpadu berbasis wilayah proyek aktif
         Route::get('proyek/{proyek}/data-master', [ProjectDataMasterController::class, 'index']);
         Route::post('proyek/{proyek}/data-master', [ProjectDataMasterController::class, 'store']);
+        Route::put('proyek/{proyek}/data-master/{category}/{id}', [ProjectDataMasterController::class, 'update']);
+        Route::delete('proyek/{proyek}/data-master/{category}/{id}', [ProjectDataMasterController::class, 'destroy']);
+        Route::post('proyek/{proyek}/data-master/link-land-cover', [ProjectDataMasterController::class, 'linkToLandCover']);
+        Route::post('proyek/{proyek}/data-master/apply-template', [ProjectDataMasterController::class, 'applyTemplate']);
+
         Route::get('projects/{proyek}/data-master', [ProjectDataMasterController::class, 'index']);
         Route::post('projects/{proyek}/data-master', [ProjectDataMasterController::class, 'store']);
+        Route::put('projects/{proyek}/data-master/{category}/{id}', [ProjectDataMasterController::class, 'update']);
+        Route::delete('projects/{proyek}/data-master/{category}/{id}', [ProjectDataMasterController::class, 'destroy']);
+        Route::post('projects/{proyek}/data-master/link-land-cover', [ProjectDataMasterController::class, 'linkToLandCover']);
+        Route::post('projects/{proyek}/data-master/apply-template', [ProjectDataMasterController::class, 'applyTemplate']);
     });
 
     // ------------------------------------------------------------

@@ -85,19 +85,19 @@ export const ReportPrintView: React.FC = () => {
 
   const currentProject = matchedProject || fetchedProject;
 
+  const isMock = isMockProject(effectiveProjId);
+
   const rawLandCovers = (getProjectLandCovers ? getProjectLandCovers(effectiveProjId) : []) || [];
   const currentLandCovers = (rawLandCovers && rawLandCovers.length > 0)
     ? rawLandCovers
-    : INITIAL_LAND_COVERS;
+    : (isMock ? INITIAL_LAND_COVERS : []);
 
   const rawIndices = (getProjectIndices ? getProjectIndices(effectiveProjId) : []) || [];
   const currentIndices = (rawIndices && rawIndices.length > 0)
     ? rawIndices
-    : INITIAL_INDEX_LIST;
+    : (isMock ? INITIAL_INDEX_LIST : []);
 
   const indexLabelMap = buildIndexLabelMap(currentIndices);
-
-  const isMock = isMockProject(effectiveProjId);
 
   // 2. Project-Wide Valuation Aggregation across ALL Land Covers and Indices
   const projectValuation = useMemo(() => {

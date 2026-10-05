@@ -8,6 +8,20 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Master data kabupaten atau kota Indonesia.
+ *
+ * @property int $id_kabupaten_kota
+ * @property int|null $id_provinsi
+ * @property string|null $kode_kabupaten_kota
+ * @property string|null $nama_kabupaten_kota
+ * @property string|null $tipe
+ * @property \Carbon\Carbon|null $created_at
+ * @property \Carbon\Carbon|null $updated_at
+ *
+ * @property-read \App\Models\Provinsi|null $provinsi
+ *
+ * @mixin \Illuminate\Database\Eloquent\Builder
+ * @method static \Illuminate\Database\Eloquent\Builder|KabupatenKota query()
+ * @method static \Illuminate\Database\Eloquent\Builder|KabupatenKota where($column, $operator = null, $value = null, $boolean = 'and')
  */
 class KabupatenKota extends Model
 {

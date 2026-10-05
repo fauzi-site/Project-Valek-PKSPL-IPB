@@ -6,8 +6,8 @@
 // ─── Shared Types ────────────────────────────────────────────────────────────
 
 export type UsageStatus =
-  | { used: false }
-  | { used: true; indexCode: string; indexName: string };
+  | { used: false; indexCode?: string; indexName?: string; landCoverName?: string }
+  | { used: true; indexCode: string; indexName: string; landCoverName?: string };
 
 export interface DaerahOption {
   id: string;
@@ -160,6 +160,9 @@ export interface RegulatingItem {
   landCoverId?: string;
   apiData?: Record<string, unknown>;
   namaParameter: string;
+  jenisRegulating?: string;
+  indikator?: string;
+  satuan?: string;
   daerah: string;
   daerahId: string;
   ekosistemId: string;
@@ -240,6 +243,8 @@ export interface SupportingItem {
   landCoverId?: string;
   apiData?: Record<string, unknown>;
   klasifikasi: string; // Misal: "Habitat • Reptil", "Habitat • Burung", "Habitat • Mamalia", "Nursery Ground", "Pembentukan Tanah", "Biodiversitas"
+  fungsiPendukung?: string;
+  deskripsi?: string;
   daerah: string;
   daerahId: string;
   ekosistemId: string;

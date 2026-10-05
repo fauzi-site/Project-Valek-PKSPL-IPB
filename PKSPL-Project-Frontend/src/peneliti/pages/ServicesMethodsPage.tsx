@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useProject } from '../context/ProjectContext';
 import { ECOSYSTEM_SERVICES_CONFIG } from '../mock/valuationMock';
 import { EcosystemServiceId } from '../types/valuation';
 import { getMethodSchema } from '../types/methodSchemas';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { buildIndexLabelMap } from '../utils/indexLabel';
+import { formatNumber } from '../utils/formatter';
 import {
   Layers,
   SearchCode,
@@ -16,8 +18,33 @@ import {
   Check,
   Tag,
   SlidersHorizontal,
-  TableProperties
+  TableProperties,
+  Search,
+  Filter,
+  X,
+  MapPin,
+  CheckCheck,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
+  LayoutGrid,
+  ListFilter
 } from 'lucide-react';
+
+const formatTypeName = (type?: string) => {
+  if (!type) return 'Lainnya';
+  if (type === 'terumbu_karang') return 'Terumbu Karang';
+  return type.charAt(0).toUpperCase() + type.slice(1).replace('_', ' ');
+};
+
+const getTypeBadgeClasses = (type?: string) => {
+  const t = (type || '').toLowerCase();
+  if (t.includes('mangrove') || t.includes('bakau')) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+  if (t.includes('lamun') || t.includes('seagrass')) return 'bg-teal-50 text-teal-700 border-teal-200';
+  if (t.includes('karang') || t.includes('coral')) return 'bg-orange-50 text-orange-700 border-orange-200';
+  if (t.includes('perairan') || t.includes('air') || t.includes('laut')) return 'bg-sky-50 text-sky-700 border-sky-200';
+  return 'bg-slate-50 text-slate-700 border-slate-200';
+};
 
 export const ServicesMethodsPage: React.FC = () => {
   const {
@@ -39,6 +66,111 @@ export const ServicesMethodsPage: React.FC = () => {
     if (landCovers.length > 0) return landCovers[0].id;
     return 'poly-1';
   });
+
+  useEffect(() => {
+    const area = searchParams.get('area');
+    if (area && area !== selectedAreaId && landCovers.some(lc => lc.id === area)) {
+      setSelectedAreaId(area);
+    }
+  }, [searchParams, landCovers, selectedAreaId]);
+
+  // Filter & Search states for large datasets
+  const [areaSearchTerm, setAreaSearchTerm] = useState('');
+  const [selectedFilterIndex, setSelectedFilterIndex] = useState('ALL');
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState('ALL');
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<'ALL' | 'CONFIGURED' | 'UNCONFIGURED'>('ALL');
+  const [viewMode, setViewMode] = useState<'compact' | 'grid'>('compact');
+
+  const indexLabelMap = useMemo(() => buildIndexLabelMap(indices), [indices]);
+
+  const availableTypes = useMemo(() => {
+    const types = new Set<string>();
+    landCovers.forEach(lc => {
+      if (lc.type) types.add(lc.type);
+    });
+    return Array.from(types);
+  }, [landCovers]);
+
+  const getActiveServicesCount = (areaId: string) => {
+    const cfg = getAreaConfig(areaId);
+    if (!cfg || !cfg.activeServices) return 0;
+    return Object.values(cfg.activeServices).filter(Boolean).length;
+  };
+
+  const filteredLandCovers = useMemo(() => {
+    return landCovers.filter(lc => {
+      // 1. Index filter
+      if (selectedFilterIndex !== 'ALL') {
+        const matchIdx = indices.find(
+          i => i.id === lc.indexId || i.code === lc.indexCode || i.name === lc.indexName
+        );
+        const isIndexMatch =
+          lc.indexId === selectedFilterIndex ||
+          lc.indexCode === selectedFilterIndex ||
+          matchIdx?.code === selectedFilterIndex ||
+          matchIdx?.id === selectedFilterIndex;
+        if (!isIndexMatch) return false;
+      }
+
+      // 2. Type filter
+      if (selectedTypeFilter !== 'ALL' && lc.type !== selectedTypeFilter) {
+        return false;
+      }
+
+      // 3. Status filter
+      if (selectedStatusFilter !== 'ALL') {
+        const count = getActiveServicesCount(lc.id);
+        if (selectedStatusFilter === 'CONFIGURED' && count === 0) return false;
+        if (selectedStatusFilter === 'UNCONFIGURED' && count > 0) return false;
+      }
+
+      // 4. Search query
+      if (areaSearchTerm.trim()) {
+        const q = areaSearchTerm.trim().toLowerCase();
+        const nameMatch = lc.name?.toLowerCase().includes(q);
+        const codeMatch = lc.code?.toLowerCase().includes(q);
+        const indexCodeMatch = lc.indexCode?.toLowerCase().includes(q);
+        const indexNameMatch = lc.indexName?.toLowerCase().includes(q);
+        const typeMatch = lc.type?.toLowerCase().includes(q);
+        const idxLabel = indexLabelMap.get(lc.indexCode || '')?.toLowerCase() || '';
+        const idxLabelMatch = idxLabel.includes(q);
+
+        if (!nameMatch && !codeMatch && !indexCodeMatch && !indexNameMatch && !typeMatch && !idxLabelMatch) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [landCovers, indices, selectedFilterIndex, selectedTypeFilter, selectedStatusFilter, areaSearchTerm, indexLabelMap, getAreaConfig]);
+
+  const currentIndexInFiltered = filteredLandCovers.findIndex(lc => lc.id === selectedAreaId);
+  const hasPrev = currentIndexInFiltered > 0;
+  const hasNext = currentIndexInFiltered >= 0 && currentIndexInFiltered < filteredLandCovers.length - 1;
+
+  const handlePrevArea = () => {
+    if (hasPrev) {
+      handleAreaSelect(filteredLandCovers[currentIndexInFiltered - 1].id);
+    }
+  };
+
+  const handleNextArea = () => {
+    if (hasNext) {
+      handleAreaSelect(filteredLandCovers[currentIndexInFiltered + 1].id);
+    }
+  };
+
+  const handleResetFilters = () => {
+    setAreaSearchTerm('');
+    setSelectedFilterIndex('ALL');
+    setSelectedTypeFilter('ALL');
+    setSelectedStatusFilter('ALL');
+  };
+
+  const isFilterActive = areaSearchTerm.trim() !== '' ||
+    selectedFilterIndex !== 'ALL' ||
+    selectedTypeFilter !== 'ALL' ||
+    selectedStatusFilter !== 'ALL';
 
   const currentArea = landCovers.find(lc => lc.id === selectedAreaId) || landCovers[0];
   const areaConfig = getAreaConfig(selectedAreaId);
@@ -191,70 +323,504 @@ export const ServicesMethodsPage: React.FC = () => {
       </div>
 
       {/* STEP 1: Pilih Area Tutupan Lahan */}
-      <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-2xs space-y-3">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center">
+      <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-2xs space-y-4">
+        {/* Step 1 Header & Quick Summary */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
               1
             </span>
-            <h3 className="font-bold text-slate-800 text-sm">
-              Pilih Area Tutupan Lahan:
-            </h3>
+            <div>
+              <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                <span>Pilih Area Tutupan Lahan:</span>
+                <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                  {landCovers.length} Area Terdaftar
+                </span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Pilih atau filter area target untuk menentukan jasa ekosistem dan metode valuasi ilmiahnya.
+              </p>
+            </div>
           </div>
 
-          <div className="text-xs text-slate-500">
-            Setiap area tutupan lahan dapat memiliki konfigurasi jasa & metode yang berbeda.
+          <div className="flex items-center gap-2">
+            {/* View Mode Toggle */}
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-md border border-slate-200 text-xs">
+              <button
+                type="button"
+                onClick={() => setViewMode('compact')}
+                className={`px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                  viewMode === 'compact'
+                    ? 'bg-white text-blue-700 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Tampilan Ringkas & Dropdown"
+              >
+                <ListFilter className="w-3.5 h-3.5" />
+                <span>Ringkas</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('grid')}
+                className={`px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                  viewMode === 'grid'
+                    ? 'bg-white text-blue-700 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Tampilan Grid Kartu Semua Area"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Grid Kartu</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Area Selector dropdown + quick card pills */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-1">
-          <div className="md:col-span-2">
-            <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
-              Pilihan Area Target (Dropdown):
-            </label>
-            <div className="relative">
+        {/* Filter & Search Bar */}
+        <div className="bg-slate-50/80 p-3.5 rounded-lg border border-slate-200/80 space-y-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5 items-center">
+            {/* 1. Search input */}
+            <div className="lg:col-span-5 relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
+              <input
+                type="text"
+                value={areaSearchTerm}
+                onChange={(e) => setAreaSearchTerm(e.target.value)}
+                placeholder="Cari nama area, kode, indeks..."
+                className="w-full bg-white border border-slate-300 rounded-md pl-9 pr-8 py-1.5 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              />
+              {areaSearchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setAreaSearchTerm('')}
+                  className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+                  title="Hapus pencarian"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* 2. Filter Indeks */}
+            <div className="lg:col-span-3">
+              <div className="relative">
+                <Layers className="w-3.5 h-3.5 text-indigo-600 absolute left-2.5 top-2.5 pointer-events-none" />
+                <select
+                  value={selectedFilterIndex}
+                  onChange={(e) => {
+                    const newIdx = e.target.value;
+                    setSelectedFilterIndex(newIdx);
+                    if (newIdx !== 'ALL') {
+                      const matching = landCovers.filter(lc => {
+                        const m = indices.find(i => i.id === lc.indexId || i.code === lc.indexCode || i.name === lc.indexName);
+                        return lc.indexId === newIdx || lc.indexCode === newIdx || m?.code === newIdx || m?.id === newIdx;
+                      });
+                      if (matching.length > 0 && !matching.some(lc => lc.id === selectedAreaId)) {
+                        handleAreaSelect(matching[0].id);
+                      }
+                    }
+                  }}
+                  className="w-full bg-white border border-slate-300 rounded-md pl-8 pr-7 py-1.5 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer appearance-none"
+                >
+                  <option value="ALL">Semua Indeks ({indices.length})</option>
+                  {indices.map((idx, i) => {
+                    const count = landCovers.filter(lc => {
+                      return lc.indexId === idx.id || lc.indexCode === idx.code || lc.indexName === idx.name;
+                    }).length;
+                    return (
+                      <option key={idx.id} value={idx.code || idx.id}>
+                        {indexLabelMap.get(idx.code) ?? `Index ${i + 1}`} ({count} Area)
+                      </option>
+                    );
+                  })}
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* 3. Filter Tipe Tutupan Lahan */}
+            <div className="lg:col-span-2">
+              <div className="relative">
+                <Tag className="w-3.5 h-3.5 text-emerald-600 absolute left-2.5 top-2.5 pointer-events-none" />
+                <select
+                  value={selectedTypeFilter}
+                  onChange={(e) => {
+                    const newType = e.target.value;
+                    setSelectedTypeFilter(newType);
+                    if (newType !== 'ALL') {
+                      const matching = landCovers.filter(lc => lc.type === newType);
+                      if (matching.length > 0 && !matching.some(lc => lc.id === selectedAreaId)) {
+                        handleAreaSelect(matching[0].id);
+                      }
+                    }
+                  }}
+                  className="w-full bg-white border border-slate-300 rounded-md pl-8 pr-7 py-1.5 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer appearance-none capitalize"
+                >
+                  <option value="ALL">Semua Tipe</option>
+                  {availableTypes.map(t => {
+                    const count = landCovers.filter(lc => lc.type === t).length;
+                    return (
+                      <option key={t} value={t}>
+                        {formatTypeName(t)} ({count})
+                      </option>
+                    );
+                  })}
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* 4. Filter Status Konfigurasi */}
+            <div className="lg:col-span-2">
               <select
-                value={selectedAreaId}
-                onChange={(e) => handleAreaSelect(e.target.value)}
-                className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-300 rounded px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer appearance-none pr-8"
+                value={selectedStatusFilter}
+                onChange={(e) => setSelectedStatusFilter(e.target.value as any)}
+                className="w-full bg-white border border-slate-300 rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
               >
-                {landCovers.map((lc) => {
-                  const idxCode = lc.indexCode || 'Belum ada Index';
+                <option value="ALL">Semua Status</option>
+                <option value="CONFIGURED">Sudah Dikonfigurasi</option>
+                <option value="UNCONFIGURED">Belum Dikonfigurasi</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Info bar & Reset button */}
+          <div className="flex items-center justify-between flex-wrap gap-2 pt-1 text-[11px] text-slate-500">
+            <div className="flex items-center gap-2">
+              <span>
+                Menampilkan <strong className="text-slate-800">{filteredLandCovers.length}</strong> dari{' '}
+                <strong className="text-slate-800">{landCovers.length}</strong> area tutupan lahan
+              </span>
+              {isFilterActive && (
+                <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[10px] font-semibold">
+                  Filter Aktif
+                </span>
+              )}
+            </div>
+
+            {isFilterActive && (
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 font-semibold cursor-pointer"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset Filter</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* View Mode 1: Compact Selector & Hero Card */}
+        {viewMode === 'compact' && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+              {/* Dropdown Selector Column */}
+              <div className="lg:col-span-5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                    Pilih Dari Daftar Filter:
+                  </label>
+                  {/* Previous / Next buttons */}
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      disabled={!hasPrev}
+                      onClick={handlePrevArea}
+                      className="px-2 py-1 rounded border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed text-[11px] font-semibold text-slate-700 flex items-center gap-1 cursor-pointer transition-colors"
+                      title="Pindah ke area sebelumnya"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Prev</span>
+                    </button>
+                    <span className="text-[11px] font-mono text-slate-400 px-1">
+                      {currentIndexInFiltered >= 0 ? `${currentIndexInFiltered + 1}/${filteredLandCovers.length}` : '—'}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={!hasNext}
+                      onClick={handleNextArea}
+                      className="px-2 py-1 rounded border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed text-[11px] font-semibold text-slate-700 flex items-center gap-1 cursor-pointer transition-colors"
+                      title="Pindah ke area berikutnya"
+                    >
+                      <span className="hidden sm:inline">Next</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <select
+                    value={selectedAreaId}
+                    onChange={(e) => handleAreaSelect(e.target.value)}
+                    className="w-full bg-white hover:bg-slate-50/80 border border-slate-300 rounded-lg px-3 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer appearance-none pr-8 transition-colors shadow-2xs"
+                  >
+                    {filteredLandCovers.length === 0 ? (
+                      <option value="" disabled>
+                        Tidak ada area yang cocok dengan filter
+                      </option>
+                    ) : (
+                      filteredLandCovers.map((lc) => {
+                        const idxLabel = lc.indexCode ? (indexLabelMap.get(lc.indexCode) ?? lc.indexCode) : 'Non-Index';
+                        const servicesCount = getActiveServicesCount(lc.id);
+                        return (
+                          <option key={lc.id} value={lc.id}>
+                            {lc.name} — {formatNumber(lc.areaHa, 2)} Ha ({idxLabel}) • {servicesCount}/4 Jasa Aktif
+                          </option>
+                        );
+                      })
+                    )}
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-3 pointer-events-none" />
+                </div>
+
+                {/* Horizontal Quick Select Chips (first filtered items) */}
+                {filteredLandCovers.length > 0 && (
+                  <div className="pt-1">
+                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                      <span>Pilihan Cepat:</span>
+                      {filteredLandCovers.length > 5 && (
+                        <span className="text-[10px] text-blue-600 font-normal">
+                          Scroll samping →
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+                      {filteredLandCovers.slice(0, 10).map((lc) => {
+                        const isSelected = lc.id === selectedAreaId;
+                        const sCount = getActiveServicesCount(lc.id);
+                        return (
+                          <button
+                            key={lc.id}
+                            type="button"
+                            onClick={() => handleAreaSelect(lc.id)}
+                            className={`px-2.5 py-1 rounded-md text-[11px] font-medium shrink-0 border transition-all cursor-pointer flex items-center gap-1.5 ${
+                              isSelected
+                                ? 'bg-blue-600 text-white border-blue-600 shadow-xs font-semibold'
+                                : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                            }`}
+                          >
+                            <span>{lc.name}</span>
+                            <span
+                              className={`text-[9px] px-1 py-0.2 rounded font-mono font-bold ${
+                                isSelected ? 'bg-blue-700 text-blue-100' : 'bg-slate-100 text-slate-600'
+                              }`}
+                            >
+                              {sCount}/4
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Current Area Hero Card */}
+              <div className="lg:col-span-7">
+                {currentArea ? (
+                  <div className="bg-gradient-to-br from-blue-50/70 via-indigo-50/30 to-slate-50 border border-blue-200/90 rounded-lg p-3.5 space-y-2.5 shadow-2xs">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider bg-blue-100/80 px-2 py-0.5 rounded">
+                            Area Terpilih Saat Ini
+                          </span>
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border capitalize ${getTypeBadgeClasses(currentArea.type)}`}>
+                            {formatTypeName(currentArea.type)}
+                          </span>
+                        </div>
+                        <h4 className="text-base font-bold text-slate-900 mt-1 flex items-center gap-2">
+                          <span>{currentArea.name}</span>
+                          {currentArea.code && (
+                            <span className="text-xs font-mono font-normal text-slate-500 bg-white/80 px-1.5 py-0.5 rounded border border-slate-200">
+                              {currentArea.code}
+                            </span>
+                          )}
+                        </h4>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <span className="text-xs font-bold text-indigo-700 bg-white px-2.5 py-1 rounded-md border border-indigo-200 shadow-2xs block">
+                          {currentArea.indexCode ? (indexLabelMap.get(currentArea.indexCode) ?? currentArea.indexCode) : 'NON-INDEX'}
+                        </span>
+                        <span className="text-[11px] text-slate-500 mt-0.5 block">
+                          Luas: <strong className="text-slate-800 font-mono">{formatNumber(currentArea.areaHa, 2)} Ha</strong>
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Services mini status row */}
+                    <div className="pt-2 border-t border-blue-100/80 flex items-center justify-between flex-wrap gap-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-semibold text-slate-600">Status Jasa Ekosistem:</span>
+                        <div className="flex items-center gap-1">
+                          <span
+                            title="Provisioning / Jasa Penyediaan"
+                            className={`w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold ${
+                              areaConfig.activeServices.provisioning
+                                ? 'bg-cyan-600 text-white shadow-2xs'
+                                : 'bg-slate-200 text-slate-400'
+                            }`}
+                          >
+                            P
+                          </span>
+                          <span
+                            title="Regulating / Jasa Pengaturan"
+                            className={`w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold ${
+                              areaConfig.activeServices.regulating
+                                ? 'bg-blue-600 text-white shadow-2xs'
+                                : 'bg-slate-200 text-slate-400'
+                            }`}
+                          >
+                            R
+                          </span>
+                          <span
+                            title="Supporting / Jasa Pendukung"
+                            className={`w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold ${
+                              areaConfig.activeServices.supporting
+                                ? 'bg-amber-600 text-white shadow-2xs'
+                                : 'bg-slate-200 text-slate-400'
+                            }`}
+                          >
+                            S
+                          </span>
+                          <span
+                            title="Cultural / Jasa Kultural"
+                            className={`w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold ${
+                              areaConfig.activeServices.cultural
+                                ? 'bg-purple-600 text-white shadow-2xs'
+                                : 'bg-slate-200 text-slate-400'
+                            }`}
+                          >
+                            C
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          ({getActiveServicesCount(currentArea.id)} dari 4 Aktif)
+                        </span>
+                      </div>
+
+                      <div className="text-[11px] text-blue-700 font-medium flex items-center gap-1">
+                        <span>Konfigurasi di bawah (Step 2)</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-5 text-center text-slate-400 text-xs">
+                    Tidak ada area yang dipilih
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* View Mode 2: Interactive Grid View */}
+        {viewMode === 'grid' && (
+          <div className="space-y-3">
+            {filteredLandCovers.length === 0 ? (
+              <div className="p-8 text-center bg-slate-50 rounded-lg border border-slate-200 space-y-2">
+                <Search className="w-8 h-8 text-slate-300 mx-auto" />
+                <h4 className="font-semibold text-slate-700 text-sm">Tidak Ada Area yang Cocok</h4>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Kriteria pencarian atau filter yang Anda pilih tidak menemukan area tutupan lahan apapun.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="mt-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset Filter</span>
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 max-h-[380px] overflow-y-auto pr-1">
+                {filteredLandCovers.map((lc) => {
+                  const isSelected = lc.id === selectedAreaId;
+                  const idxLabel = lc.indexCode ? (indexLabelMap.get(lc.indexCode) ?? lc.indexCode) : 'Non-Index';
+                  const sCount = getActiveServicesCount(lc.id);
+                  const cfg = getAreaConfig(lc.id);
+
                   return (
-                    <option key={lc.id} value={lc.id}>
-                      {lc.name} — {lc.areaHa} ha ({idxCode})
-                    </option>
+                    <div
+                      key={lc.id}
+                      onClick={() => handleAreaSelect(lc.id)}
+                      className={`p-3 rounded-lg border transition-all cursor-pointer flex flex-col justify-between space-y-2 relative ${
+                        isSelected
+                          ? 'bg-blue-50/80 border-blue-500 ring-2 ring-blue-500/20 shadow-xs'
+                          : 'bg-white hover:bg-slate-50 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border capitalize ${getTypeBadgeClasses(lc.type)}`}>
+                            {formatTypeName(lc.type)}
+                          </span>
+                          <span className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
+                            {idxLabel}
+                          </span>
+                        </div>
+                        <div className="font-bold text-slate-900 text-xs line-clamp-1 mt-1">
+                          {lc.name}
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Luas: <strong className="text-slate-700 font-mono">{formatNumber(lc.areaHa, 2)} Ha</strong>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                        <div className="flex items-center gap-1">
+                          <span
+                            className={`w-4 h-4 rounded text-[9px] font-bold flex items-center justify-center ${
+                              cfg?.activeServices?.provisioning ? 'bg-cyan-600 text-white' : 'bg-slate-100 text-slate-300'
+                            }`}
+                          >
+                            P
+                          </span>
+                          <span
+                            className={`w-4 h-4 rounded text-[9px] font-bold flex items-center justify-center ${
+                              cfg?.activeServices?.regulating ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-300'
+                            }`}
+                          >
+                            R
+                          </span>
+                          <span
+                            className={`w-4 h-4 rounded text-[9px] font-bold flex items-center justify-center ${
+                              cfg?.activeServices?.supporting ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-300'
+                            }`}
+                          >
+                            S
+                          </span>
+                          <span
+                            className={`w-4 h-4 rounded text-[9px] font-bold flex items-center justify-center ${
+                              cfg?.activeServices?.cultural ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-300'
+                            }`}
+                          >
+                            C
+                          </span>
+                        </div>
+
+                        {isSelected ? (
+                          <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                            <CheckCheck className="w-3 h-3" />
+                            <span>Aktif</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            {sCount}/4 Jasa
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   );
                 })}
-              </select>
-              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
-            </div>
+              </div>
+            )}
           </div>
-
-          {/* Current Area Summary Badge */}
-          {currentArea && (
-            <div className="md:col-span-2 bg-blue-50/70 border border-blue-200 rounded p-3 flex items-center justify-between">
-              <div>
-                <div className="text-[10px] font-bold text-blue-700 uppercase tracking-wider">
-                  Area Terpilih Saat Ini
-                </div>
-                <div className="text-sm font-bold text-slate-900 mt-0.5">
-                  {currentArea.name}
-                </div>
-                <div className="text-[11px] text-slate-500 font-medium">
-                  {currentArea.areaHa} ha • <span className="capitalize">{currentArea.type.replace('_', ' ')}</span>
-                </div>
-              </div>
-
-              <div className="text-right">
-                <span className="text-[10px] font-mono text-blue-700 font-bold bg-white px-2 py-0.5 rounded border border-blue-200 shadow-2xs">
-                  {currentArea.indexCode || 'NON-INDEX'}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
       {/* STEP 2: Pilih Jasa Ekosistem (2x2 Grid) */}

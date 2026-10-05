@@ -33,6 +33,38 @@ export const storeProjectDataMaster = async (projectId, payload) => {
 }
 
 /**
+ * Memperbarui data master proyek aktif (Peneliti).
+ */
+export const updateProjectDataMaster = async (projectId, category, id, payload) => {
+  const response = await api.put(`/proyek/${projectId}/data-master/${category}/${id}`, payload)
+  return response.data
+}
+
+/**
+ * Menghapus data master proyek aktif (Peneliti).
+ */
+export const deleteProjectDataMaster = async (projectId, category, id) => {
+  const response = await api.delete(`/proyek/${projectId}/data-master/${category}/${id}`)
+  return response.data
+}
+
+/**
+ * Menautkan item data master ke tutupan lahan proyek aktif.
+ */
+export const linkProjectMasterLandCover = async (projectId, payload) => {
+  const response = await api.post(`/proyek/${projectId}/data-master/link-land-cover`, payload)
+  return response.data
+}
+
+/**
+ * Menerapkan template master acuan wilayah ke seluruh tutupan lahan proyek aktif.
+ */
+export const applyProjectMasterTemplate = async (projectId) => {
+  const response = await api.post(`/proyek/${projectId}/data-master/apply-template`)
+  return response.data
+}
+
+/**
  * Mengambil data master global nasional untuk Super Admin / Admin Pusat
  * Mendukung filter: provinsi_id, kabupaten_kota_id, category, search, page, per_page
  */
@@ -69,8 +101,13 @@ export default {
   getDataMaster,
   getProjectDataMaster,
   storeProjectDataMaster,
+  updateProjectDataMaster,
+  deleteProjectDataMaster,
+  linkProjectMasterLandCover,
+  applyProjectMasterTemplate,
   getAdminMasterData,
   storeAdminMasterData,
   updateAdminMasterData,
   deleteAdminMasterData,
 }
+

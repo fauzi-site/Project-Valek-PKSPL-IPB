@@ -46,6 +46,7 @@ import { chatService } from '../services/chatService';
 import { INITIAL_MAP_LAYERS, INITIAL_LAND_COVERS, INITIAL_INDEX_LIST, INITIAL_INDEX_LIST as INITIAL_INDICES } from '../mock/spatialData';
 import { isValidPolygonCoordinates } from '../utils/geoValidation';
 import { PROVISIONING_DATA } from '../mock/dataMasterMock';
+import { ReviewSpatialViewer } from '../components/map/ReviewSpatialViewer';
 import { Skeleton, SkeletonCard, SkeletonTable, LoadingButton, EmptyState } from '../../components/loading';
 import {
   ResponsiveContainer,
@@ -116,33 +117,48 @@ const ReviewReportPageContent: React.FC = () => {
     }
   }, [params.projectId, activeProjectId, projects, setActiveProjectId]);
 
+  const isMock = isMockProject(effectiveProjId);
+
   // Project's dynamic spatial items with seamless fallback
   const rawLandCovers = (getProjectLandCovers ? getProjectLandCovers(effectiveProjId) : []) || [];
   const currentLandCovers = (rawLandCovers && rawLandCovers.length > 0)
     ? rawLandCovers
-    : INITIAL_LAND_COVERS;
+    : (isMock ? INITIAL_LAND_COVERS : []);
 
   const rawIndices = (getProjectIndices ? getProjectIndices(effectiveProjId) : []) || [];
   const currentIndices = (rawIndices && rawIndices.length > 0)
     ? rawIndices
-    : INITIAL_INDEX_LIST;
+    : (isMock ? INITIAL_INDEX_LIST : []);
 
   const indexLabelMap = buildIndexLabelMap(currentIndices);
 
   const rawLayers = (getProjectLayers ? getProjectLayers(effectiveProjId) : []) || [];
-  const currentLayers = (rawLayers && rawLayers.length > 0) ? rawLayers : INITIAL_MAP_LAYERS;
+  const currentLayers = (rawLayers && rawLayers.length > 0) ? rawLayers : (isMock ? INITIAL_MAP_LAYERS : []);
+
+  // Spatial status indicators
+  const hasPolygons = currentLandCovers.length > 0;
+  const hasCoordinates = Boolean(
+    currentProject?.latitude &&
+    currentProject?.longitude &&
+    !isNaN(Number(currentProject.latitude)) &&
+    !isNaN(Number(currentProject.longitude))
+  );
 
   // State management
-  const [selectedAreaId, setSelectedAreaId] = useState<string>(currentLandCovers[0]?.id || 'poly-1');
+  const [selectedAreaId, setSelectedAreaId] = useState<string>(
+    currentLandCovers[0]?.id || currentIndices[0]?.id || 'poly-1'
+  );
   const [isExporting, setIsExporting] = useState(false);
   const [isConnectingAdmin, setIsConnectingAdmin] = useState(false);
 
-  // Sync selectedAreaId when currentLandCovers change
+  // Sync selectedAreaId when currentLandCovers or currentIndices change
   useEffect(() => {
     if (currentLandCovers.length > 0 && !currentLandCovers.some(lc => lc.id === selectedAreaId)) {
       setSelectedAreaId(currentLandCovers[0].id);
+    } else if (currentLandCovers.length === 0 && currentIndices.length > 0 && !currentIndices.some(idx => idx.id === selectedAreaId)) {
+      setSelectedAreaId(currentIndices[0].id);
     }
-  }, [currentLandCovers, selectedAreaId]);
+  }, [currentLandCovers, currentIndices, selectedAreaId]);
 
   // Accordion state for read-only tables in Input Data section
   const [openSections, setOpenSections] = useState<Record<EcosystemServiceId, boolean>>({
@@ -160,8 +176,22 @@ const ReviewReportPageContent: React.FC = () => {
   };
 
   const allProjectRows = getAllProjectRows(effectiveProjId);
-  const currentArea = currentLandCovers.find(lc => lc.id === selectedAreaId) || currentLandCovers[0];
-  const currentAreaConfig = getAreaConfig(selectedAreaId);
+  const currentArea = currentLandCovers.find(lc => lc.id === selectedAreaId) || currentLandCovers[0] || (currentIndices[0] ? {
+    id: currentIndices[0].id,
+    name: currentIndices[0].name,
+    code: currentIndices[0].code,
+    areaHa: Number(currentIndices[0].areaHa) || 0,
+    type: (currentIndices[0].landCoverType || 'lainnya') as any,
+    activeServices: ['provisioning', 'regulating', 'supporting', 'cultural'] as any,
+    serviceDetails: [],
+    totalValue: 0,
+    center: [0, 0] as [number, number],
+    coordinates: []
+  } : null);
+  const currentAreaConfig = getAreaConfig(selectedAreaId) || {
+    activeServices: { provisioning: true, regulating: true, supporting: true, cultural: true },
+    selectedMethods: { provisioning: 'market-price', regulating: 'replacement-cost', supporting: 'nursery-ground', cultural: 'tcm' }
+  };
 
   // Data Master catalog preview for section 03
   const isCoralEco = (currentProject?.ecosystem || '').toLowerCase().includes('karang');
@@ -340,7 +370,6 @@ const ReviewReportPageContent: React.FC = () => {
   const rawCult = Math.max(0, getSubtotalForService('cultural'));
   const rawGrand = rawProv + rawReg + rawSupp + rawCult;
 
-  const isMock = isMockProject(effectiveProjId);
   const provTotal = (rawGrand > 0 || !isMock)
     ? rawProv
     : (isMock ? 19920297915 : 0);
@@ -730,36 +759,50 @@ const ReviewReportPageContent: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {currentIndices.map((idx, i) => (
-                <tr key={idx.id} className="hover:bg-slate-50/50">
-                  <td className="py-2.5 px-3 font-semibold text-blue-700 border-r border-slate-200" colSpan={2}>
-                    {indexLabelMap.get(idx.code) ?? `Index ${i + 1}`}
-                  </td>
-                  <td className="py-2.5 px-3 text-slate-600 border-r border-slate-200">
-                    {idx.landCoverName || idx.landCoverType || 'Mangrove'}
-                  </td>
-                  <td className="py-2.5 px-3 text-right font-mono font-medium border-r border-slate-200">
-                    {formatNumber(idx.areaHa || 50)} {idx.unit || 'ha'}
-                  </td>
-                  <td className="py-2.5 px-3 text-center border-r border-slate-200">
-                    {idx.spatialStatus === 'connected' ? (
-                      <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-[11px] font-semibold border border-emerald-200">
-                        <Check className="w-3 h-3" />
-                        Terhubung
+              {currentIndices.map((idx, i) => {
+                const isSelected = selectedAreaId === idx.id || currentLandCovers.some(lc => lc.id === selectedAreaId && (lc.indexCode === idx.code || lc.indexId === idx.id));
+                return (
+                  <tr
+                    key={idx.id}
+                    onClick={() => {
+                      const matchedLc = currentLandCovers.find(lc => lc.indexCode === idx.code || lc.indexId === idx.id || lc.id === idx.id);
+                      if (matchedLc) {
+                        setSelectedAreaId(matchedLc.id);
+                      } else {
+                        setSelectedAreaId(idx.id);
+                      }
+                    }}
+                    className={`cursor-pointer transition-colors ${isSelected ? 'bg-blue-50/80 font-medium' : 'hover:bg-slate-50/50'}`}
+                  >
+                    <td className="py-2.5 px-3 font-semibold text-blue-700 border-r border-slate-200" colSpan={2}>
+                      {indexLabelMap.get(idx.code) ?? `Index ${i + 1}`}
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-600 border-r border-slate-200">
+                      {idx.landCoverName || idx.landCoverType || 'Mangrove'}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-medium border-r border-slate-200">
+                      {formatNumber(idx.areaHa || 50)} {idx.unit || 'ha'}
+                    </td>
+                    <td className="py-2.5 px-3 text-center border-r border-slate-200">
+                      {idx.spatialStatus === 'connected' ? (
+                        <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-[11px] font-semibold border border-emerald-200">
+                          <Check className="w-3 h-3" />
+                          Terhubung
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-slate-500 bg-slate-100 px-2 py-0.5 rounded text-[11px] font-medium">
+                          ○ Belum terhubung
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3 text-center">
+                      <span className="text-[11px] text-slate-600 font-medium px-2 py-0.5 rounded bg-slate-100">
+                        {idx.status}
                       </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-slate-500 bg-slate-100 px-2 py-0.5 rounded text-[11px] font-medium">
-                        ○ Belum terhubung
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-2.5 px-3 text-center">
-                    <span className="text-[11px] text-slate-600 font-medium px-2 py-0.5 rounded bg-slate-100">
-                      {idx.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -771,7 +814,7 @@ const ReviewReportPageContent: React.FC = () => {
           <div className="flex items-center gap-2">
             <MapPin className="w-4 h-4 text-blue-600" />
             <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900">
-              02. Data Spasial
+              02. Data Spasial & Pemetaan Kawasan
             </h2>
           </div>
           <button
@@ -783,38 +826,80 @@ const ReviewReportPageContent: React.FC = () => {
           </button>
         </div>
 
-        {currentLayers.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
-            <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200">
-              <span className="text-slate-400 font-bold uppercase text-[10px]">Layer Aktif</span>
-              <div className="font-bold text-slate-800 text-sm mt-0.5">Area Tutupan Lahan</div>
-              <div className="text-[11px] text-slate-500 mt-0.5">Vector Polygon GIS</div>
+        {/* 4 Kartu Metrik Ringkasan Spasial Riil */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+          <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200">
+            <span className="text-slate-400 font-bold uppercase text-[10px]">Tipe Representasi Spasial</span>
+            <div className="font-bold text-slate-800 text-sm mt-0.5">
+              {hasPolygons ? 'Vector Polygon GIS' : hasCoordinates ? 'Titik Koordinat Lokasi' : 'Tabulasi Statistik'}
             </div>
-            <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200">
-              <span className="text-slate-400 font-bold uppercase text-[10px]">Status Integrasi</span>
-              <div className="font-bold text-emerald-700 text-sm mt-0.5 flex items-center gap-1">
-                <Check className="w-4 h-4" />
-                ✓ Terhubung
-              </div>
-              <div className="text-[11px] text-slate-500 mt-0.5">CRS & Geometri Sinkron</div>
-            </div>
-            <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200">
-              <span className="text-slate-400 font-bold uppercase text-[10px]">Jumlah Polygon</span>
-              <div className="font-bold text-slate-900 text-sm mt-0.5">{currentLandCovers.length} Feature Poligon</div>
-              <div className="text-[11px] text-slate-500 mt-0.5">Total Luas: {formatNumber(currentLandCovers.reduce((s, c) => s + c.areaHa, 0))} ha</div>
-            </div>
-            <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200">
-              <span className="text-slate-400 font-bold uppercase text-[10px]">Sistem Koordinat (CRS)</span>
-              <div className="font-bold text-slate-800 text-sm mt-0.5">WGS 1984 / UTM 50S</div>
-              <div className="text-[11px] text-slate-500 mt-0.5">EPSG: 4326 Datum Standar</div>
+            <div className="text-[11px] text-slate-500 mt-0.5">
+              {hasPolygons ? 'Shapefile Terhubung' : hasCoordinates ? 'Centroid Kawasan Valid' : 'Non-Spasial'}
             </div>
           </div>
-        ) : (
-          <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-600 flex items-center gap-2">
-            <Info className="w-4 h-4 text-blue-600 flex-shrink-0" />
-            <span>Data spasial tidak digunakan pada penelitian ini (opsional). Seluruh perhitungan berbasis luas tabulasi statistik.</span>
+
+          <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200">
+            <span className="text-slate-400 font-bold uppercase text-[10px]">Status Integrasi</span>
+            <div className="font-bold text-sm mt-0.5 flex items-center gap-1">
+              {hasPolygons ? (
+                <span className="text-emerald-700 flex items-center gap-1">
+                  <Check className="w-4 h-4" />
+                  ✓ Poligon Terhubung
+                </span>
+              ) : hasCoordinates ? (
+                <span className="text-blue-700 flex items-center gap-1">
+                  <MapPin className="w-4 h-4" />
+                  ✓ Titik Terdaftar
+                </span>
+              ) : (
+                <span className="text-slate-600 flex items-center gap-1">
+                  ○ Non-Spasial
+                </span>
+              )}
+            </div>
+            <div className="text-[11px] text-slate-500 mt-0.5">
+              {hasPolygons ? 'CRS & Geometri Sinkron' : hasCoordinates ? 'Koordinat Terverifikasi' : 'Tanpa Geometri SHP'}
+            </div>
           </div>
-        )}
+
+          <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200">
+            <span className="text-slate-400 font-bold uppercase text-[10px]">Fitur & Luas Kawasan</span>
+            <div className="font-bold text-slate-900 text-sm mt-0.5">
+              {hasPolygons
+                ? `${currentLandCovers.length} Feature Poligon`
+                : `${currentIndices.length} Indeks Kawasan`}
+            </div>
+            <div className="text-[11px] text-slate-500 mt-0.5">
+              Total Luas:{' '}
+              {formatNumber(
+                hasPolygons
+                  ? currentLandCovers.reduce((s, c) => s + c.areaHa, 0)
+                  : currentIndices.reduce((s, i) => s + (Number(i.areaHa) || 0), 0)
+              )}{' '}
+              ha
+            </div>
+          </div>
+
+          <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200">
+            <span className="text-slate-400 font-bold uppercase text-[10px]">Sistem Koordinat (CRS)</span>
+            <div className="font-bold text-slate-800 text-sm mt-0.5">WGS 1984 / UTM Standar</div>
+            <div className="text-[11px] text-slate-500 mt-0.5">EPSG: 4326 Datum Standar</div>
+          </div>
+        </div>
+
+        {/* Peta Spasial ReviewViewer */}
+        <div className="pt-2">
+          <ReviewSpatialViewer
+            projectId={effectiveProjId}
+            project={currentProject}
+            landCovers={currentLandCovers}
+            indices={currentIndices}
+            layers={currentLayers}
+            selectedAreaId={selectedAreaId}
+            onPolygonSelect={(poly) => poly && setSelectedAreaId(poly.id)}
+            height="460px"
+          />
+        </div>
       </section>
 
       {/* 5. SECTION 03: DATA MASTER (Read-Only) */}
@@ -1008,11 +1093,21 @@ const ReviewReportPageContent: React.FC = () => {
               onChange={(e) => setSelectedAreaId(e.target.value)}
               className="bg-white border border-slate-300 rounded px-2.5 py-1 text-slate-900 font-bold focus:outline-none cursor-pointer"
             >
-              {currentLandCovers.map(lc => (
-                <option key={lc.id} value={lc.id}>
-                  {lc.name} ({lc.areaHa} ha){lc.indexCode ? ` — ${indexLabelMap.get(lc.indexCode) ?? lc.indexCode}` : ''}
-                </option>
-              ))}
+              {currentLandCovers.length > 0 ? (
+                currentLandCovers.map(lc => (
+                  <option key={lc.id} value={lc.id}>
+                    {lc.name} ({lc.areaHa} ha){lc.indexCode ? ` — ${indexLabelMap.get(lc.indexCode) ?? lc.indexCode}` : ''}
+                  </option>
+                ))
+              ) : currentIndices.length > 0 ? (
+                currentIndices.map((idx, i) => (
+                  <option key={idx.id} value={idx.id}>
+                    {idx.name || `Index ${i + 1}`} ({idx.areaHa} ha) — Non-Spasial
+                  </option>
+                ))
+              ) : (
+                <option value="none">Belum ada area terdaftar</option>
+              )}
             </select>
           </div>
         </div>
@@ -1109,7 +1204,7 @@ const ReviewReportPageContent: React.FC = () => {
                               <td className="py-2.5 px-3 text-right font-mono">{r.produktivitas || '-'}</td>
                               <td className="py-2.5 px-3 text-right font-mono">{formatIDR(r.hargaUnit || r.hargaKomoditas || 0)}</td>
                               <td className="py-2.5 px-3 text-right font-mono">{r.volumeOutput || r.jumlah || '-'}</td>
-                              <td className="py-2.5 px-3 text-right font-mono">{r.luasHa || currentArea.areaHa}</td>
+                              <td className="py-2.5 px-3 text-right font-mono">{r.luasHa || currentArea?.areaHa || '-'}</td>
                               <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">{formatIDR(r.totalNilai || 0)}</td>
                               <td className="py-2.5 px-3 text-slate-500 text-[11px] italic">{r.source || 'Survei Peneliti'}</td>
                             </tr>
@@ -1154,7 +1249,7 @@ const ReviewReportPageContent: React.FC = () => {
                               <td className="py-2.5 px-3 text-right font-mono">{r.produktivitas || '-'}</td>
                               <td className="py-2.5 px-3 text-right font-mono">{formatIDR(r.hargaUnit || r.hargaKomoditas || 0)}</td>
                               <td className="py-2.5 px-3 text-right font-mono">{r.volumeOutput || r.jumlah || '-'}</td>
-                              <td className="py-2.5 px-3 text-right font-mono">{r.luasHa || currentArea.areaHa}</td>
+                              <td className="py-2.5 px-3 text-right font-mono">{r.luasHa || currentArea?.areaHa || '-'}</td>
                               <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">{formatIDR(r.totalNilai || 0)}</td>
                               <td className="py-2.5 px-3 text-slate-500 text-[11px] italic">{r.source || 'Survei Peneliti'}</td>
                             </tr>
@@ -1321,7 +1416,7 @@ const ReviewReportPageContent: React.FC = () => {
                             <tr key={r.id || idx} className="hover:bg-slate-50/60">
                               <td className="py-2.5 px-3 text-center font-mono text-slate-400">{idx + 1}</td>
                               <td className="py-2.5 px-3 font-semibold text-slate-900">{r.item || r.fungsi}</td>
-                              <td className="py-2.5 px-3 text-right font-mono">{r.luasHa || currentArea.areaHa}</td>
+                              <td className="py-2.5 px-3 text-right font-mono">{r.luasHa || currentArea?.areaHa || '-'}</td>
                               <td className="py-2.5 px-3 text-right font-mono">{formatIDR(r.unitVal || r.nilaiKontribusiHa || 0)}</td>
                               <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">{formatIDR(r.totalNilai || 0)}</td>
                               <td className="py-2.5 px-3 text-slate-500 text-[11px] italic">{r.source || 'Studi Valuasi PKSPL'}</td>
