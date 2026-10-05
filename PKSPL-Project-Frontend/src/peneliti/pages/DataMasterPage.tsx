@@ -1156,7 +1156,7 @@ export const DataMasterPage: React.FC = () => {
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 active:bg-blue-200 transition-colors cursor-pointer shadow-xs"
               title="Salin template katalog ekosistem standar ke seluruh tutupan lahan proyek ini"
             >
-              <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+              <Layers className="w-3.5 h-3.5 text-blue-600 shrink-0" />
               <span>Terapkan Template Master</span>
             </button>
 
@@ -2459,7 +2459,7 @@ export const DataMasterPage: React.FC = () => {
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="p-6 space-y-4">
               <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 mx-auto flex items-center justify-center">
-                <Sparkles className="w-6 h-6" />
+                <Layers className="w-6 h-6" />
               </div>
               <div className="text-center space-y-1.5">
                 <h3 className="text-base font-bold text-slate-900">
@@ -2496,7 +2496,7 @@ export const DataMasterPage: React.FC = () => {
                 onClick={handleApplyTemplate}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
               >
-                <Sparkles className="w-3.5 h-3.5" />
+                <Layers className="w-3.5 h-3.5" />
                 <span>{isApplyingTemplate ? 'Menerapkan...' : 'Terapkan Sekarang'}</span>
               </button>
             </div>

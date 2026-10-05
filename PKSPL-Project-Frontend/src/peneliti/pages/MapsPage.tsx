@@ -14,7 +14,6 @@ import {
   ArrowRight,
   Trash2,
   Layers,
-  Sparkles,
   Link2,
   CheckCircle2,
   AlertCircle,
@@ -280,7 +279,7 @@ export const MapsPage: React.FC = () => {
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-2xs">
-                        <Sparkles className="w-4 h-4" />
+                        <Upload className="w-4 h-4" />
                       </span>
                       <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
                         Otomatis

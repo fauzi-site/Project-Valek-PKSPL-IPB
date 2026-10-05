@@ -20,7 +20,6 @@ import {
   X,
   ExternalLink,
   Tag,
-  Sparkles,
   Map as MapIcon
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
