@@ -45,7 +45,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   ArrowRight,
-  Sparkles,
   Database,
   Calendar,
   GitCompare,

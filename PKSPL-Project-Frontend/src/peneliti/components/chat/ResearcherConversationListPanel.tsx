@@ -6,7 +6,6 @@ import {
   Plus,
   MoreVertical,
   X,
-  Sparkles,
   CheckCheck,
   Check,
 } from 'lucide-react';
@@ -134,7 +133,6 @@ export const ResearcherConversationListPanel: React.FC<ResearcherConversationLis
                 }}
                 className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-50 hover:text-blue-700 text-left transition-colors cursor-pointer font-medium"
               >
-                <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                 <span>Simulasi Pesan Masuk</span>
               </button>
 

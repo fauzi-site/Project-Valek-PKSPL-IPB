@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, ShieldCheck, Sparkles, FolderCheck, Compass } from 'lucide-react';
+import { MessageSquare, ShieldCheck, FolderCheck, Compass } from 'lucide-react';
 
 export const ResearcherEmptyChatState: React.FC = () => {
   return (
@@ -22,7 +22,6 @@ export const ResearcherEmptyChatState: React.FC = () => {
           <span>Terkoneksi Kode Proyek</span>
         </div>
         <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-slate-200 text-[11px] font-medium text-slate-600 shadow-2xs">
-          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
           <span>Quick Reply Kontekstual</span>
         </div>
         <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-slate-200 text-[11px] font-medium text-slate-600 shadow-2xs">

@@ -8,7 +8,6 @@ import {
   Send,
   CheckCheck,
   Check,
-  Sparkles,
   ExternalLink,
   FileText,
   Image as ImageIcon,
@@ -882,7 +881,6 @@ export const ResearcherChatWindowPanel: React.FC<ResearcherChatWindowPanelProps>
       {/* ------------------------------------------------------------- */}
       <div className="px-4 py-2 bg-slate-100/80 border-t border-slate-200/70 flex items-center gap-2 overflow-x-auto shrink-0 custom-scrollbar">
         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1 shrink-0 select-none">
-          <Sparkles className="w-3 h-3 text-blue-600" />
           Quick Reply:
         </span>
         {quickReplies.map((reply, idx) => (

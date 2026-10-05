@@ -7,7 +7,6 @@ import {
   RefreshCw,
   AlertCircle,
   Loader2,
-  Sparkles,
   Layers,
   FolderTree,
   ChevronRight,
@@ -495,7 +494,6 @@ export default function MapSection() {
         {/* Section Header */}
         <div className="text-center mb-6 max-w-4xl mx-auto">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-[#0f284e] text-xs font-semibold mb-2.5">
-            <Sparkles className="w-3.5 h-3.5 text-blue-600" />
             <span>Sistem Informasi Geografis (GIS) PKSPL IPB</span>
           </div>
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">

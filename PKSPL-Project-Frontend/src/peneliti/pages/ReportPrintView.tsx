@@ -486,6 +486,15 @@ export const ReportPrintView: React.FC = () => {
     <div className="min-h-screen bg-slate-200 p-3 sm:p-6 md:p-8 font-sans text-slate-900 print:bg-white print:p-0">
       {/* ── Print Styles CSS Injection (Formal Academic Document Standards) ─ */}
       <style dangerouslySetInnerHTML={{ __html: `
+        /* Justify / Rata Kiri Kanan format for report narratives and descriptions */
+        .report-sheet p:not(.text-center):not(.caption-text),
+        .report-sheet .report-narrative,
+        .report-sheet td.report-desc,
+        .report-sheet .text-justify {
+          text-align: justify !important;
+          text-justify: inter-word !important;
+        }
+
         @media print {
           @page {
             size: A4 portrait;
@@ -504,6 +513,14 @@ export const ReportPrintView: React.FC = () => {
           }
           * {
             box-sizing: border-box !important;
+          }
+
+          /* Justify body paragraphs in print */
+          p:not(.text-center):not(.caption-text),
+          .report-narrative,
+          td.report-desc {
+            text-align: justify !important;
+            text-justify: inter-word !important;
           }
 
           /* Headings: avoid orphan titles at page bottom */
@@ -561,30 +578,29 @@ export const ReportPrintView: React.FC = () => {
       <div className="max-w-4xl mx-auto mb-4 flex flex-col sm:flex-row items-center justify-between gap-3 no-print">
         <button
           onClick={handleBack}
-          className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+          className="inline-flex items-center justify-center gap-2 h-9 px-4 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs whitespace-nowrap cursor-pointer shrink-0"
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft className="w-4 h-4 shrink-0" />
           <span>{isSuperAdmin ? 'Kembali ke Manajemen Proyek' : 'Kembali ke Review & Laporan'}</span>
         </button>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="text-right text-[11px] text-slate-600 hidden md:block">
-            <span className="font-semibold text-slate-800">Format Dokumen Ilmiah Resmi A4</span>
-            <span className="mx-1.5">•</span>
-            <span>Hilangkan centang <em>"Headers and footers"</em> di dialog cetak Chrome agar URL bersih</span>
-          </div>
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-2 px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
-          >
-            <Printer className="w-4 h-4" />
-            <span>Cetak / Simpan PDF</span>
-          </button>
+        <div className="text-center text-[11px] text-slate-600 px-2 leading-relaxed max-w-md mx-auto">
+          <span className="font-semibold text-slate-800">Format Dokumen Ilmiah Resmi A4</span>
+          <span className="mx-1.5">•</span>
+          <span>Hilangkan centang <em>"Headers and footers"</em> di dialog cetak Chrome agar URL bersih</span>
         </div>
+
+        <button
+          onClick={handlePrint}
+          className="inline-flex items-center justify-center gap-2 h-9 px-4 bg-slate-900 hover:bg-slate-800 text-white border border-slate-900 rounded-lg text-xs font-semibold shadow-xs transition-colors whitespace-nowrap cursor-pointer shrink-0"
+        >
+          <Printer className="w-4 h-4 shrink-0" />
+          <span>Cetak / Simpan PDF</span>
+        </button>
       </div>
 
       {/* ── Formal Document Sheet (A4 Proportion & Academic Flow) ──────────── */}
-      <div className="max-w-4xl mx-auto bg-white border border-slate-300 shadow-md p-6 sm:p-10 md:p-12 space-y-6 print:max-w-none print:shadow-none print:border-none print:p-0 print:space-y-4">
+      <div className="report-sheet max-w-4xl mx-auto bg-white border border-slate-300 shadow-md p-6 sm:p-10 md:p-12 space-y-6 print:max-w-none print:shadow-none print:border-none print:p-0 print:space-y-4">
 
         {/* ── Header Laporan: Kop Resmi PKSPL IPB University ───────────────── */}
         <div className="border-b-2 border-slate-900 pb-3 text-center space-y-1">
@@ -603,33 +619,39 @@ export const ReportPrintView: React.FC = () => {
         <div className="border-b border-slate-300 py-3 text-xs">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
             <div className="space-y-1.5">
-              <div className="flex">
-                <span className="w-36 text-slate-500 font-medium">Kode Proyek</span>
-                <span className="font-mono font-bold text-slate-900 flex-1">: {currentProject?.code || '-'}</span>
+              <div className="flex items-start">
+                <span className="w-32 text-slate-500 font-medium shrink-0">Kode Proyek</span>
+                <span className="w-3 text-slate-600 shrink-0 text-left">:</span>
+                <span className="font-mono font-bold text-slate-900 flex-1">{currentProject?.code || '-'}</span>
               </div>
-              <div className="flex">
-                <span className="w-36 text-slate-500 font-medium">Nama Penelitian</span>
-                <span className="font-semibold text-slate-900 flex-1">: {currentProject?.name || '-'}</span>
+              <div className="flex items-start">
+                <span className="w-32 text-slate-500 font-medium shrink-0">Nama Penelitian</span>
+                <span className="w-3 text-slate-600 shrink-0 text-left">:</span>
+                <span className="font-semibold text-slate-900 flex-1">{currentProject?.name || '-'}</span>
               </div>
-              <div className="flex">
-                <span className="w-36 text-slate-500 font-medium">Lokasi Kawasan</span>
-                <span className="text-slate-800 flex-1">: {currentProject?.location || '-'}</span>
+              <div className="flex items-start">
+                <span className="w-32 text-slate-500 font-medium shrink-0">Lokasi Kawasan</span>
+                <span className="w-3 text-slate-600 shrink-0 text-left">:</span>
+                <span className="text-slate-800 flex-1">{currentProject?.location || '-'}</span>
               </div>
             </div>
             <div className="space-y-1.5">
-              <div className="flex">
-                <span className="w-40 text-slate-500 font-medium">Peneliti Penanggung Jawab</span>
-                <span className="font-semibold text-slate-900 flex-1">: {currentProject?.lead || '-'}</span>
+              <div className="flex items-start">
+                <span className="w-44 text-slate-500 font-medium shrink-0">Peneliti Penanggung Jawab</span>
+                <span className="w-3 text-slate-600 shrink-0 text-left">:</span>
+                <span className="font-semibold text-slate-900 flex-1">{currentProject?.lead || '-'}</span>
               </div>
-              <div className="flex">
-                <span className="w-40 text-slate-500 font-medium">Tipe Ekosistem &amp; Luas</span>
+              <div className="flex items-start">
+                <span className="w-44 text-slate-500 font-medium shrink-0">Tipe Ekosistem &amp; Luas</span>
+                <span className="w-3 text-slate-600 shrink-0 text-left">:</span>
                 <span className="text-slate-800 flex-1">
-                  : {currentProject?.ecosystem || '-'} • <strong className="font-mono text-slate-900">{formatNumber(totalAreaHa, 2)} Ha</strong>
+                  {currentProject?.ecosystem || '-'} • <strong className="font-mono text-slate-900">{formatNumber(totalAreaHa, 2)} Ha</strong>
                 </span>
               </div>
-              <div className="flex">
-                <span className="w-40 text-slate-500 font-medium">Tanggal Terbit Laporan</span>
-                <span className="font-mono text-slate-800 flex-1">: {formatDate(new Date().toISOString())}</span>
+              <div className="flex items-start">
+                <span className="w-44 text-slate-500 font-medium shrink-0">Tanggal Terbit Laporan</span>
+                <span className="w-3 text-slate-600 shrink-0 text-left">:</span>
+                <span className="font-mono text-slate-800 flex-1">{formatDate(new Date().toISOString())}</span>
               </div>
             </div>
           </div>
@@ -774,7 +796,7 @@ export const ReportPrintView: React.FC = () => {
             </tfoot>
           </table>
           {spatialReportData.hasMore && (
-            <p className="text-[10px] text-slate-500 italic mt-1">
+            <p className="text-[10px] text-slate-500 italic mt-1 text-justify">
               * 10 area tutupan ditampilkan sebagai ringkasan. Data lengkap tersedia pada halaman Data Spasial/Index Kawasan.
             </p>
           )}
@@ -802,7 +824,7 @@ export const ReportPrintView: React.FC = () => {
                 <td className="py-2 px-3 text-center border-r border-slate-300 font-mono text-slate-500">1</td>
                 <td className="py-2 px-3 border-r border-slate-300 font-semibold text-slate-900">Provisioning Services</td>
                 <td className="py-2 px-3 border-r border-slate-300 font-medium text-slate-800">{provSchema.methodName}</td>
-                <td className="py-2 px-3 text-slate-600 leading-relaxed">
+                <td className="py-2 px-3 text-slate-600 leading-relaxed text-justify report-desc">
                   Pendekatan harga pasar aktual komoditas flora (tegakan kayu/biomassa) dan fauna (hasil tangkapan perikanan) berdasarkan survei lapangan dan data TPI daerah.
                 </td>
               </tr>
@@ -810,7 +832,7 @@ export const ReportPrintView: React.FC = () => {
                 <td className="py-2 px-3 text-center border-r border-slate-300 font-mono text-slate-500">2</td>
                 <td className="py-2 px-3 border-r border-slate-300 font-semibold text-slate-900">Regulating Services</td>
                 <td className="py-2 px-3 border-r border-slate-300 font-medium text-slate-800">{regSchema.methodName}</td>
-                <td className="py-2 px-3 text-slate-600 leading-relaxed">
+                <td className="py-2 px-3 text-slate-600 leading-relaxed text-justify report-desc">
                   Metode biaya pengganti struktur pelindung pantai (seawall/breakwater) dan potensi cadangan sekuestrasi karbon biru pesisir menurut pedoman IPCC Wetlands.
                 </td>
               </tr>
@@ -818,7 +840,7 @@ export const ReportPrintView: React.FC = () => {
                 <td className="py-2 px-3 text-center border-r border-slate-300 font-mono text-slate-500">3</td>
                 <td className="py-2 px-3 border-r border-slate-300 font-semibold text-slate-900">Supporting Services</td>
                 <td className="py-2 px-3 border-r border-slate-300 font-medium text-slate-800">{suppSchema.methodName}</td>
-                <td className="py-2 px-3 text-slate-600 leading-relaxed">
+                <td className="py-2 px-3 text-slate-600 leading-relaxed text-justify report-desc">
                   Penilaian fungsi ekologis sebagai daerah asuhan dan pemijahan benih biota laut (nursery ground) serta penyangga keanekaragaman hayati pesisir.
                 </td>
               </tr>
@@ -826,7 +848,7 @@ export const ReportPrintView: React.FC = () => {
                 <td className="py-2 px-3 text-center border-r border-slate-300 font-mono text-slate-500">4</td>
                 <td className="py-2 px-3 border-r border-slate-300 font-semibold text-slate-900">Cultural Services</td>
                 <td className="py-2 px-3 border-r border-slate-300 font-medium text-slate-800">{cultSchema.methodName}</td>
-                <td className="py-2 px-3 text-slate-600 leading-relaxed">
+                <td className="py-2 px-3 text-slate-600 leading-relaxed text-justify report-desc">
                   Pendekatan Travel Cost Method (TCM) dan Contingent Valuation guna mengestimasi surplus konsumen pengunjung ekowisata dan jasa rekreasi budaya pesisir.
                 </td>
               </tr>
@@ -910,7 +932,7 @@ export const ReportPrintView: React.FC = () => {
                     </tfoot>
                   </table>
                   {hasMoreRows && (
-                    <p className="text-[10px] text-slate-500 italic mt-1">
+                    <p className="text-[10px] text-slate-500 italic mt-1 text-justify">
                       * Menampilkan 10 dari {areaData.allRows.length} data valuasi pada area ini. Data lengkap tersedia pada modul Data Valuasi.
                     </p>
                   )}
@@ -918,7 +940,7 @@ export const ReportPrintView: React.FC = () => {
               );
             })}
             {valuationSectionData.totalDistinctAreasCount > valuationSectionData.displayedAreas.length && (
-              <p className="text-[10px] text-slate-500 italic mt-2">
+              <p className="text-[10px] text-slate-500 italic mt-2 text-justify">
                 * Menampilkan rincian data valuasi {valuationSectionData.displayedAreas.length} area tutupan prioritas dari total {formatNumber(currentLandCovers.length, 0)} area terdata. Data lengkap seluruh area tersedia pada modul Input Data Valuasi.
               </p>
             )}
@@ -1048,7 +1070,7 @@ export const ReportPrintView: React.FC = () => {
             <h3 className="text-xs font-bold text-slate-900">
               A. Distribusi Nilai Ekonomi Berdasarkan Jasa Ekosistem
             </h3>
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <p className="text-xs text-slate-600 leading-relaxed text-justify report-narrative">
               Komposisi nilai ekonomi kawasan didominasi oleh jasa {dominantService.name} dengan kontribusi sebesar {dominantService.percentage.toFixed(1)}% ({formatIDR(dominantService.nominal)}) dari total nilai valuasi.
             </p>
 
@@ -1078,7 +1100,7 @@ export const ReportPrintView: React.FC = () => {
             <h3 className="text-xs font-bold text-slate-900">
               B. Komposisi Direct, Indirect, dan Supporting Value
             </h3>
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <p className="text-xs text-slate-600 leading-relaxed text-justify report-narrative">
               Proporsi nilai manfaat terbagi atas Direct Use Value (manfaat langsung konsumtif &amp; rekreasi), Indirect Use Value (fungsi regulasi &amp; peredam gelombang), serta Supporting Use Value (fungsi habitat &amp; asuhan biota).
             </p>
 
@@ -1108,7 +1130,7 @@ export const ReportPrintView: React.FC = () => {
             <h3 className="text-xs font-bold text-slate-900">
               C. Distribusi Nilai Ekonomi Berdasarkan Area Tutupan Lahan
             </h3>
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <p className="text-xs text-slate-600 leading-relaxed text-justify report-narrative">
               Sebaran kontribusi nilai ekonomi antar-area tutupan lahan pada kawasan penelitian menunjukkan alokasi manfaat ekonomi terbesar pada {valuationSectionData.topArea?.area?.name || 'area utama'}.
             </p>
 
@@ -1149,7 +1171,7 @@ export const ReportPrintView: React.FC = () => {
               <h3 className="text-xs font-bold text-slate-900">
                 D. Komparasi Tren Historis Nilai Ekonomi Kawasan
               </h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
+              <p className="text-xs text-slate-600 leading-relaxed text-justify report-narrative">
                 Perbandingan nilai valuasi ekonomi kawasan terhadap hasil estimasi studi terdahulu pada kawasan {targetArea?.name || 'terkait'}.
               </p>
 

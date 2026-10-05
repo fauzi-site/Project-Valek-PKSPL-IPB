@@ -7,7 +7,6 @@ import {
   Send,
   CheckCheck,
   Check,
-  Sparkles,
   ExternalLink,
   FileText,
   Image,
@@ -662,7 +661,6 @@ export const ChatWindowPanel = ({
       {/* 3. QUICK SUGGESTION PILLS */}
       <div className="px-4 py-1.5 bg-slate-100/70 border-t border-slate-200/60 flex items-center gap-2 overflow-x-auto shrink-0">
         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1 shrink-0">
-          <Sparkles className="w-3 h-3 text-blue-600" />
           Template Cepat:
         </span>
         {quickReplies.map((reply, idx) => (

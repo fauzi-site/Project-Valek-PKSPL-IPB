@@ -14,7 +14,6 @@ import {
   Download,
   Eye,
   Send,
-  Sparkles,
   ExternalLink,
   MapPin,
   Tag,
@@ -1823,7 +1822,6 @@ const ReviewReportPageContent: React.FC = () => {
                 <span className="text-[11px] font-bold text-cyan-800 uppercase tracking-wider">
                   Kontribusi Jasa Dominan
                 </span>
-                <Sparkles className="w-4 h-4 text-cyan-600" />
               </div>
               <div className="text-xl font-bold text-cyan-950 font-mono mt-1.5">
                 {formatNumber(dominantService ? (dominantService.value / (grandTEV || 1)) * 100 : 80.1, 1)}%

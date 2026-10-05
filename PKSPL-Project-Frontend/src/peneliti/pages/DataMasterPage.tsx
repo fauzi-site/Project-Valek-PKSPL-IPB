@@ -18,7 +18,6 @@ import {
   MapPin,
   ChevronDown,
   Check,
-  Sparkles,
   Layers,
   Edit2,
   Trash2,

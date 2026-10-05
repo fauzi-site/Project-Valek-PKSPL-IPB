@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useProject } from '../../context/ProjectContext';
 import ShpUploader from '../../../components/map/ShpUploader';
-import { X, Info, Sparkles, CheckCircle2 } from 'lucide-react';
+import { X, Info, CheckCircle2 } from 'lucide-react';
 import { INITIAL_LAND_COVERS } from '../../mock/spatialData';
 import { applyLayerStyle } from '../../../lib/shpStyle';
 import { LoadingButton } from '../../../components/loading';
@@ -153,7 +153,6 @@ export const UploadShpModal: React.FC<UploadShpModalProps> = ({
                   onClick={handleSimulateSampleZip}
                   className="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1.5 cursor-pointer hover:underline py-1"
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-blue-500" />
                   <span>Uji Coba Cepat: Gunakan Sampel SHP Mangrove (Benoa WGS84)</span>
                 </button>
               </div>

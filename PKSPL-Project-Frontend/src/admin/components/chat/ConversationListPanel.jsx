@@ -9,7 +9,6 @@ import {
   User,
   ShieldCheck,
   Building,
-  Sparkles,
   X
 } from 'lucide-react';
 import { SkeletonList } from '../../../components/loading';

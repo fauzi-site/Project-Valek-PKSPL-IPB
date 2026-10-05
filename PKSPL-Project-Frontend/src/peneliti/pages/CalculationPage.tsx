@@ -19,7 +19,6 @@ import {
   Coins,
   ShieldCheck,
   TreePine,
-  Sparkles,
   Compass,
   Filter,
   Bookmark,
@@ -1170,7 +1169,6 @@ const CalculationPageContent: React.FC = () => {
         <div className="relative z-10 space-y-4">
           <div className="flex items-center justify-between">
             <div className="text-xs font-bold uppercase tracking-wider text-blue-300 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-300" />
               <span>
                 {isAllSelected
                   ? 'Grand Total Economic Value (TEV) — Seluruh Kawasan Proyek'

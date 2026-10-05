@@ -19,7 +19,6 @@ import {
   Calculator,
   History,
   Calendar,
-  Sparkles,
   Info,
   Scale,
   CheckCircle2,
@@ -1191,7 +1190,6 @@ const AnalyticsPageContent: React.FC = () => {
           <div className="bg-gradient-to-br from-cyan-50/70 to-blue-50/30 p-4 rounded-lg border border-cyan-200/80 shadow-2xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 group cursor-default">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold text-cyan-800 uppercase tracking-wider">Jasa Dominan</span>
-              <Sparkles className="w-4 h-4 text-cyan-600 transition-transform duration-300 group-hover:scale-125 group-hover:rotate-12" />
             </div>
             <div className="text-xl font-bold text-cyan-950 font-mono mt-1.5">
               {formatNumber(highestService.percentage, 1)}%
