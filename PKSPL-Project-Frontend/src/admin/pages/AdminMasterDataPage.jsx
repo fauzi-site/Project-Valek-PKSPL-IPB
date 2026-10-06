@@ -367,7 +367,7 @@ export const AdminMasterDataPage = () => {
             className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Tambah Data Master</span>
+            <span>Tambah Data Master</span>
           </button>
         </div>
       </div>
@@ -618,7 +618,7 @@ export const AdminMasterDataPage = () => {
                     <EmptyState
                       title="Tidak Ada Data Master yang Cocok"
                       description={hasActiveFilters ? 'Coba atur ulang filter wilayah atau kata kunci pencarian Anda.' : 'Belum ada data referensi master yang tersimpan di sistem.'}
-                      actionText={hasActiveFilters ? 'Reset Semua Filter' : '+ Tambah Data Master'}
+                      actionText={hasActiveFilters ? 'Reset Semua Filter' : 'Tambah Data Master'}
                       onAction={hasActiveFilters ? () => { setSelectedProvinsi(''); setSelectedKabupaten(''); setSelectedCategory('all'); setSearchTerm(''); } : handleOpenAddModal}
                     />
                   </td>

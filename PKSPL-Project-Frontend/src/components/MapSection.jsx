@@ -8,14 +8,13 @@ import {
   AlertCircle,
   Loader2,
   Layers,
-  FolderTree,
   ChevronRight,
   ChevronLeft,
   ChevronDown,
   Calendar,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { categories, getCategoryInfo, PROVINCE_GEOJSON_URL } from './map/mapData';
+import { getCategoryInfo, PROVINCE_GEOJSON_URL } from './map/mapData';
 import { getPublicMapProjects } from '../services/projectService';
 import { MAP_CONFIG } from '../peneliti/config/mapConfig';
 
@@ -177,7 +176,6 @@ export default function MapSection() {
   const [locations, setLocations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeCategory, setActiveCategory] = useState('all'); // 'all' or specific category id
   const [selectedLocId, setSelectedLocId] = useState(null);
   const [selectedYear, setSelectedYear] = useState(2026);
   const [geojsonData, setGeojsonData] = useState(null);
@@ -275,25 +273,7 @@ export default function MapSection() {
     return locations.filter(loc => (loc.tahun || 2026) === selectedYear);
   }, [locations, selectedYear]);
 
-  // Counts per category for the selected year
-  const categoryCounts = useMemo(() => {
-    const counts = { all: yearLocations.length };
-    categories.forEach(c => {
-      counts[c.id] = 0;
-    });
-    yearLocations.forEach(loc => {
-      if (counts[loc.category] !== undefined) {
-        counts[loc.category]++;
-      }
-    });
-    return counts;
-  }, [yearLocations]);
-
-  // Filter locations based on active category
-  const filteredLocations = useMemo(() => {
-    if (activeCategory === 'all') return yearLocations;
-    return yearLocations.filter(loc => loc.category === activeCategory);
-  }, [yearLocations, activeCategory]);
+  const filteredLocations = yearLocations;
 
   // Dynamic Clustering: Groups nearby markers when zoom < 7
   const clusters = useMemo(() => {
@@ -387,13 +367,6 @@ export default function MapSection() {
     return sum;
   }, [yearLocations]);
 
-  const activeCategoriesInYear = useMemo(() => {
-    const set = new Set();
-    yearLocations.forEach(loc => {
-      if (loc.category) set.add(loc.category);
-    });
-    return set;
-  }, [yearLocations]);
 
   // Color palette for province polygons
   const provinceColors = [
@@ -505,7 +478,7 @@ export default function MapSection() {
         </div>
 
         {/* Panel PERIODE DATA (IKLI PKSPL IPB Concept) */}
-        <div className="bg-white rounded-xl border border-slate-200/90 p-4 sm:p-5 shadow-2xs mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="bg-white rounded-xl border border-slate-200/90 p-4 sm:p-5 shadow-2xs mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1">
               PERIODE DATA
@@ -561,57 +534,6 @@ export default function MapSection() {
           </div>
         </div>
 
-        {/* Category Filter Pills Toolbar (Search Box Removed) */}
-        <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200/90 shadow-2xs mb-4 flex items-center overflow-x-auto custom-scrollbar">
-          <div className="flex items-center gap-1.5 shrink-0">
-            {/* 1. Semua Lokasi */}
-            <button
-              onClick={() => setActiveCategory('all')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors border cursor-pointer ${
-                activeCategory === 'all'
-                  ? 'bg-[#0f284e] text-white border-[#0f284e] shadow-2xs'
-                  : 'bg-slate-50 text-slate-700 border-slate-200/80 hover:bg-slate-100 hover:text-slate-900'
-              }`}
-            >
-              <span>Semua Lokasi</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                  activeCategory === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200/70 text-slate-600'
-                }`}
-              >
-                {isLoading ? '...' : (categoryCounts.all || 0)}
-              </span>
-            </button>
-
-            {/* 2-6: Five Categories */}
-            {categories.map(cat => {
-              const isActive = activeCategory === cat.id;
-              const count = categoryCounts[cat.id] || 0;
-
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => setActiveCategory(cat.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors border cursor-pointer ${
-                    isActive
-                      ? 'bg-[#0f284e] text-white border-[#0f284e] shadow-2xs'
-                      : 'bg-slate-50 text-slate-700 border-slate-200/80 hover:bg-slate-100 hover:text-slate-900'
-                  }`}
-                >
-                  <span className="text-xs">{cat.emoji}</span>
-                  <span>{cat.label}</span>
-                  <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                      isActive ? 'bg-white/20 text-white' : 'bg-slate-200/70 text-slate-600'
-                    }`}
-                  >
-                    {isLoading ? '...' : count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
 
         {/* Full-Map Container (100% Full Width, Visual Focus Utama) */}
         <div className="relative w-full h-[52vh] sm:h-[60vh] md:h-[68vh] min-h-[380px] sm:min-h-[460px] md:min-h-[540px] max-h-[740px] rounded-xl overflow-hidden shadow-md border border-slate-200/90 bg-white">
@@ -785,8 +707,8 @@ export default function MapSection() {
           </div>
         </div>
 
-        {/* 3 Simple & Professional KPI Cards (Desktop 3 in one row, responsive on tablet/mobile) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
+        {/* 2 Simple & Professional KPI Cards (Desktop 2 cols, responsive on tablet/mobile) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5">
           
           {/* KPI 1: Total Lokasi Penelitian */}
           <div className="bg-white rounded-xl border border-slate-200/90 p-4 sm:p-5 shadow-2xs hover:border-slate-300 transition-colors">
@@ -821,26 +743,6 @@ export default function MapSection() {
             </div>
             <p className="text-[11px] text-slate-500 mt-1">
               Akumulasi luas wilayah kajian ({selectedYear})
-            </p>
-          </div>
-
-          {/* KPI 3: Kategori Ekosistem */}
-          <div className="bg-white rounded-xl border border-slate-200/90 p-4 sm:p-5 shadow-2xs hover:border-slate-300 transition-colors">
-            <div className="flex items-center justify-between gap-2 mb-1.5">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                Kategori Ekosistem
-              </span>
-              <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
-                <FolderTree className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="text-2xl sm:text-3xl font-extrabold text-[#0f284e] tracking-tight">
-              {isLoading ? '...' : `${activeCategoriesInYear.size} Kategori`}
-            </div>
-            <p className="text-[11px] text-slate-500 mt-1 truncate" title={activeCategoriesInYear.size > 0 ? categories.filter(c => activeCategoriesInYear.has(c.id)).map(c => c.label).join(', ') : 'Belum ada data'}>
-              {activeCategoriesInYear.size > 0
-                ? categories.filter(c => activeCategoriesInYear.has(c.id)).map(c => c.label).join(', ')
-                : 'Belum ada data kategori'}
             </p>
           </div>
 
