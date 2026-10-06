@@ -571,23 +571,36 @@ export const ReportPrintView: React.FC = () => {
           }
 
           /* Headings: avoid orphan titles at page bottom */
-          h1, h2, h3, h4, .report-heading {
+          h2, h3, h4, .report-heading {
             break-after: avoid !important;
             page-break-after: avoid !important;
+          }
+
+          /* Kop & Identitas: stay intact at document start without forcing blank page */
+          .report-kop, .report-meta {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
           }
 
           /* Sections: natural continuous flow without empty pages */
           .report-section {
             break-inside: auto !important;
             page-break-inside: auto !important;
-            margin-bottom: 1.25rem !important;
+            margin-bottom: 1rem !important;
           }
 
           /* Atomic blocks: figures and area sub-blocks stay intact */
           .report-figure, .report-area-block {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
-            margin-bottom: 0.85rem !important;
+            margin-bottom: 0.65rem !important;
+          }
+
+          /* Map canvas constraints in print */
+          .print-map-container,
+          .print-map-container .leaflet-container {
+            height: 380px !important;
+            max-height: 380px !important;
           }
 
           /* Tables: repeating header and preventing split rows */
@@ -650,7 +663,7 @@ export const ReportPrintView: React.FC = () => {
       <div className="report-sheet max-w-4xl mx-auto bg-white border border-slate-300 shadow-md p-6 sm:p-10 md:p-12 space-y-6 print:max-w-none print:shadow-none print:border-none print:p-0 print:space-y-4">
 
         {/* ── Header Laporan: Kop Resmi PKSPL IPB University ───────────────── */}
-        <div className="border-b-2 border-slate-900 pb-3 text-center space-y-1">
+        <div className="report-kop border-b-2 border-slate-900 pb-3 text-center space-y-1">
           <div className="text-[11px] font-bold tracking-widest text-slate-700 uppercase font-sans">
             PUSAT KAJIAN SUMBERDAYA PESISIR DAN LAUT (PKSPL) — IPB UNIVERSITY
           </div>
@@ -663,7 +676,7 @@ export const ReportPrintView: React.FC = () => {
         </div>
 
         {/* ── Identitas Penelitian: Metadata Tabular Formal ─────────────────── */}
-        <div className="border-b border-slate-300 py-3 text-xs">
+        <div className="report-meta border-b border-slate-300 py-3 text-xs print:py-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
             <div className="space-y-1.5">
               <div className="flex items-start">
@@ -707,7 +720,7 @@ export const ReportPrintView: React.FC = () => {
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* I. PETA SPASIAL KAWASAN PENELITIAN                                  */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        <section className="space-y-3 report-section report-figure">
+        <section className="space-y-2.5 report-section print:space-y-2">
           <div className="border-b border-slate-300 pb-1 flex items-center justify-between report-heading">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900">
               I. Peta Spasial Kawasan Penelitian
@@ -721,94 +734,98 @@ export const ReportPrintView: React.FC = () => {
             </span>
           </div>
 
-          {/* Canvas Container Peta Statis Report Print */}
-          <div className="w-full border border-slate-300 rounded overflow-hidden bg-slate-100 relative print:border-slate-400">
-            <ReviewSpatialViewer
-              projectId={effectiveProjId}
-              project={currentProject}
-              landCovers={currentLandCovers}
-              indices={currentIndices}
-              layers={currentLayers}
-              isPrintMode={true}
-              height="380px"
-            />
+          {/* Canvas Container Peta Statis Report Print (Atomic Figure) */}
+          <div className="report-figure space-y-1">
+            <div className="w-full border border-slate-300 rounded overflow-hidden bg-slate-100 relative print:border-slate-400 print-map-container">
+              <ReviewSpatialViewer
+                projectId={effectiveProjId}
+                project={currentProject}
+                landCovers={currentLandCovers}
+                indices={currentIndices}
+                layers={currentLayers}
+                isPrintMode={true}
+                height="380px"
+              />
+            </div>
+            <p className="text-[10px] sm:text-[11px] font-semibold text-slate-700 text-center italic">
+              Gambar 1. Peta delimitasi batas spasial dan sebaran tutupan lahan kawasan penelitian.
+            </p>
           </div>
-          <p className="text-[11px] font-semibold text-slate-700 text-center italic">
-            Gambar 1. Peta delimitasi batas spasial dan sebaran tutupan lahan kawasan penelitian.
-          </p>
 
-          {/* Layout Vertikal: Legenda 2-Kolom (Tanpa Scrollbar) -> Informasi Spasial Kawasan */}
-          <div className="space-y-4 pt-1 text-xs">
-            {/* 1. Box Legenda Tutupan Lahan (Seluruh Kategori dalam 2 Kolom, Tanpa Internal Scrollbar) */}
-            <div className="p-3.5 border border-slate-300 rounded-lg bg-slate-50/80 shadow-2xs space-y-2.5">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-800">
-                  Legenda Kategori Tutupan Lahan
-                </span>
-                <span className="text-[10px] font-mono text-slate-500 font-semibold">
-                  {spatialLegendItems.length} Kategori
-                </span>
-              </div>
-              {spatialLegendItems.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                  {spatialLegendItems.map((item, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between gap-2 px-3 py-1.5 bg-white border border-slate-200/80 rounded-md shadow-2xs hover:border-slate-300 transition-colors"
-                    >
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <span
-                          className="w-3.5 h-3.5 rounded shrink-0 border border-slate-400/60 shadow-2xs"
-                          style={{ backgroundColor: item.fill }}
-                        />
-                        <span className="font-medium text-slate-800 truncate" title={item.name}>
-                          {item.name}
+          {/* Layout Grid 2-Kolom: Legenda di Kiri, Informasi Spasial di Kanan */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 text-xs print:grid-cols-2 print:gap-2.5 print:space-y-0">
+            {/* 1. Box Legenda Tutupan Lahan */}
+            <div className="p-3 border border-slate-300 rounded-lg bg-slate-50/80 shadow-2xs space-y-2 flex flex-col justify-between print:p-2.5 print:bg-white">
+              <div>
+                <div className="flex items-center justify-between border-b border-slate-200 pb-1.5 mb-2 print:pb-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-800 print:text-[10px]">
+                    Legenda Kategori Tutupan Lahan
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-500 font-semibold">
+                    {spatialLegendItems.length} Kategori
+                  </span>
+                </div>
+                {spatialLegendItems.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-1.5 text-[11px] print:grid-cols-1 print:gap-1">
+                    {spatialLegendItems.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between gap-2 px-2.5 py-1 bg-white border border-slate-200/80 rounded-md shadow-2xs hover:border-slate-300 transition-colors print:border-slate-300 print:py-0.5 print:px-2"
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          <span
+                            className="w-3 h-3 rounded shrink-0 border border-slate-400/60 shadow-2xs"
+                            style={{ backgroundColor: item.fill }}
+                          />
+                          <span className="font-medium text-slate-800 truncate" title={item.name}>
+                            {item.name}
+                          </span>
+                        </div>
+                        <span className="font-mono text-[10px] text-slate-600 font-semibold whitespace-nowrap shrink-0">
+                          {formatNumber(item.areaHa, 1)} ha
                         </span>
                       </div>
-                      <span className="font-mono text-[10px] text-slate-600 font-semibold whitespace-nowrap shrink-0">
-                        {formatNumber(item.areaHa, 1)} ha
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-[11px] text-slate-500 italic py-2 text-center">
-                  Tidak ada polygon tutupan lahan terverifikasi pada kawasan ini.
-                </div>
-              )}
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-slate-500 italic py-2 text-center">
+                    Tidak ada polygon tutupan lahan terverifikasi pada kawasan ini.
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* 2. Box Ringkasan Informasi Spasial (Vertikal Full Width di Bawah Legenda) */}
-            <div className="p-3.5 border border-slate-300 rounded-lg bg-slate-50/80 shadow-2xs space-y-2.5">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-1.5">
+            {/* 2. Box Ringkasan Informasi Spasial */}
+            <div className="p-3 border border-slate-300 rounded-lg bg-slate-50/80 shadow-2xs space-y-2 print:p-2.5 print:bg-white">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-1.5 print:text-[10px] print:pb-1">
                 Informasi Spasial Kawasan
               </div>
-              <div className="divide-y divide-slate-200/80 text-[11px] bg-white border border-slate-200/80 rounded-md overflow-hidden shadow-2xs">
-                <div className="flex items-center justify-between p-2.5 hover:bg-slate-50/50">
+              <div className="divide-y divide-slate-200/80 text-[11px] bg-white border border-slate-200/80 rounded-md overflow-hidden shadow-2xs print:border-slate-300">
+                <div className="flex items-center justify-between p-2 hover:bg-slate-50/50 print:p-1.5">
                   <span className="text-slate-500 font-medium">Lokasi Kawasan</span>
-                  <span className="font-semibold text-slate-900 text-right" title={currentProject?.location}>
+                  <span className="font-semibold text-slate-900 text-right truncate max-w-[160px]" title={currentProject?.location}>
                     {currentProject?.location || '-'}
                   </span>
                 </div>
-                <div className="flex items-center justify-between p-2.5 hover:bg-slate-50/50">
+                <div className="flex items-center justify-between p-2 hover:bg-slate-50/50 print:p-1.5">
                   <span className="text-slate-500 font-medium">Total Luas Kawasan</span>
                   <span className="font-mono font-bold text-slate-900">{formatNumber(totalAreaHa, 2)} Ha</span>
                 </div>
-                <div className="flex items-center justify-between p-2.5 hover:bg-slate-50/50">
+                <div className="flex items-center justify-between p-2 hover:bg-slate-50/50 print:p-1.5">
                   <span className="text-slate-500 font-medium">Jumlah Feature Spasial</span>
                   <span className="font-mono font-bold text-slate-900">
                     {hasPolygons ? `${currentLandCovers.length} Feature Poligon` : `${currentIndices.length} Indeks Kawasan`}
                   </span>
                 </div>
-                <div className="flex items-center justify-between p-2.5 hover:bg-slate-50/50">
+                <div className="flex items-center justify-between p-2 hover:bg-slate-50/50 print:p-1.5">
                   <span className="text-slate-500 font-medium">Sistem Koordinat (CRS)</span>
-                  <span className="font-mono font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded text-[10px] border border-slate-200">
+                  <span className="font-mono font-semibold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded text-[10px] border border-slate-200">
                     EPSG:4326 (WGS 84)
                   </span>
                 </div>
-                <div className="flex items-center justify-between p-2.5 hover:bg-slate-50/50">
+                <div className="flex items-center justify-between p-2 hover:bg-slate-50/50 print:p-1.5">
                   <span className="text-slate-500 font-medium">Sumber Data Spasial</span>
-                  <span className="font-semibold text-slate-800 text-right">Shapefile SHP / Survei PKSPL IPB</span>
+                  <span className="font-semibold text-slate-800 text-right">Shapefile SHP / Survei PKSPL</span>
                 </div>
               </div>
             </div>

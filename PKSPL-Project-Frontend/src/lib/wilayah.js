@@ -35,12 +35,12 @@ export const PROVINCE_EMSIFA_ID = {
   'Sulawesi Tenggara': '74',
   'Maluku': '81',
   'Maluku Utara': '82',
-  'Papua Barat': '91',
-  'Papua Barat Daya': '91',
-  'Papua': '94',
+  'Papua': '91',
+  'Papua Barat': '92',
+  'Papua Selatan': '93',
   'Papua Tengah': '94',
-  'Papua Pegunungan': '94',
-  'Papua Selatan': '94',
+  'Papua Pegunungan': '95',
+  'Papua Barat Daya': '96',
 }
 
 export const PROVINCE_REGENCY_IDS = {
