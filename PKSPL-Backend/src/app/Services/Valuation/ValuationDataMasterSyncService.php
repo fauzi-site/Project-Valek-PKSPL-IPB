@@ -43,6 +43,41 @@ class ValuationDataMasterSyncService
         $idKecamatan = $proyek?->id_kecamatan;
         $idDesaKelurahan = $proyek?->id_desa_kelurahan;
 
+        // Auto-resolve wilayah jika id_provinsi atau id_kabupaten_kota belum terisi pada proyek
+        if ($proyek && (empty($idProvinsi) || empty($idKabupatenKota))) {
+            $locText = strtolower(trim((string) ($proyek->alamat_lengkap ?? '')));
+            if ($locText !== '') {
+                $allKabs = \App\Models\KabupatenKota::query()->get();
+                $kab = $allKabs->first(function ($item) use ($locText) {
+                    $kabName = strtolower($item->nama_kabupaten_kota);
+                    return str_contains($locText, $kabName);
+                });
+                if (!$kab) {
+                    $kab = $allKabs->first(function ($item) use ($locText) {
+                        $kabName = strtolower($item->nama_kabupaten_kota);
+                        $cleanKab = trim(str_replace(['kabupaten', 'kota'], '', $kabName));
+                        return $cleanKab !== '' && str_contains($locText, $cleanKab);
+                    });
+                }
+                if ($kab) {
+                    $idKabupatenKota = $kab->id_kabupaten_kota;
+                    $idProvinsi = $idProvinsi ?: $kab->id_provinsi;
+                    $proyek->update([
+                        'id_kabupaten_kota' => $idKabupatenKota,
+                        'id_provinsi' => $idProvinsi,
+                    ]);
+                } else {
+                    $prov = \App\Models\Provinsi::query()->get()->first(function ($item) use ($locText) {
+                        return str_contains($locText, strtolower($item->nama_provinsi));
+                    });
+                    if ($prov) {
+                        $idProvinsi = $prov->id_provinsi;
+                        $proyek->update(['id_provinsi' => $idProvinsi]);
+                    }
+                }
+            }
+        }
+
         $serviceKey = strtolower(trim($serviceId));
 
         switch ($serviceKey) {

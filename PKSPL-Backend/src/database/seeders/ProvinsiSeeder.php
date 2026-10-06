@@ -20,5 +20,16 @@ class ProvinsiSeeder extends Seeder
                 ['nama_provinsi' => $provinsi['nama_provinsi']]
             );
         }
+
+        // Sinkronkan seluruh provinsi dari administrative_boundaries jika tersedia
+        if (\Illuminate\Support\Facades\Schema::hasTable('administrative_boundaries')) {
+            $boundaries = DB::table('administrative_boundaries')->where('level', 1)->get();
+            foreach ($boundaries as $b) {
+                DB::table('provinsi')->updateOrInsert(
+                    ['kode_provinsi' => $b->code],
+                    ['nama_provinsi' => $b->name]
+                );
+            }
+        }
     }
 }
