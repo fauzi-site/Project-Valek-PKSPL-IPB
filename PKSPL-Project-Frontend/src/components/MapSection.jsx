@@ -184,6 +184,7 @@ export default function MapSection() {
   const selectedProvinceNameRef = useRef(null);
   selectedProvinceNameRef.current = selectedProvinceName;
 
+  const geoJsonRef = useRef(null);
   const [geojsonData, setGeojsonData] = useState(indonesia38Geojson);
   const [currentZoom, setCurrentZoom] = useState(5);
   const [isMapReady, setIsMapReady] = useState(false);
@@ -390,15 +391,15 @@ export default function MapSection() {
   const getProvinceColor = (index) => provinceColors[index % provinceColors.length];
 
   const getFeatureStyle = useCallback((feature) => {
-    const name = feature.properties.state || feature.properties.Propinsi || feature.properties.name || feature.properties.NAME || '';
-    const featureIndex = feature.properties.id_1 || feature.properties.code || feature.properties.cartodb_id || 0;
+    const name = feature?.properties?.name || feature?.properties?.state || feature?.properties?.Propinsi || '';
+    const featureIndex = feature?.properties?.id_1 || feature?.properties?.code || feature?.properties?.cartodb_id || 0;
     const baseColor = getProvinceColor(featureIndex);
     const isSelected = selectedProvinceName && name.toLowerCase() === selectedProvinceName.toLowerCase();
 
     if (isSelected) {
       return {
-        fillColor: '#2563eb',
-        fillOpacity: 0.45,
+        fillColor: '#1d4ed8',
+        fillOpacity: 0.55,
         weight: 3.5,
         color: '#0f284e',
         opacity: 1,
@@ -408,21 +409,47 @@ export default function MapSection() {
     if (selectedProvinceName) {
       return {
         fillColor: baseColor,
-        fillOpacity: 0.08,
-        weight: 1,
+        fillOpacity: 0.06,
+        weight: 0.8,
         color: '#cbd5e1',
-        opacity: 0.5,
+        opacity: 0.4,
       };
     }
 
     return {
       fillColor: baseColor,
-      fillOpacity: 0.15,
+      fillOpacity: 0.18,
       weight: 1.2,
       color: '#ffffff',
-      opacity: 0.8,
+      opacity: 0.85,
     };
   }, [selectedProvinceName]);
+
+  // Sync Leaflet layer styles & camera zoom on selectedProvinceName change without remounting layer
+  useEffect(() => {
+    if (!geoJsonRef.current) return;
+    geoJsonRef.current.setStyle((feature) => getFeatureStyle(feature));
+
+    if (selectedProvinceName) {
+      geoJsonRef.current.eachLayer((layer) => {
+        const name = layer.feature?.properties?.name || layer.feature?.properties?.state || layer.feature?.properties?.Propinsi || '';
+        if (name && name.toLowerCase() === selectedProvinceName.toLowerCase()) {
+          layer.bringToFront();
+          if (mapRef.current && typeof layer.getBounds === 'function') {
+            const bounds = layer.getBounds();
+            if (bounds && bounds.isValid()) {
+              mapRef.current.fitBounds(bounds, {
+                padding: [50, 50],
+                maxZoom: 8,
+                animate: true,
+                duration: 1.0,
+              });
+            }
+          }
+        }
+      });
+    }
+  }, [selectedProvinceName, getFeatureStyle]);
 
   const onEachFeature = useCallback((feature, layer) => {
     const name = feature.properties.state || feature.properties.Propinsi || feature.properties.name || feature.properties.NAME || '';
@@ -440,9 +467,9 @@ export default function MapSection() {
         const isSel = selectedProvinceNameRef.current && name.toLowerCase() === selectedProvinceNameRef.current.toLowerCase();
         if (!isSel) {
           l.setStyle({
-            fillOpacity: 0.35,
-            weight: 2,
-            color: '#1e293b',
+            fillOpacity: 0.38,
+            weight: 2.2,
+            color: '#0f284e',
           });
           l.bringToFront();
         }
@@ -455,25 +482,14 @@ export default function MapSection() {
           const baseColor = getProvinceColor(featureIndex);
           l.setStyle(
             selectedProvinceNameRef.current
-              ? { fillColor: baseColor, fillOpacity: 0.08, weight: 1, color: '#cbd5e1', opacity: 0.5 }
-              : { fillColor: baseColor, fillOpacity: 0.15, weight: 1.2, color: '#ffffff', opacity: 0.8 }
+              ? { fillColor: baseColor, fillOpacity: 0.06, weight: 0.8, color: '#cbd5e1', opacity: 0.4 }
+              : { fillColor: baseColor, fillOpacity: 0.18, weight: 1.2, color: '#ffffff', opacity: 0.85 }
           );
         }
       },
-      click: (e) => {
-        const l = e.target;
-        const nextSel = selectedProvinceNameRef.current === name ? null : name;
+      click: () => {
+        const nextSel = selectedProvinceNameRef.current && selectedProvinceNameRef.current.toLowerCase() === name.toLowerCase() ? null : name;
         setSelectedProvinceName(nextSel);
-        if (nextSel && mapRef.current && typeof l.getBounds === 'function') {
-          const bounds = l.getBounds();
-          if (bounds && bounds.isValid()) {
-            mapRef.current.fitBounds(bounds, {
-              padding: [40, 40],
-              maxZoom: 8,
-              duration: 0.8,
-            });
-          }
-        }
       },
     });
   }, []);
@@ -610,7 +626,8 @@ export default function MapSection() {
 
             {geojsonData && (
               <GeoJSON
-                key={(geojsonData.type || 'geojson') + '_' + (selectedProvinceName || 'all')}
+                ref={geoJsonRef}
+                key="indonesia-38-geojson"
                 data={geojsonData}
                 style={getFeatureStyle}
                 onEachFeature={onEachFeature}
@@ -748,7 +765,7 @@ export default function MapSection() {
           )}
 
           {/* Floating Controls (Top-Right) */}
-          <div className="absolute top-3 right-3 z-[400] flex items-center gap-2">
+          <div className="absolute top-3 right-3 z-[400] flex items-center gap-2 flex-wrap justify-end">
             {selectedProvinceName && (
               <div className="bg-[#0f284e] text-white px-3 py-1.5 rounded-lg shadow-sm border border-slate-700 flex items-center gap-2 text-xs font-semibold animate-in fade-in zoom-in-95">
                 <MapPin className="w-3.5 h-3.5 text-blue-400 shrink-0" />
@@ -767,6 +784,7 @@ export default function MapSection() {
                 </button>
               </div>
             )}
+
             <button
               onClick={handleResetView}
               title={t('map.resetTooltip', 'Reset ke posisi semula')}
