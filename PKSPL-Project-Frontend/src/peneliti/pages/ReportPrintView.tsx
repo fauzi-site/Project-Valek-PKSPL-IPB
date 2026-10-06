@@ -8,11 +8,13 @@ import { getMethodSchema } from '../types/methodSchemas';
 import { formatIDR, formatNumber, formatDate } from '../utils/formatter';
 import { buildIndexLabelMap } from '../utils/indexLabel';
 import { ArrowLeft, Printer } from 'lucide-react';
-import { INITIAL_LAND_COVERS, INITIAL_INDEX_LIST } from '../mock/spatialData';
+import { INITIAL_LAND_COVERS, INITIAL_INDEX_LIST, INITIAL_MAP_LAYERS } from '../mock/spatialData';
 import { getHistoricalStudiesForArea } from '../mock/historicalAnalyticsMock';
 import { aggregateProjectValuation } from '../utils/valuationAggregator';
 import { EcosystemServiceId } from '../types/valuation';
 import { Skeleton, SkeletonTable, EmptyState } from '../../components/loading';
+import { ReviewSpatialViewer } from '../components/map/ReviewSpatialViewer';
+import { getPolygonColor } from '../utils/spatialColors';
 
 // Standard limits for academic report compactness
 const MAX_VALUATION_ROWS_PER_AREA = 10;
@@ -31,6 +33,7 @@ export const ReportPrintView: React.FC = () => {
     projectsLoading,
     getProjectLandCovers,
     getProjectIndices,
+    getProjectLayers,
     getAreaConfig
   } = useProject();
 
@@ -98,6 +101,50 @@ export const ReportPrintView: React.FC = () => {
     : (isMock ? INITIAL_INDEX_LIST : []);
 
   const indexLabelMap = buildIndexLabelMap(currentIndices);
+
+  const rawLayers = (getProjectLayers ? getProjectLayers(effectiveProjId) : []) || [];
+  const currentLayers = (rawLayers && rawLayers.length > 0) ? rawLayers : (isMock ? INITIAL_MAP_LAYERS : []);
+
+  const hasPolygons = currentLandCovers.length > 0;
+
+  const projectCoords = useMemo<[number, number] | null>(() => {
+    if (
+      currentProject?.latitude &&
+      currentProject?.longitude &&
+      !isNaN(Number(currentProject.latitude)) &&
+      !isNaN(Number(currentProject.longitude))
+    ) {
+      const lat = Number(currentProject.latitude);
+      const lng = Number(currentProject.longitude);
+      if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && (lat !== 0 || lng !== 0)) {
+        return [lat, lng];
+      }
+    }
+    return null;
+  }, [currentProject?.latitude, currentProject?.longitude]);
+
+  const hasCoordinates = Boolean(projectCoords);
+
+  const spatialLegendItems = useMemo(() => {
+    const classMap = new Map<string, { name: string; fill: string; areaHa: number; count: number }>();
+    for (const lc of currentLandCovers) {
+      const name = lc.name || 'Tutupan Lahan';
+      const col = getPolygonColor(lc);
+      const existing = classMap.get(name);
+      if (existing) {
+        existing.areaHa += lc.areaHa || 0;
+        existing.count += 1;
+      } else {
+        classMap.set(name, {
+          name,
+          fill: lc.fillColor || col.fill,
+          areaHa: lc.areaHa || 0,
+          count: 1
+        });
+      }
+    }
+    return Array.from(classMap.values());
+  }, [currentLandCovers]);
 
   // 2. Project-Wide Valuation Aggregation across ALL Land Covers and Indices
   const projectValuation = useMemo(() => {
@@ -658,11 +705,122 @@ export const ReportPrintView: React.FC = () => {
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* I. REKAPITULASI TOTAL ECONOMIC VALUE                               */}
+        {/* I. PETA SPASIAL KAWASAN PENELITIAN                                  */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <section className="space-y-3 report-section report-figure">
+          <div className="border-b border-slate-300 pb-1 flex items-center justify-between report-heading">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900">
+              I. Peta Spasial Kawasan Penelitian
+            </h2>
+            <span className="text-[10px] text-slate-500 font-mono">
+              {hasPolygons
+                ? `Vektor GIS (${currentLandCovers.length} Feature Poligon)`
+                : hasCoordinates
+                ? `Centroid Lokasi [${projectCoords[0].toFixed(4)}, ${projectCoords[1].toFixed(4)}]`
+                : 'Tabulasi Non-Spasial'}
+            </span>
+          </div>
+
+          {/* Canvas Container Peta Statis Report Print */}
+          <div className="w-full border border-slate-300 rounded overflow-hidden bg-slate-100 relative print:border-slate-400">
+            <ReviewSpatialViewer
+              projectId={effectiveProjId}
+              project={currentProject}
+              landCovers={currentLandCovers}
+              indices={currentIndices}
+              layers={currentLayers}
+              isPrintMode={true}
+              height="380px"
+            />
+          </div>
+          <p className="text-[11px] font-semibold text-slate-700 text-center italic">
+            Gambar 1. Peta delimitasi batas spasial dan sebaran tutupan lahan kawasan penelitian.
+          </p>
+
+          {/* Layout Vertikal: Legenda 2-Kolom (Tanpa Scrollbar) -> Informasi Spasial Kawasan */}
+          <div className="space-y-4 pt-1 text-xs">
+            {/* 1. Box Legenda Tutupan Lahan (Seluruh Kategori dalam 2 Kolom, Tanpa Internal Scrollbar) */}
+            <div className="p-3.5 border border-slate-300 rounded-lg bg-slate-50/80 shadow-2xs space-y-2.5">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-800">
+                  Legenda Kategori Tutupan Lahan
+                </span>
+                <span className="text-[10px] font-mono text-slate-500 font-semibold">
+                  {spatialLegendItems.length} Kategori
+                </span>
+              </div>
+              {spatialLegendItems.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                  {spatialLegendItems.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between gap-2 px-3 py-1.5 bg-white border border-slate-200/80 rounded-md shadow-2xs hover:border-slate-300 transition-colors"
+                    >
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <span
+                          className="w-3.5 h-3.5 rounded shrink-0 border border-slate-400/60 shadow-2xs"
+                          style={{ backgroundColor: item.fill }}
+                        />
+                        <span className="font-medium text-slate-800 truncate" title={item.name}>
+                          {item.name}
+                        </span>
+                      </div>
+                      <span className="font-mono text-[10px] text-slate-600 font-semibold whitespace-nowrap shrink-0">
+                        {formatNumber(item.areaHa, 1)} ha
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-[11px] text-slate-500 italic py-2 text-center">
+                  Tidak ada polygon tutupan lahan terverifikasi pada kawasan ini.
+                </div>
+              )}
+            </div>
+
+            {/* 2. Box Ringkasan Informasi Spasial (Vertikal Full Width di Bawah Legenda) */}
+            <div className="p-3.5 border border-slate-300 rounded-lg bg-slate-50/80 shadow-2xs space-y-2.5">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-1.5">
+                Informasi Spasial Kawasan
+              </div>
+              <div className="divide-y divide-slate-200/80 text-[11px] bg-white border border-slate-200/80 rounded-md overflow-hidden shadow-2xs">
+                <div className="flex items-center justify-between p-2.5 hover:bg-slate-50/50">
+                  <span className="text-slate-500 font-medium">Lokasi Kawasan</span>
+                  <span className="font-semibold text-slate-900 text-right" title={currentProject?.location}>
+                    {currentProject?.location || '-'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-2.5 hover:bg-slate-50/50">
+                  <span className="text-slate-500 font-medium">Total Luas Kawasan</span>
+                  <span className="font-mono font-bold text-slate-900">{formatNumber(totalAreaHa, 2)} Ha</span>
+                </div>
+                <div className="flex items-center justify-between p-2.5 hover:bg-slate-50/50">
+                  <span className="text-slate-500 font-medium">Jumlah Feature Spasial</span>
+                  <span className="font-mono font-bold text-slate-900">
+                    {hasPolygons ? `${currentLandCovers.length} Feature Poligon` : `${currentIndices.length} Indeks Kawasan`}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-2.5 hover:bg-slate-50/50">
+                  <span className="text-slate-500 font-medium">Sistem Koordinat (CRS)</span>
+                  <span className="font-mono font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded text-[10px] border border-slate-200">
+                    EPSG:4326 (WGS 84)
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-2.5 hover:bg-slate-50/50">
+                  <span className="text-slate-500 font-medium">Sumber Data Spasial</span>
+                  <span className="font-semibold text-slate-800 text-right">Shapefile SHP / Survei PKSPL IPB</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* II. REKAPITULASI TOTAL ECONOMIC VALUE                               */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <section className="space-y-2 report-section">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1 flex items-center justify-between report-heading">
-            <span>I. Rekapitulasi Total Economic Value</span>
+            <span>II. Rekapitulasi Total Economic Value</span>
             <span className="text-[10px] font-normal text-slate-500 normal-case font-mono">
               Agregasi seluruh {formatNumber(currentLandCovers.length, 0)} Area Tutupan
             </span>
@@ -739,12 +897,12 @@ export const ReportPrintView: React.FC = () => {
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* II. DISTRIBUSI SPASIAL AREA TUTUPAN                                */}
+        {/* III. DISTRIBUSI SPASIAL AREA TUTUPAN                               */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <section className="space-y-2 report-section">
           <div className="border-b border-slate-300 pb-1 flex items-center justify-between report-heading">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900">
-              II. Distribusi Spasial Area Tutupan
+              III. Distribusi Spasial Area Tutupan
             </h2>
             <span className="text-[10px] text-slate-500 font-mono">
               {spatialReportData.totalRawCount > 10
@@ -803,11 +961,11 @@ export const ReportPrintView: React.FC = () => {
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* III. DATA/JASA & METODE                                             */}
+        {/* IV. DATA/JASA & METODE                                             */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <section className="space-y-2 report-section">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1 report-heading">
-            III. Data/Jasa &amp; Metode
+            IV. Data/Jasa &amp; Metode
           </h2>
 
           <table className="w-full text-left border-collapse text-xs border border-slate-300 print:text-[9pt]">
@@ -857,12 +1015,12 @@ export const ReportPrintView: React.FC = () => {
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* IV. DATA VALUASI — RINCIAN INPUT VARIABEL PENELITIAN PER AREA      */}
+        {/* V. DATA VALUASI — RINCIAN INPUT VARIABEL PENELITIAN PER AREA        */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <section className="space-y-4 report-section">
           <div className="border-b border-slate-300 pb-1 flex flex-col sm:flex-row sm:items-center justify-between gap-1 report-heading">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900">
-              IV. Data Valuasi — Rincian Input Variabel Penelitian per Area Tutupan
+              V. Data Valuasi — Rincian Input Variabel Penelitian per Area Tutupan
             </h2>
             <span className="text-[10px] text-slate-500 italic">
               Ringkasan data valuasi.
@@ -948,11 +1106,11 @@ export const ReportPrintView: React.FC = () => {
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* V. PERHITUNGAN MATRIKS VALUASI EKONOMI (DUV, IUV, SUV, TEV)        */}
+        {/* VI. PERHITUNGAN MATRIKS VALUASI EKONOMI (DUV, IUV, SUV, TEV)        */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <section className="space-y-2 report-section">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1 report-heading">
-            V. Perhitungan
+            VI. Perhitungan
           </h2>
 
           <table className="w-full text-left border-collapse text-xs border border-slate-300 print:text-[9.5pt]">
@@ -1009,11 +1167,11 @@ export const ReportPrintView: React.FC = () => {
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* VI. REKAPITULASI NILAI EKONOMI (TEV) & PROPORSI KOMPONEN           */}
+        {/* VII. REKAPITULASI NILAI EKONOMI (TEV) & PROPORSI KOMPONEN           */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <section className="space-y-2 report-section">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1 report-heading">
-            VI. Rekapitulasi Nilai Ekonomi
+            VII. Rekapitulasi Nilai Ekonomi
           </h2>
 
           <table className="w-full text-left border-collapse text-xs border border-slate-300 print:text-[9.5pt]">
@@ -1058,11 +1216,11 @@ export const ReportPrintView: React.FC = () => {
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* VII. ANALITIK & VISUALISASI TERPADU (FORMAT DOKUMEN ILMIAH)        */}
+        {/* VIII. ANALITIK & VISUALISASI TERPADU (FORMAT DOKUMEN ILMIAH)        */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <section className="space-y-5 report-section">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1 report-heading">
-            VII. Analitik &amp; Visualisasi Terpadu
+            VIII. Analitik &amp; Visualisasi Terpadu
           </h2>
 
           {/* A. Distribusi Nilai Ekonomi Berdasarkan Jasa Ekosistem */}
@@ -1091,7 +1249,7 @@ export const ReportPrintView: React.FC = () => {
               ))}
             </div>
             <p className="text-[11px] font-semibold text-slate-700 text-center italic">
-              Gambar 1. Distribusi nilai ekonomi berdasarkan jasa ekosistem.
+              Gambar 2. Distribusi nilai ekonomi berdasarkan jasa ekosistem.
             </p>
           </div>
 
@@ -1121,7 +1279,7 @@ export const ReportPrintView: React.FC = () => {
               ))}
             </div>
             <p className="text-[11px] font-semibold text-slate-700 text-center italic">
-              Gambar 2. Komposisi nilai ekonomi berdasarkan kerangka Total Economic Value.
+              Gambar 3. Komposisi nilai ekonomi berdasarkan kerangka Total Economic Value.
             </p>
           </div>
 
@@ -1161,7 +1319,7 @@ export const ReportPrintView: React.FC = () => {
               ))}
             </div>
             <p className="text-[11px] font-semibold text-slate-700 text-center italic">
-              Gambar 3. Distribusi nilai ekonomi berdasarkan area tutupan lahan.
+              Gambar 4. Distribusi nilai ekonomi berdasarkan area tutupan lahan.
             </p>
           </div>
 
@@ -1196,19 +1354,19 @@ export const ReportPrintView: React.FC = () => {
                 </tbody>
               </table>
               <p className="text-[11px] font-semibold text-slate-700 text-center italic">
-                Gambar 4. Komparasi tren historis nilai ekonomi kawasan penelitian.
+                Gambar 5. Komparasi tren historis nilai ekonomi kawasan penelitian.
               </p>
             </div>
           )}
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* VIII. TOTAL ECONOMIC VALUE (TEV) KAWASAN PENELITIAN                */}
+        {/* IX. TOTAL ECONOMIC VALUE (TEV) KAWASAN PENELITIAN                   */}
         {/* (Kesimpulan Numerik Utama — Solid Dark Navy Sesuai Desain Resmi)    */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <section className="report-final-box pt-2 report-section">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1 mb-3 report-heading">
-            VIII. Total Economic Value
+            IX. Total Economic Value
           </h2>
 
           <div className="p-6 bg-slate-900 text-white rounded-md text-center space-y-3 print:bg-slate-900">

@@ -136,6 +136,8 @@ export interface ReviewSpatialViewerProps {
   onPolygonSelect?: (poly: LandCoverPolygon | null) => void;
   className?: string;
   height?: string;
+  isPrintMode?: boolean;
+  readOnly?: boolean;
 }
 
 export const ReviewSpatialViewer: React.FC<ReviewSpatialViewerProps> = ({
@@ -147,7 +149,9 @@ export const ReviewSpatialViewer: React.FC<ReviewSpatialViewerProps> = ({
   selectedAreaId,
   onPolygonSelect,
   className = '',
-  height = '460px'
+  height = '460px',
+  isPrintMode = false,
+  readOnly = false,
 }) => {
   const navigate = useNavigate();
   const [isPopoutOpen, setIsPopoutOpen] = useState(false);
@@ -259,7 +263,12 @@ export const ReviewSpatialViewer: React.FC<ReviewSpatialViewerProps> = ({
         zoom={defaultZoom}
         minZoom={MAP_CONFIG.minZoom}
         maxZoom={tileProvider.maxZoom || MAP_CONFIG.maxZoom}
-        scrollWheelZoom={true}
+        scrollWheelZoom={!isPrintMode}
+        dragging={!isPrintMode}
+        doubleClickZoom={!isPrintMode}
+        touchZoom={!isPrintMode}
+        zoomControl={!isPrintMode}
+        attributionControl={!isPrintMode}
         preferCanvas={true}
         className="w-full h-full z-10"
         style={{ height: '100%', width: '100%', backgroundColor: '#e2e8f0' }}
@@ -271,7 +280,7 @@ export const ReviewSpatialViewer: React.FC<ReviewSpatialViewerProps> = ({
         />
 
         <MapRecenter center={center} bounds={bounds} zoom={defaultZoom} />
-        <MapResetControl center={center} bounds={bounds} zoom={defaultZoom} />
+        {!isPrintMode && <MapResetControl center={center} bounds={bounds} zoom={defaultZoom} />}
 
         {/* 1. SCENARIO A: POLYGONS RENDERED (Full GIS Mode) */}
         {hasPolygons &&
@@ -287,71 +296,77 @@ export const ReviewSpatialViewer: React.FC<ReviewSpatialViewerProps> = ({
                 positions={poly.coordinates as any}
                 pathOptions={{
                   fillColor,
-                  fillOpacity: isSelected ? 0.75 : 0.55,
+                  fillOpacity: isPrintMode ? 0.65 : (isSelected ? 0.75 : 0.55),
                   color: strokeColor,
-                  weight: isSelected ? 3.5 : 2,
-                  dashArray: isSelected ? '4, 4' : undefined
+                  weight: isPrintMode ? 2.5 : (isSelected ? 3.5 : 2),
+                  dashArray: isSelected && !isPrintMode ? '4, 4' : undefined
                 }}
                 eventHandlers={{
-                  click: () => onPolygonSelect?.(poly)
+                  click: () => !isPrintMode && onPolygonSelect?.(poly)
                 }}
               >
-                <Tooltip sticky direction="top" className="custom-leaflet-tooltip">
-                  <div className="p-1 space-y-0.5 text-xs">
-                    <div className="font-bold text-slate-900">{poly.name}</div>
-                    <div className="text-[11px] text-slate-600">
-                      Tipe: <strong>{formatTypeName(poly.type)}</strong> • Luas: <strong>{formatNumber(poly.areaHa, 2)} ha</strong>
-                    </div>
-                    {poly.indexCode && (
-                      <div className="text-[10px] text-indigo-700 font-semibold bg-indigo-50 px-1.5 py-0.5 rounded inline-block">
-                        {poly.indexCode}
+                {!isPrintMode && (
+                  <Tooltip sticky direction="top" className="custom-leaflet-tooltip">
+                    <div className="p-1 space-y-0.5 text-xs">
+                      <div className="font-bold text-slate-900">{poly.name}</div>
+                      <div className="text-[11px] text-slate-600">
+                        Tipe: <strong>{formatTypeName(poly.type)}</strong> • Luas: <strong>{formatNumber(poly.areaHa, 2)} ha</strong>
                       </div>
-                    )}
-                  </div>
-                </Tooltip>
+                      {poly.indexCode && (
+                        <div className="text-[10px] text-indigo-700 font-semibold bg-indigo-50 px-1.5 py-0.5 rounded inline-block">
+                          {poly.indexCode}
+                        </div>
+                      )}
+                    </div>
+                  </Tooltip>
+                )}
 
-                <Popup>
-                  <div className="p-1.5 text-xs space-y-1.5 min-w-[200px]">
+                {!isPrintMode && (
+                  <Popup>
+                    <div className="p-1.5 text-xs space-y-1.5 min-w-[200px]">
+                      <div className="font-bold text-slate-900 text-sm border-b pb-1">
+                        {poly.name}
+                      </div>
+                      <div className="text-slate-600 space-y-0.5">
+                        <div>Tipe: <span className="font-semibold text-slate-800 capitalize">{formatTypeName(poly.type)}</span></div>
+                        <div>Luas Area: <span className="font-mono font-bold text-slate-900">{formatNumber(poly.areaHa, 2)} Ha</span></div>
+                        <div>Index Terhubung: <span className="font-semibold text-indigo-700">{poly.indexCode || 'Non-Index'}</span></div>
+                        {poly.totalValue && poly.totalValue > 0 && (
+                          <div className="pt-1 text-emerald-700 font-bold border-t mt-1">
+                            TEV: Rp {formatNumber(poly.totalValue, 0)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </Popup>
+                )}
+              </Polygon>
+            );
+          })}
+
+        {/* 2. SCENARIO B: POINT MARKER RENDERED (Koordinat Proyek) */}
+        {!hasPolygons && projectCoords && (
+          <>
+            <Marker position={projectCoords} icon={createPinIcon('#2563eb')}>
+              {!isPrintMode && (
+                <Popup autoPan={true}>
+                  <div className="p-1.5 text-xs space-y-1.5 min-w-[220px]">
                     <div className="font-bold text-slate-900 text-sm border-b pb-1">
-                      {poly.name}
+                      {project.name || 'Lokasi Proyek Penelitian'}
                     </div>
                     <div className="text-slate-600 space-y-0.5">
-                      <div>Tipe: <span className="font-semibold text-slate-800 capitalize">{formatTypeName(poly.type)}</span></div>
-                      <div>Luas Area: <span className="font-mono font-bold text-slate-900">{formatNumber(poly.areaHa, 2)} Ha</span></div>
-                      <div>Index Terhubung: <span className="font-semibold text-indigo-700">{poly.indexCode || 'Non-Index'}</span></div>
-                      {poly.totalValue && poly.totalValue > 0 && (
-                        <div className="pt-1 text-emerald-700 font-bold border-t mt-1">
-                          TEV: Rp {formatNumber(poly.totalValue, 0)}
+                      <div>Kode Proyek: <span className="font-mono font-bold text-blue-700">{project.code}</span></div>
+                      <div>Lokasi: <span className="font-semibold text-slate-800">{project.location || 'Wilayah Pesisir'}</span></div>
+                      <div>Koordinat: <span className="font-mono text-slate-700">[{projectCoords[0].toFixed(5)}, {projectCoords[1].toFixed(5)}]</span></div>
+                      {indices.length > 0 && (
+                        <div className="pt-1 border-t text-[11px] text-indigo-700 font-medium">
+                          ✓ {indices.length} Index Kawasan Terdaftar ({formatNumber(indices.reduce((s, i) => s + (Number(i.areaHa) || 0), 0), 1)} ha)
                         </div>
                       )}
                     </div>
                   </div>
                 </Popup>
-              </Polygon>
-            );
-          })}
-
-        {/* 2. SCENARIO B: POINT MARKER RENDERED (Koordinat Proyek seperti Proyek 61 Lombok Timur) */}
-        {!hasPolygons && projectCoords && (
-          <>
-            <Marker position={projectCoords} icon={createPinIcon('#2563eb')}>
-              <Popup autoPan={true}>
-                <div className="p-1.5 text-xs space-y-1.5 min-w-[220px]">
-                  <div className="font-bold text-slate-900 text-sm border-b pb-1">
-                    {project.name || 'Lokasi Proyek Penelitian'}
-                  </div>
-                  <div className="text-slate-600 space-y-0.5">
-                    <div>Kode Proyek: <span className="font-mono font-bold text-blue-700">{project.code}</span></div>
-                    <div>Lokasi: <span className="font-semibold text-slate-800">{project.location || 'Wilayah Pesisir'}</span></div>
-                    <div>Koordinat: <span className="font-mono text-slate-700">[{projectCoords[0].toFixed(5)}, {projectCoords[1].toFixed(5)}]</span></div>
-                    {indices.length > 0 && (
-                      <div className="pt-1 border-t text-[11px] text-indigo-700 font-medium">
-                        ✓ {indices.length} Index Kawasan Terdaftar ({formatNumber(indices.reduce((s, i) => s + (Number(i.areaHa) || 0), 0), 1)} ha)
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </Popup>
+              )}
             </Marker>
 
             {/* Visual Radius Kawasan Penelitian (3000 meter) */}
@@ -370,62 +385,66 @@ export const ReviewSpatialViewer: React.FC<ReviewSpatialViewerProps> = ({
         )}
       </MapContainer>
 
-      {/* Floating Toolbar: Basemap Switcher & Popout Action */}
-      <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={handleToggleBasemap}
-          className="px-2.5 py-1.5 bg-white/95 hover:bg-white text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer backdrop-blur-xs"
-          title={isSatellite ? 'Beralih ke Peta Standar (OpenStreetMap)' : 'Beralih ke Citra Satelit (Esri)'}
-        >
-          <Layers className="w-3.5 h-3.5 text-blue-600" />
-          <span>{isSatellite ? 'Satelit' : 'Peta Jalan'}</span>
-        </button>
-
-        {!isModal && (
+      {/* Floating Toolbar: Basemap Switcher & Popout Action (Only in Interactive Mode) */}
+      {!isPrintMode && (
+        <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setIsPopoutOpen(true)}
-            className="px-2.5 py-1.5 bg-white/95 hover:bg-white text-blue-700 border border-blue-300 rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer backdrop-blur-xs hover:border-blue-500"
-            title="Popout / Perbesar Peta (Fullscreen Modal)"
+            onClick={handleToggleBasemap}
+            className="px-2.5 py-1.5 bg-white/95 hover:bg-white text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer backdrop-blur-xs"
+            title={isSatellite ? 'Beralih ke Peta Standar (OpenStreetMap)' : 'Beralih ke Citra Satelit (Esri)'}
           >
-            <Maximize2 className="w-3.5 h-3.5 text-blue-600" />
-            <span className="hidden sm:inline">Perbesar Peta</span>
+            <Layers className="w-3.5 h-3.5 text-blue-600" />
+            <span>{isSatellite ? 'Satelit' : 'Peta Jalan'}</span>
           </button>
-        )}
-      </div>
 
-      {/* Status Overlay Info Banner */}
-      <div className="absolute bottom-3 left-3 right-3 sm:right-auto z-20 max-w-lg bg-white/95 border border-slate-200/90 rounded-lg p-2.5 shadow-md backdrop-blur-xs text-xs space-y-1">
-        <div className="flex items-center gap-2">
-          {hasPolygons ? (
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-              <Check className="w-3 h-3" />
-              <span>Full Vector GIS ({validLandCovers.length} Poligon)</span>
-            </span>
-          ) : projectCoords ? (
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-              <MapPin className="w-3 h-3" />
-              <span>Titik Koordinat Lokasi [{projectCoords[0].toFixed(4)}, {projectCoords[1].toFixed(4)}]</span>
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-              <AlertCircle className="w-3 h-3" />
-              <span>Non-Spasial (Berbasis Tabulasi Statistik)</span>
-            </span>
+          {!isModal && (
+            <button
+              type="button"
+              onClick={() => setIsPopoutOpen(true)}
+              className="px-2.5 py-1.5 bg-white/95 hover:bg-white text-blue-700 border border-blue-300 rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer backdrop-blur-xs hover:border-blue-500"
+              title="Popout / Perbesar Peta (Fullscreen Modal)"
+            >
+              <Maximize2 className="w-3.5 h-3.5 text-blue-600" />
+              <span className="hidden sm:inline">Perbesar Peta</span>
+            </button>
           )}
-
-          <span className="text-[10px] text-slate-400 font-mono">EPSG: 4326 (WGS 84)</span>
         </div>
+      )}
 
-        <p className="text-[11px] text-slate-600 leading-snug">
-          {hasPolygons
-            ? `Terdapat ${validLandCovers.length} batas tutupan lahan terverifikasi pada peta. Klik pada poligon untuk melihat ringkasan audit.`
-            : projectCoords
-            ? `Pusat kawasan terdaftar di ${project.location || 'koordinat proyek'}. Nilai valuasi dihitung berbasis ${indices.length} Indeks Kawasan.`
-            : 'Proyek ini menggunakan perhitungan valuasi berbasis tabulasi luas tanpa geometri poligon.'}
-        </p>
-      </div>
+      {/* Status Overlay Info Banner (Only in Interactive Mode) */}
+      {!isPrintMode && (
+        <div className="absolute bottom-3 left-3 right-3 sm:right-auto z-20 max-w-lg bg-white/95 border border-slate-200/90 rounded-lg p-2.5 shadow-md backdrop-blur-xs text-xs space-y-1">
+          <div className="flex items-center gap-2">
+            {hasPolygons ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                <Check className="w-3 h-3" />
+                <span>Full Vector GIS ({validLandCovers.length} Poligon)</span>
+              </span>
+            ) : projectCoords ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                <MapPin className="w-3 h-3" />
+                <span>Titik Koordinat Lokasi [{projectCoords[0].toFixed(4)}, {projectCoords[1].toFixed(4)}]</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                <AlertCircle className="w-3 h-3" />
+                <span>Non-Spasial (Berbasis Tabulasi Statistik)</span>
+              </span>
+            )}
+
+            <span className="text-[10px] text-slate-400 font-mono">EPSG: 4326 (WGS 84)</span>
+          </div>
+
+          <p className="text-[11px] text-slate-600 leading-snug">
+            {hasPolygons
+              ? `Terdapat ${validLandCovers.length} batas tutupan lahan terverifikasi pada peta. Klik pada poligon untuk melihat ringkasan audit.`
+              : projectCoords
+              ? `Pusat kawasan terdaftar di ${project.location || 'koordinat proyek'}. Nilai valuasi dihitung berbasis ${indices.length} Indeks Kawasan.`
+              : 'Proyek ini menggunakan perhitungan valuasi berbasis tabulasi luas tanpa geometri poligon.'}
+          </p>
+        </div>
+      )}
     </div>
   );
 
