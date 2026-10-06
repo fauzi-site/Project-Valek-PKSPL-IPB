@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ADMIN_SYSTEM_STATS,
@@ -15,6 +15,9 @@ import { getLandingStatistics } from '../../services/statisticsService';
 import { getProyekList } from '../../services/projectService';
 import { getAdminAnalyticsOverview } from '../../services/adminAnalyticsService';
 import { getActivityLogs } from '../../services/activityService';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import html2canvas from 'html2canvas';
 import {
   Skeleton,
   SkeletonCard,
@@ -40,6 +43,8 @@ import {
   Eye,
   ExternalLink,
   Download,
+  ChevronDown,
+  FileText,
   RefreshCw,
   Clock,
   CheckCircle2,
@@ -87,6 +92,14 @@ export const AdminDashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [selectedProjectForModal, setSelectedProjectForModal] = useState(null);
   const [isModulesModalOpen, setIsModulesModalOpen] = useState(false);
+
+  // Export Dropdown State & Chart Element Refs
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const exportRef = useRef(null);
+  const ecoChartRef = useRef(null);
+  const serviceChartRef = useRef(null);
+  const trendChartRef = useRef(null);
 
   // Timeframe, Year, and Metric view modes for Trend Chart
   const [trendTimeframe, setTrendTimeframe] = useState('monthly'); // 'monthly' | 'yearly'
@@ -194,6 +207,17 @@ export const AdminDashboardPage = () => {
     return () => {
       isMounted = false;
     };
+  }, []);
+
+  // Close export dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (exportRef.current && !exportRef.current.contains(event.target)) {
+        setIsExportOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   // Filtered projects
@@ -393,6 +417,440 @@ export const AdminDashboardPage = () => {
     };
   }
 
+  // Helper function to capture chart DOM elements as high-res images
+  const captureChart = async (ref) => {
+    if (!ref || !ref.current) return null;
+    try {
+      const el = ref.current;
+      const canvas = await html2canvas(el, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        onclone: (clonedDoc, clonedEl) => {
+          // Fix SVG dimensions for Recharts inside cloned element
+          const origSvgs = el.querySelectorAll('svg');
+          const clonedSvgs = clonedEl.querySelectorAll('svg');
+          origSvgs.forEach((origSvg, idx) => {
+            const clonedSvg = clonedSvgs[idx];
+            if (clonedSvg) {
+              const rect = origSvg.getBoundingClientRect();
+              if (rect.width > 0 && rect.height > 0) {
+                clonedSvg.setAttribute('width', rect.width);
+                clonedSvg.setAttribute('height', rect.height);
+                clonedSvg.style.width = `${rect.width}px`;
+                clonedSvg.style.height = `${rect.height}px`;
+              }
+            }
+          });
+        },
+      });
+      return {
+        dataUrl: canvas.toDataURL('image/png'),
+        width: canvas.width,
+        height: canvas.height,
+        ratio: canvas.width / canvas.height,
+      };
+    } catch (err) {
+      console.warn('Gagal menangkap gambar grafik:', err);
+      return null;
+    }
+  };
+
+  // Export to PDF Handler - Ringkasan Ekosistem & Valuasi Ekonomi Nasional (Termasuk Grafik Realtime)
+  const handleExportPDF = async () => {
+    setIsExporting(true);
+    try {
+      // 1. Capture realtime charts from dashboard
+      const [ecoImg, serviceImg, trendImg] = await Promise.all([
+        captureChart(ecoChartRef),
+        captureChart(serviceChartRef),
+        captureChart(trendChartRef),
+      ]);
+
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      const nowStr = new Date().toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      // ==========================================
+      // HALAMAN 1: KOP, KPI, GRAFIK EKOSISTEM & TABEL 1
+      // ==========================================
+      // Header Kop Resmi
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text('PUSAT KAJIAN SUMBERDAYA PESISIR DAN LAUT (PKSPL) — IPB UNIVERSITY', 14, 13);
+
+      doc.setFontSize(13);
+      doc.text('RINGKASAN EKSEKUTIF EKOSISTEM & VALUASI EKONOMI NASIONAL', 14, 19);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text(
+        `Waktu Unduh: ${nowStr} WIB  |  Tahun Rujukan: ${selectedYear}  |  Sinkronisasi: ${ADMIN_SYSTEM_STATS.lastBackup}  |  Status Sistem: ${ADMIN_SYSTEM_STATS.systemUptime} Uptime`,
+        14,
+        25
+      );
+
+      // Decorative Line
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.4);
+      doc.line(14, 27, 283, 27);
+
+      // KPI Highlights Table
+      autoTable(doc, {
+        startY: 29,
+        head: [[
+          'TOTAL ECONOMIC VALUE (TEV)',
+          'PORTOFOLIO PENELITIAN',
+          'CAKUPAN LUAS SPASIAL',
+          'PENGGUNA TERDAFTAR'
+        ]],
+        body: [[
+          `Rp ${totalTevMiliar} Miliar\n(Estimasi Nominal: Rp ${formatNumber(totalTevNominal, 0)})\n${ADMIN_SYSTEM_STATS.totalTevGrowth} dari tahun lalu`,
+          `${totalProjects} Proyek Riset\n${projectsList.length} Terdaftar di Sistem\nRata-rata: Rp ${(avgTevPerProject / 1e9).toFixed(1)} M/proyek`,
+          `${formatNumber(totalAreaHa, 1)} Hektare\n${ADMIN_SYSTEM_STATS.areaGrowth} cakupan spasial\n142 Poligon GIS Pesisir`,
+          `${totalUsers} Pengguna Terdaftar\n${usersPeneliti} Peneliti Riset\n${usersAdmin} Super Administrator`
+        ]],
+        theme: 'plain',
+        styles: {
+          font: 'helvetica',
+          cellPadding: 2.5,
+          overflow: 'linebreak',
+        },
+        headStyles: {
+          fillColor: [15, 23, 42],
+          textColor: 255,
+          fontSize: 7.5,
+          fontStyle: 'bold',
+          halign: 'center',
+        },
+        bodyStyles: {
+          fillColor: [248, 250, 252],
+          textColor: [30, 41, 59],
+          fontSize: 7.8,
+          fontStyle: 'normal',
+          halign: 'center',
+          lineColor: [226, 232, 240],
+          lineWidth: 0.3,
+        },
+        margin: { left: 14, right: 14 },
+      });
+
+      // Visualisasi Grafik Realtime Ekosistem & Jasa (Page 1)
+      let nextY = (doc.lastAutoTable?.finalY || 45) + 4;
+
+      if (ecoImg && serviceImg) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(15, 23, 42);
+        doc.text('GRAFIK 1: DISTRIBUSI VALUASI EKOSISTEM (MILIAR RP)', 14, nextY);
+        doc.text('GRAFIK 2: DISTRIBUSI CAKUPAN JASA EKOSISTEM', 14 + 154 + 5, nextY);
+        nextY += 2.5;
+
+        const maxImgH = 55;
+        const ecoH = Math.min(maxImgH, 154 / (ecoImg.ratio || 2.2));
+        const serviceH = Math.min(maxImgH, 105 / (serviceImg.ratio || 1.3));
+        doc.addImage(ecoImg.dataUrl, 'PNG', 14, nextY, 154, ecoH);
+        doc.addImage(serviceImg.dataUrl, 'PNG', 14 + 154 + 5, nextY, 105, serviceH);
+        nextY += Math.max(ecoH, serviceH) + 4.5;
+      } else if (ecoImg) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(15, 23, 42);
+        doc.text('GRAFIK 1: DISTRIBUSI VALUASI EKOSISTEM (MILIAR RP)', 14, nextY);
+        nextY += 2.5;
+        const ecoH = Math.min(60, 269 / (ecoImg.ratio || 2.2));
+        doc.addImage(ecoImg.dataUrl, 'PNG', 14, nextY, 269, ecoH);
+        nextY += ecoH + 4.5;
+      }
+
+      // Tabel 1: Distribusi Nilai Valuasi Ekosistem Pesisir
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text('1. DISTRIBUSI NILAI VALUASI BERDASARKAN EKOSISTEM PESISIR', 14, nextY);
+
+      const ecoRows = (ecosystemData || []).map((eco, idx) => [
+        idx + 1,
+        eco.name || '-',
+        `${formatNumber(eco.areaHa || 0, 1)} Ha`,
+        formatIDR(eco.value || 0),
+        `Rp ${eco.valueFormatted || `${((eco.value || 0) / 1e9).toFixed(1)} M`}`,
+        `${eco.percentage || 0}%`,
+      ]);
+
+      const totalEcoArea = (ecosystemData || []).reduce((acc, c) => acc + (c.areaHa || 0), 0);
+      const totalEcoValue = (ecosystemData || []).reduce((acc, c) => acc + (c.value || 0), 0);
+      ecoRows.push([
+        '',
+        'TOTAL AGREGAT',
+        `${formatNumber(totalEcoArea, 1)} Ha`,
+        formatIDR(totalEcoValue),
+        `Rp ${totalTevMiliar} M`,
+        '100%'
+      ]);
+
+      autoTable(doc, {
+        startY: nextY + 2.5,
+        head: [['No', 'Ekosistem Pesisir', 'Luas Wilayah (Ha)', 'Nilai Valuasi TEV (Rp)', 'Nilai Singkat', 'Porsi (% TEV)']],
+        body: ecoRows,
+        theme: 'striped',
+        headStyles: {
+          fillColor: [30, 41, 59],
+          textColor: 255,
+          fontSize: 7.5,
+          fontStyle: 'bold',
+          halign: 'left',
+        },
+        styles: {
+          font: 'helvetica',
+          fontSize: 7.2,
+          cellPadding: 1.8,
+          textColor: [30, 41, 59],
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252],
+        },
+        columnStyles: {
+          0: { cellWidth: 10, halign: 'center' },
+          1: { cellWidth: 'auto' },
+          2: { cellWidth: 35, halign: 'right' },
+          3: { cellWidth: 60, halign: 'right' },
+          4: { cellWidth: 40, halign: 'right' },
+          5: { cellWidth: 30, halign: 'center' },
+        },
+        didParseCell: (data) => {
+          if (data.row.index === ecoRows.length - 1) {
+            data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.fillColor = [241, 245, 249];
+          }
+        },
+        margin: { left: 14, right: 14 },
+      });
+
+      // ==========================================
+      // HALAMAN 2: VISUALISASI TREN REALTIME & TABEL 2
+      // ==========================================
+      doc.addPage();
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text('TREN PERTUMBUHAN VALUASI & DINAMIKA RISET NASIONAL (REALTIME)', 14, 13);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text(
+        `Visualisasi tren akumulasi TEV, proyek baru, dan luas spasial berdasarkan data aktif (${trendTimeframe === 'monthly' ? `Bulanan Tahun ${selectedYear}` : 'Tahunan'}).`,
+        14,
+        18
+      );
+
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.4);
+      doc.line(14, 20.5, 283, 20.5);
+
+      let page2Y = 24;
+      if (trendImg) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(15, 23, 42);
+        doc.text(
+          `GRAFIK 3: DINAMIKA AKUMULASI TEV (MILIAR RP) DAN AKTIVITAS PROYEK (${trendTimeframe === 'monthly' ? `BULANAN ${selectedYear}` : 'TAHUNAN'})`,
+          14,
+          page2Y
+        );
+        page2Y += 2.5;
+
+        const trendH = Math.min(65, 269 / (trendImg.ratio || 3.8));
+        doc.addImage(trendImg.dataUrl, 'PNG', 14, page2Y, 269, trendH);
+        page2Y += trendH + 5;
+      }
+
+      // Tabel 2: Cakupan 4 Pilar Jasa Ekosistem
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text('2. CAKUPAN 4 PILAR JASA EKOSISTEM DALAM RISET', 14, page2Y);
+
+      const serviceRows = (workflowData || []).map((item, idx) => [
+        idx + 1,
+        item.name || '-',
+        `${item.count || 0} Proyek`,
+        `${item.percentage || 0}%`,
+      ]);
+
+      autoTable(doc, {
+        startY: page2Y + 2.5,
+        head: [['No', 'Pilar Jasa Ekosistem', 'Jumlah Proyek Riset', 'Persentase Adopsi (%)']],
+        body: serviceRows,
+        theme: 'striped',
+        headStyles: {
+          fillColor: [30, 41, 59],
+          textColor: 255,
+          fontSize: 7.5,
+          fontStyle: 'bold',
+          halign: 'left',
+        },
+        styles: {
+          font: 'helvetica',
+          fontSize: 7.2,
+          cellPadding: 2,
+          textColor: [30, 41, 59],
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252],
+        },
+        columnStyles: {
+          0: { cellWidth: 10, halign: 'center' },
+          1: { cellWidth: 'auto' },
+          2: { cellWidth: 50, halign: 'center' },
+          3: { cellWidth: 40, halign: 'center' },
+        },
+        margin: { left: 14, right: 14 },
+      });
+
+      // ==========================================
+      // HALAMAN 3+: PORTOFOLIO PROYEK & REKAM JEJAK AUDIT
+      // ==========================================
+      doc.addPage();
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(15, 23, 42);
+      doc.text(`3. DAFTAR PORTOFOLIO PROYEK PENELITIAN SISTEM (${projectsList.length} PROYEK)`, 14, 14);
+
+      const projectRows = (projectsList || []).map((proj, idx) => [
+        idx + 1,
+        proj.code || '-',
+        proj.name || '-',
+        proj.ecosystem || '-',
+        proj.location || '-',
+        proj.lead || '-',
+        `${formatNumber(proj.areaHa || 0, 1)} Ha`,
+        formatIDR(proj.totalTev || 0),
+      ]);
+
+      autoTable(doc, {
+        startY: 16.5,
+        head: [['No', 'Kode', 'Nama Proyek Penelitian', 'Ekosistem', 'Lokasi / Wilayah', 'Peneliti Utama', 'Luas (Ha)', 'Nilai TEV (Rp)']],
+        body: projectRows,
+        theme: 'striped',
+        headStyles: {
+          fillColor: [15, 23, 42],
+          textColor: 255,
+          fontSize: 7.5,
+          fontStyle: 'bold',
+          halign: 'left',
+        },
+        styles: {
+          font: 'helvetica',
+          fontSize: 7,
+          cellPadding: 2,
+          overflow: 'linebreak',
+          textColor: [30, 41, 59],
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252],
+        },
+        columnStyles: {
+          0: { cellWidth: 10, halign: 'center' },
+          1: { cellWidth: 26, halign: 'center' },
+          2: { cellWidth: 'auto' },
+          3: { cellWidth: 36 },
+          4: { cellWidth: 42 },
+          5: { cellWidth: 42 },
+          6: { cellWidth: 26, halign: 'right' },
+          7: { cellWidth: 42, halign: 'right' },
+        },
+        margin: { left: 14, right: 14 },
+      });
+
+      let page3Y = doc.lastAutoTable.finalY + 7;
+      if (page3Y > 160) {
+        doc.addPage();
+        page3Y = 16;
+      }
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(15, 23, 42);
+      doc.text('4. REKAM JEJAK AKTIVITAS SISTEM TERKINI', 14, page3Y);
+
+      const activityRows = (activityLogsList || []).map((act, idx) => [
+        idx + 1,
+        act.timestamp || '-',
+        act.userName || '-',
+        act.userRole || '-',
+        act.action || '-',
+        act.target || '-',
+      ]);
+
+      autoTable(doc, {
+        startY: page3Y + 2.5,
+        head: [['No', 'Waktu', 'Pengguna', 'Peran', 'Aktivitas Dilakukan', 'Target / Modul']],
+        body: activityRows,
+        theme: 'striped',
+        headStyles: {
+          fillColor: [30, 41, 59],
+          textColor: 255,
+          fontSize: 7.5,
+          fontStyle: 'bold',
+          halign: 'left',
+        },
+        styles: {
+          font: 'helvetica',
+          fontSize: 7,
+          cellPadding: 2,
+          textColor: [30, 41, 59],
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252],
+        },
+        columnStyles: {
+          0: { cellWidth: 10, halign: 'center' },
+          1: { cellWidth: 32 },
+          2: { cellWidth: 48 },
+          3: { cellWidth: 28 },
+          4: { cellWidth: 68 },
+          5: { cellWidth: 'auto' },
+        },
+        margin: { left: 14, right: 14 },
+      });
+
+      // Footers on all pages
+      const pageCount = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(148, 163, 184);
+        const footerText = `Dokumen Resmi Eksekutif Dashboard PKSPL IPB • Halaman ${i} dari ${pageCount}`;
+        doc.text(footerText, 14, 204);
+      }
+
+      const fileName = `PKSPL_Ringkasan_Ekosistem_Valuasi_${new Date().toISOString().slice(0, 10)}.pdf`;
+      doc.save(fileName);
+      setIsExportOpen(false);
+    } catch (err) {
+      console.error('Error saat membuat PDF:', err);
+      alert('Terjadi kendala saat menyusun dokumen PDF. Silakan coba kembali.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6 md:space-y-8 text-slate-800">
       {/* ------------------------------------------------------------- */}
@@ -421,13 +879,35 @@ export const AdminDashboardPage = () => {
             <span>Sinkronisasi: <strong>{ADMIN_SYSTEM_STATS.lastBackup}</strong></span>
           </div>
 
-          <button
-            onClick={() => alert('Fitur Ekspor Executive Summary (PDF / Excel) disimulasikan siap diunduh.')}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5 text-slate-300" />
-            <span>Ekspor Ringkasan</span>
-          </button>
+          {/* Export Dropdown */}
+          <div ref={exportRef} className="relative shrink-0">
+            <button
+              onClick={() => setIsExportOpen(!isExportOpen)}
+              disabled={isExporting}
+              className="flex items-center gap-2 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-60"
+            >
+              {isExporting ? (
+                <RefreshCw className="w-3.5 h-3.5 text-slate-300 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5 text-slate-300" />
+              )}
+              <span>{isExporting ? 'Menyiapkan PDF...' : 'Ekspor Ringkasan'}</span>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+            </button>
+
+            {isExportOpen && (
+              <div className="absolute right-0 mt-2 w-52 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden text-xs text-slate-700 animate-in fade-in slide-in-from-top-2 duration-150">
+                <button
+                  onClick={handleExportPDF}
+                  disabled={isExporting}
+                  className="w-full px-4 py-2.5 hover:bg-slate-50 flex items-center gap-2.5 text-left font-medium cursor-pointer disabled:opacity-60"
+                >
+                  <FileText className="w-4 h-4 text-rose-600" />
+                  <span>{isExporting ? 'Memproses Grafik...' : 'Unduh PDF (.PDF)'}</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -576,7 +1056,7 @@ export const AdminDashboardPage = () => {
             </span>
           </div>
 
-          <div className="h-64 w-full">
+          <div ref={ecoChartRef} className="h-64 w-full bg-white">
             {analyticsLoading && !analytics ? (
               <SkeletonChart variant="bar" height={256} />
             ) : (
@@ -666,7 +1146,7 @@ export const AdminDashboardPage = () => {
             </p>
           </div>
 
-          <div className="h-52 w-full relative flex items-center justify-center">
+          <div ref={serviceChartRef} className="h-52 w-full relative flex items-center justify-center bg-white">
             {analyticsLoading && !analytics ? (
               <SkeletonChart variant="donut" height={208} />
             ) : (
@@ -1015,7 +1495,7 @@ export const AdminDashboardPage = () => {
         )}
 
         {/* Row 4: The Dynamic Responsive ComposedChart */}
-        <div className="h-64 sm:h-72 w-full">
+        <div ref={trendChartRef} className="h-64 sm:h-72 w-full bg-white">
           {analyticsLoading && !analytics ? (
             <SkeletonChart variant="composed" height={280} />
           ) : (
