@@ -98,6 +98,50 @@ export async function addValuationRow(landCoverId: string | number, payload: Add
   }
 }
 
+export interface BatchAddRowsPayload {
+  service_id: string;
+  method_id: string;
+  biota?: string;
+  rows: {
+    row_data: Record<string, any>;
+    total_nilai?: number;
+    row_order?: number;
+  }[];
+}
+
+export async function batchAddValuationRows(
+  landCoverId: string | number,
+  payload: BatchAddRowsPayload
+): Promise<ValuationRowDTO[]> {
+  try {
+    const response = await api.post(`/jenis-tutupan-lahan/${landCoverId}/valuation/rows/batch`, payload);
+    return unwrap(response);
+  } catch (error) {
+    console.error('[ValuationService] Error batchAddValuationRows:', error);
+    throw new Error('Gagal mengimpor batch baris valuasi');
+  }
+}
+
+export interface SyncAllSectionPayload {
+  service_id: string;
+  method_id: string;
+  biota?: string;
+  rows: Record<string, any>[];
+}
+
+export async function syncAllValuationSections(
+  landCoverId: string | number,
+  sections: SyncAllSectionPayload[]
+): Promise<{ message: string; mappings: Record<string, number>; count: number }> {
+  try {
+    const response = await api.post(`/jenis-tutupan-lahan/${landCoverId}/valuation/sync-all`, { sections });
+    return unwrap(response);
+  } catch (error) {
+    console.error('[ValuationService] Error syncAllValuationSections:', error);
+    throw new Error('Gagal menyinkronkan seluruh section valuasi');
+  }
+}
+
 export async function updateValuationRow(landCoverId: string | number, rowId: number, payload: UpdateRowPayload): Promise<ValuationRowDTO> {
   try {
     const response = await api.put(`/jenis-tutupan-lahan/${landCoverId}/valuation/rows/${rowId}`, payload);

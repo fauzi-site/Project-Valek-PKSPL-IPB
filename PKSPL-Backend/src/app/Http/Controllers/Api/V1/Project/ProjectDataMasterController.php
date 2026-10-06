@@ -63,6 +63,14 @@ class ProjectDataMasterController extends Controller
      */
     public function index(Request $request, Proyek $proyek): JsonResponse
     {
+        // 0. Rekonsiliasi otomatis: pastikan seluruh data baris dari lembar kerja Data Valuasi
+        // milik tutupan lahan proyek ini sudah tersinkronisasi ke tabel Data Master
+        try {
+            app(\App\Services\Valuation\ValuationDataMasterSyncService::class)->reconcileProject($proyek);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('[DataMasterSync] Reconcile error: ' . $e->getMessage());
+        }
+
         // 1. Memuat relasi wilayah, ekosistem, dan tutupan lahan proyek
         $proyek->loadMissing([
             'provinsi',
@@ -157,28 +165,23 @@ class ProjectDataMasterController extends Controller
             $usedIds = $usedItems->pluck($pkName)->all();
 
             // B. Katalog acuan wilayah proyek yang belum digunakan oleh proyek
-            $catalogQuery = $modelClass::query()
-                ->with($relations)
-                ->whereNotIn($pkName, $usedIds);
+            // HANYA memuat katalog yang secara spesifik tercatat untuk wilayah (Kabupaten/Kota atau Provinsi) proyek ini
+            $unusedItems = collect();
+            if ($idKabupatenKota || $idProvinsi) {
+                $catalogQuery = $modelClass::query()
+                    ->with($relations)
+                    ->whereNotIn($pkName, $usedIds);
 
-            // Filter preferensi wilayah jika ada
-            if ($idKabupatenKota) {
-                $regionalCatalog = (clone $catalogQuery)->where('id_kabupaten_kota', $idKabupatenKota)->take(50)->get();
-            } else {
-                $regionalCatalog = collect();
+                if ($idKabupatenKota) {
+                    $unusedItems = (clone $catalogQuery)->where('id_kabupaten_kota', $idKabupatenKota)->get();
+                }
+
+                if ($unusedItems->isEmpty() && $idProvinsi) {
+                    $unusedItems = (clone $catalogQuery)->where('id_provinsi', $idProvinsi)->get();
+                }
             }
 
-            // Fallback jika catalog kabupaten masih sedikit/kosong
-            if ($regionalCatalog->count() < 10) {
-                $needed = 30 - $regionalCatalog->count();
-                $alreadyCatalogIds = array_merge($usedIds, $regionalCatalog->pluck($pkName)->all());
-                $extraCatalog = $catalogQuery->whereNotIn($pkName, $alreadyCatalogIds)->take($needed)->get();
-                $unusedItems = $regionalCatalog->concat($extraCatalog);
-            } else {
-                $unusedItems = $regionalCatalog;
-            }
-
-            // Gabungkan item yang digunakan proyek dan katalog acuan
+            // Gabungkan item yang digunakan proyek dan katalog acuan wilayah ini (tanpa mengambil acak dari wilayah lain)
             $allCategoryItems = $usedItems->concat($unusedItems);
 
             // Update hitungan kategori

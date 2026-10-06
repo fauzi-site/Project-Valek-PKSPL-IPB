@@ -6,9 +6,12 @@ import { EcosystemServiceId } from '../types/valuation';
 import {
   getValuationRows,
   addValuationRow,
+  batchAddValuationRows,
   updateValuationRow,
   deleteValuationRow,
   reorderValuationRows,
+  syncAllValuationSections,
+  SyncAllSectionPayload,
   getCustomColumns as apiGetCustomColumns,
   addCustomColumn as apiAddCustomColumn,
   updateCustomColumn as apiUpdateCustomColumn,
@@ -20,6 +23,7 @@ interface SpreadsheetContextType {
   lastSavedText: string;
   isOffline: boolean;
   saveError: boolean;
+  syncProjectToBackend: (projectId: string, targetAreaId?: string, alternateProjectId?: string) => Promise<number>;
   getRows: (projectId: string, areaId: string, serviceId: string, methodId: string, biota?: string) => Record<string, any>[];
   getRowsForAreaService: (
     projectId: string,
@@ -179,7 +183,7 @@ export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
       saveToStorage(STORAGE_KEY, nextStore);
       setIsSaving(false);
       setSaveError(false);
-      setLastSavedText(`Tersimpan otomatis • ${formatTime()}`);
+      setLastSavedText(`Tersimpan & tersinkron ke Data Master • ${formatTime()}`);
     }, 800);
   }, [isOffline]);
 
@@ -243,10 +247,10 @@ export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
     triggerAutosave(nextStore);
     
     if (!isNaN(Number(areaId)) && Number(areaId) > 0) {
-      const backendId = backendRowIds[rowId];
-      if (backendId) {
-        const ur = updatedRows.find(r => r.id === rowId);
-        if (ur) {
+      const ur = updatedRows.find(r => r.id === rowId);
+      if (ur) {
+        const backendId = backendRowIds[rowId];
+        if (backendId) {
           try {
             await updateValuationRow(areaId, backendId, {
               row_data: ur,
@@ -255,10 +259,25 @@ export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
           } catch (err) {
             console.warn('[ValuationData] Gagal sync updateCell ke backend:', err);
           }
+        } else {
+          // Jika belum tersimpan di backend, simpan sebagai baris baru sehingga otomatis tersinkron ke Data Master
+          try {
+            const backendRow = await addValuationRow(areaId, {
+              service_id: serviceId,
+              method_id: methodId,
+              biota: serviceId === 'provisioning' ? biota : undefined,
+              row_order: ur.no ? ur.no - 1 : 0,
+              row_data: ur,
+              total_nilai: ur.totalNilai || 0,
+            });
+            setBackendRowIds(prev => ({ ...prev, [rowId]: backendRow.id }));
+          } catch (err) {
+            console.warn('[ValuationData] Gagal sync addRow on updateCell ke backend:', err);
+          }
         }
       }
     }
-  }, [store, triggerAutosave, backendRowIds]);
+  }, [store, triggerAutosave, backendRowIds, getRows]);
 
   const addRow = useCallback(async (
     projectId: string,
@@ -354,6 +373,33 @@ export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const nextStore = { ...store, [key]: renumbered };
     setStore(nextStore);
     triggerAutosave(nextStore);
+
+    // Kirim batch row ke backend sehingga otomatis tersinkron ke Data Master
+    if (!isNaN(Number(areaId)) && Number(areaId) > 0 && calculatedNewRows.length > 0) {
+      batchAddValuationRows(areaId, {
+        service_id: serviceId,
+        method_id: methodId,
+        biota: serviceId === 'provisioning' ? biota : undefined,
+        rows: calculatedNewRows.map((r, idx) => ({
+          row_data: r,
+          total_nilai: r.totalNilai || 0,
+          row_order: currentRows.length + idx,
+        })),
+      }).then(backendRows => {
+        if (Array.isArray(backendRows)) {
+          const map: Record<string, number> = {};
+          backendRows.forEach((br, i) => {
+            const clientRow = calculatedNewRows[i];
+            if (clientRow?.id && br?.id) {
+              map[clientRow.id] = br.id;
+            }
+          });
+          setBackendRowIds(prev => ({ ...prev, ...map }));
+        }
+      }).catch(err => {
+        console.warn('[ValuationData] Gagal batch sync importRows ke backend:', err);
+      });
+    }
   }, [store, triggerAutosave, getRows]);
 
   const getServiceSubtotal = useCallback((
@@ -490,6 +536,69 @@ export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
     // 4. Real/new project with no data -> strictly empty
     return [];
   }, [store, getRows]);
+
+  const syncProjectToBackend = useCallback(async (
+    projectId: string,
+    targetAreaId?: string,
+    alternateProjectId?: string
+  ): Promise<number> => {
+    if (!projectId && !targetAreaId) return 0;
+
+    const validPrefixes = [
+      ...(projectId ? [`${projectId}_`] : []),
+      ...(alternateProjectId ? [`${alternateProjectId}_`] : []),
+    ];
+    const sectionsByArea: Record<string, SyncAllSectionPayload[]> = {};
+
+    Object.keys(store).forEach(k => {
+      const parts = k.split('_');
+      const aId = parts[1];
+
+      const matchPrefix = validPrefixes.length === 0 || validPrefixes.some(p => k.startsWith(p));
+      const matchArea = targetAreaId ? aId === String(targetAreaId) : matchPrefix;
+
+      if (!matchArea && !matchPrefix) return;
+      if (isNaN(Number(aId)) || Number(aId) <= 0) return;
+
+      const sId = parts[2];
+      const mId = parts[3];
+      const b = parts[4] || 'none';
+      const rawRows = store[k] || [];
+      const validRows = rawRows.filter(r => !isStaticMockRow(r) && r.item && String(r.item).trim() !== '');
+
+      if (validRows.length > 0) {
+        if (!sectionsByArea[aId]) {
+          sectionsByArea[aId] = [];
+        }
+        const alreadyHas = sectionsByArea[aId].some(
+          s => s.service_id === sId && s.method_id === mId && (s.biota || 'none') === b
+        );
+        if (!alreadyHas) {
+          sectionsByArea[aId].push({
+            service_id: sId,
+            method_id: mId,
+            biota: sId === 'provisioning' ? b : undefined,
+            rows: validRows,
+          });
+        }
+      }
+    });
+
+    let totalSynced = 0;
+    for (const [aId, sections] of Object.entries(sectionsByArea)) {
+      try {
+        const res = await syncAllValuationSections(aId, sections);
+        if (res.mappings) {
+          setBackendRowIds(prev => ({ ...prev, ...res.mappings }));
+        }
+        totalSynced += (res.count || 0);
+      } catch (err) {
+        console.warn(`[ValuationData] Gagal syncProjectToBackend area ${aId}:`, err);
+      }
+    }
+
+    return totalSynced;
+  }, [store]);
 
   const getTotalEconomicValue = useCallback((projectId: string, areaId: string = 'lc-01'): number => {
     if (!projectId) return 0;
@@ -674,6 +783,7 @@ export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
         lastSavedText,
         isOffline,
         saveError,
+        syncProjectToBackend,
         rows,
         getRows,
         getRowsForAreaService,

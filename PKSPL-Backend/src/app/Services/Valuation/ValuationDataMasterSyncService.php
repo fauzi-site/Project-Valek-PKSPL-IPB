@@ -1,0 +1,400 @@
+<?php
+
+namespace App\Services\Valuation;
+
+use App\Models\CulturalService;
+use App\Models\JenisTutupanLahan;
+use App\Models\ProvisioningService;
+use App\Models\Proyek;
+use App\Models\RegulatingService;
+use App\Models\SupportingService;
+use App\Models\ValuationRow;
+use Illuminate\Support\Facades\Log;
+
+/**
+ * Service untuk menyinkronkan data dari lembar kerja Data Valuasi (valuation_rows)
+ * secara otomatis ke dalam tabel Data Master (provisioning, regulating, supporting, cultural).
+ */
+class ValuationDataMasterSyncService
+{
+    /**
+     * Menyinkronkan satu baris data valuasi ke tabel Data Master yang sesuai.
+     */
+    public function syncRow(
+        int $landCoverId,
+        string $serviceId,
+        ?string $biota,
+        array $rowData,
+        float $totalNilai = 0.0
+    ): bool {
+        $rawItem = trim((string) ($rowData['item'] ?? ($rowData['nama_objek'] ?? '')));
+        if ($rawItem === '') {
+            return false;
+        }
+
+        $landCover = JenisTutupanLahan::with('index.proyek')->find($landCoverId);
+        if (!$landCover) {
+            return false;
+        }
+
+        $proyek = $landCover->index?->proyek;
+        $idProvinsi = $proyek?->id_provinsi;
+        $idKabupatenKota = $proyek?->id_kabupaten_kota;
+        $idKecamatan = $proyek?->id_kecamatan;
+        $idDesaKelurahan = $proyek?->id_desa_kelurahan;
+
+        $serviceKey = strtolower(trim($serviceId));
+
+        switch ($serviceKey) {
+            case 'provisioning':
+                return $this->syncProvisioning($landCoverId, $rawItem, $rowData, $totalNilai, $idProvinsi, $idKabupatenKota, $idKecamatan, $idDesaKelurahan);
+
+            case 'regulating':
+                return $this->syncRegulating($landCoverId, $rawItem, $rowData, $totalNilai, $idProvinsi, $idKabupatenKota, $idKecamatan, $idDesaKelurahan);
+
+            case 'supporting':
+                return $this->syncSupporting($landCoverId, $rawItem, $rowData, $totalNilai, $idProvinsi, $idKabupatenKota, $idKecamatan, $idDesaKelurahan);
+
+            case 'cultural':
+                return $this->syncCultural($landCoverId, $rawItem, $rowData, $totalNilai, $idProvinsi, $idKabupatenKota, $idKecamatan, $idDesaKelurahan);
+
+            default:
+                Log::warning("[ValuationSync] Unknown service_id: {$serviceId}");
+                return false;
+        }
+    }
+
+    /**
+     * Menghapus entri data master yang terkait jika baris data valuasi dihapus.
+     */
+    public function deleteRowSync(int $landCoverId, string $serviceId, array $rowData): bool
+    {
+        $rawItem = trim((string) ($rowData['item'] ?? ($rowData['nama_objek'] ?? '')));
+        if ($rawItem === '') {
+            return false;
+        }
+
+        $serviceKey = strtolower(trim($serviceId));
+        $lowerItem = strtolower($rawItem);
+
+        switch ($serviceKey) {
+            case 'provisioning':
+                return (bool) ProvisioningService::where('id_jenis_tutupan_lahan', $landCoverId)
+                    ->where(function ($q) use ($lowerItem) {
+                        $q->whereRaw('LOWER(TRIM(nama_objek)) = ?', [$lowerItem])
+                          ->orWhereRaw('LOWER(TRIM(COALESCE(nama_latin, \'\'))) = ?', [$lowerItem]);
+                    })
+                    ->delete();
+
+            case 'regulating':
+                return (bool) RegulatingService::where('id_jenis_tutupan_lahan', $landCoverId)
+                    ->whereRaw('LOWER(TRIM(jenis_regulating)) = ?', [$lowerItem])
+                    ->delete();
+
+            case 'supporting':
+                return (bool) SupportingService::where('id_jenis_tutupan_lahan', $landCoverId)
+                    ->whereRaw('LOWER(TRIM(fungsi_pendukung)) = ?', [$lowerItem])
+                    ->delete();
+
+            case 'cultural':
+                return (bool) CulturalService::where('id_jenis_tutupan_lahan', $landCoverId)
+                    ->whereRaw('LOWER(TRIM(nama_aktivitas)) = ?', [$lowerItem])
+                    ->delete();
+
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Sinkronisasi rekonsiliasi seluruh baris valuasi milik sebuah proyek.
+     */
+    public function reconcileProject(Proyek $proyek): int
+    {
+        $proyek->loadMissing('indexes.jenisTutupanLahan');
+        $landCoverIds = $proyek->indexes
+            ->flatMap->jenisTutupanLahan
+            ->pluck('id_jenis_tutupan_lahan')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($landCoverIds)) {
+            return 0;
+        }
+
+        $rows = ValuationRow::whereIn('id_jenis_tutupan_lahan', $landCoverIds)->get();
+        $syncedCount = 0;
+
+        foreach ($rows as $row) {
+            $data = is_array($row->row_data) ? $row->row_data : [];
+            $val = (float) ($row->total_nilai ?? ($data['totalNilai'] ?? 0));
+            $ok = $this->syncRow(
+                (int) $row->id_jenis_tutupan_lahan,
+                (string) $row->service_id,
+                $row->biota,
+                $data,
+                $val
+            );
+            if ($ok) {
+                $syncedCount++;
+            }
+        }
+
+        return $syncedCount;
+    }
+
+    /**
+     * Helper pemisah nama latin dan nama daerah jika format string mengandung tanda kurung:
+     * Contoh: "Rhizophora apiculata (Bakau Minyak)" atau "Bakau Minyak (Rhizophora apiculata)"
+     */
+    private function parseItemNames(string $rawItem, array $rowData): array
+    {
+        $namaLatin = $rowData['nama_latin'] ?? null;
+        $namaDaerah = $rowData['nama_daerah'] ?? null;
+
+        if (preg_match('/^([^(]+)\s*\(([^)]+)\)$/', $rawItem, $matches)) {
+            $part1 = trim($matches[1]);
+            $part2 = trim($matches[2]);
+
+            if (empty($namaLatin)) {
+                $namaLatin = $part1;
+            }
+            if (empty($namaDaerah)) {
+                $namaDaerah = $part2;
+            }
+        }
+
+        return [$namaLatin, $namaDaerah];
+    }
+
+    /**
+     * Sinkronisasi entri Provisioning
+     */
+    private function syncProvisioning(
+        int $landCoverId,
+        string $rawItem,
+        array $rowData,
+        float $totalNilai,
+        ?int $idProvinsi,
+        ?int $idKabupatenKota,
+        ?int $idKecamatan,
+        ?int $idDesaKelurahan
+    ): bool {
+        [$namaLatin, $namaDaerah] = $this->parseItemNames($rawItem, $rowData);
+
+        $produktivitas = (float) ($rowData['produktivitas'] ?? 1.0);
+        $hargaPasar = (float) ($rowData['hargaUnit'] ?? ($rowData['harga_pasar'] ?? 0.0));
+        $luasHa = (float) ($rowData['luasHa'] ?? ($rowData['luas_pemanfaatan'] ?? 1.0));
+        $source = trim((string) ($rowData['source'] ?? ($rowData['referensi'] ?? 'Survei Valuasi Lapangan')));
+
+        if ($totalNilai <= 0 && $produktivitas > 0 && $hargaPasar > 0) {
+            $totalNilai = round($produktivitas * $luasHa * $hargaPasar);
+        }
+
+        $lowerItem = strtolower($rawItem);
+        $existing = ProvisioningService::where('id_jenis_tutupan_lahan', $landCoverId)
+            ->where(function ($q) use ($lowerItem) {
+                $q->whereRaw('LOWER(TRIM(nama_objek)) = ?', [$lowerItem])
+                  ->orWhereRaw('LOWER(TRIM(COALESCE(nama_latin, \'\'))) = ?', [$lowerItem]);
+            })
+            ->first();
+
+        if ($existing) {
+            $existing->update([
+                'produktivitas' => $produktivitas > 0 ? $produktivitas : $existing->produktivitas,
+                'harga_pasar' => $hargaPasar > 0 ? $hargaPasar : $existing->harga_pasar,
+                'luas_pemanfaatan' => $luasHa > 0 ? $luasHa : $existing->luas_pemanfaatan,
+                'nilai' => $totalNilai > 0 ? $totalNilai : $existing->nilai,
+                'referensi' => $source ?: $existing->referensi,
+                'id_provinsi' => $idProvinsi ?: $existing->id_provinsi,
+                'id_kabupaten_kota' => $idKabupatenKota ?: $existing->id_kabupaten_kota,
+                'id_kecamatan' => $idKecamatan ?: $existing->id_kecamatan,
+                'id_desa_kelurahan' => $idDesaKelurahan ?: $existing->id_desa_kelurahan,
+            ]);
+            return true;
+        }
+
+        ProvisioningService::create([
+            'id_jenis_tutupan_lahan' => $landCoverId,
+            'nama_objek' => $rawItem,
+            'nama_latin' => $namaLatin ?: $rawItem,
+            'nama_daerah' => $namaDaerah,
+            'produktivitas' => $produktivitas > 0 ? $produktivitas : 1.0,
+            'harga_pasar' => $hargaPasar,
+            'luas_pemanfaatan' => $luasHa > 0 ? $luasHa : 1.0,
+            'satuan_luas' => 'Hektar',
+            'referensi' => $source ?: 'Survei Valuasi Lapangan',
+            'nilai' => $totalNilai,
+            'kategori_tev' => 'DUV',
+            'id_provinsi' => $idProvinsi,
+            'id_kabupaten_kota' => $idKabupatenKota,
+            'id_kecamatan' => $idKecamatan,
+            'id_desa_kelurahan' => $idDesaKelurahan,
+        ]);
+
+        return true;
+    }
+
+    /**
+     * Sinkronisasi entri Regulating
+     */
+    private function syncRegulating(
+        int $landCoverId,
+        string $rawItem,
+        array $rowData,
+        float $totalNilai,
+        ?int $idProvinsi,
+        ?int $idKabupatenKota,
+        ?int $idKecamatan,
+        ?int $idDesaKelurahan
+    ): bool {
+        $satuan = trim((string) ($rowData['satuan'] ?? ($rowData['unit'] ?? 'Hektar')));
+        $indikator = trim((string) ($rowData['indikator'] ?? ($rowData['parameter'] ?? 'Fungsi Pengaturan Ekosistem')));
+        $source = trim((string) ($rowData['source'] ?? ($rowData['referensi'] ?? 'Survei Valuasi Lapangan')));
+
+        $lowerItem = strtolower($rawItem);
+        $existing = RegulatingService::where('id_jenis_tutupan_lahan', $landCoverId)
+            ->whereRaw('LOWER(TRIM(jenis_regulating)) = ?', [$lowerItem])
+            ->first();
+
+        if ($existing) {
+            $existing->update([
+                'nilai' => $totalNilai > 0 ? $totalNilai : $existing->nilai,
+                'satuan' => $satuan ?: $existing->satuan,
+                'referensi' => $source ?: $existing->referensi,
+                'id_provinsi' => $idProvinsi ?: $existing->id_provinsi,
+                'id_kabupaten_kota' => $idKabupatenKota ?: $existing->id_kabupaten_kota,
+                'id_kecamatan' => $idKecamatan ?: $existing->id_kecamatan,
+                'id_desa_kelurahan' => $idDesaKelurahan ?: $existing->id_desa_kelurahan,
+            ]);
+            return true;
+        }
+
+        RegulatingService::create([
+            'id_jenis_tutupan_lahan' => $landCoverId,
+            'jenis_regulating' => $rawItem,
+            'indikator' => $indikator ?: 'Fungsi Pengaturan Ekosistem',
+            'satuan' => $satuan ?: 'Hektar',
+            'nilai_indikator' => 1.0,
+            'referensi' => $source ?: 'Survei Valuasi Lapangan',
+            'nilai' => $totalNilai,
+            'kategori_tev' => 'IUV',
+            'id_provinsi' => $idProvinsi,
+            'id_kabupaten_kota' => $idKabupatenKota,
+            'id_kecamatan' => $idKecamatan,
+            'id_desa_kelurahan' => $idDesaKelurahan,
+        ]);
+
+        return true;
+    }
+
+    /**
+     * Sinkronisasi entri Supporting
+     */
+    private function syncSupporting(
+        int $landCoverId,
+        string $rawItem,
+        array $rowData,
+        float $totalNilai,
+        ?int $idProvinsi,
+        ?int $idKabupatenKota,
+        ?int $idKecamatan,
+        ?int $idDesaKelurahan
+    ): bool {
+        $deskripsi = trim((string) ($rowData['deskripsi'] ?? ($rowData['klasifikasi'] ?? 'Fungsi Pendukung Ekosistem')));
+        $source = trim((string) ($rowData['source'] ?? ($rowData['referensi'] ?? 'Survei Valuasi Lapangan')));
+
+        $lowerItem = strtolower($rawItem);
+        $existing = SupportingService::where('id_jenis_tutupan_lahan', $landCoverId)
+            ->whereRaw('LOWER(TRIM(fungsi_pendukung)) = ?', [$lowerItem])
+            ->first();
+
+        if ($existing) {
+            $existing->update([
+                'nilai' => $totalNilai > 0 ? $totalNilai : $existing->nilai,
+                'deskripsi' => $deskripsi ?: $existing->deskripsi,
+                'referensi' => $source ?: $existing->referensi,
+                'id_provinsi' => $idProvinsi ?: $existing->id_provinsi,
+                'id_kabupaten_kota' => $idKabupatenKota ?: $existing->id_kabupaten_kota,
+                'id_kecamatan' => $idKecamatan ?: $existing->id_kecamatan,
+                'id_desa_kelurahan' => $idDesaKelurahan ?: $existing->id_desa_kelurahan,
+            ]);
+            return true;
+        }
+
+        SupportingService::create([
+            'id_jenis_tutupan_lahan' => $landCoverId,
+            'fungsi_pendukung' => $rawItem,
+            'deskripsi' => $deskripsi ?: 'Fungsi Pendukung Ekosistem',
+            'referensi' => $source ?: 'Survei Valuasi Lapangan',
+            'nilai' => $totalNilai,
+            'kategori_tev' => 'OV',
+            'id_provinsi' => $idProvinsi,
+            'id_kabupaten_kota' => $idKabupatenKota,
+            'id_kecamatan' => $idKecamatan,
+            'id_desa_kelurahan' => $idDesaKelurahan,
+        ]);
+
+        return true;
+    }
+
+    /**
+     * Sinkronisasi entri Cultural
+     */
+    private function syncCultural(
+        int $landCoverId,
+        string $rawItem,
+        array $rowData,
+        float $totalNilai,
+        ?int $idProvinsi,
+        ?int $idKabupatenKota,
+        ?int $idKecamatan,
+        ?int $idDesaKelurahan
+    ): bool {
+        $deskripsi = trim((string) ($rowData['deskripsi'] ?? 'Aktivitas pariwisata dan rekreasi'));
+        $jumlahPengunjung = (float) ($rowData['jumlahPengunjung'] ?? ($rowData['pengunjung'] ?? 1000.0));
+        $biayaPerjalanan = (float) ($rowData['biayaPerjalanan'] ?? ($rowData['biaya'] ?? 0.0));
+        $source = trim((string) ($rowData['source'] ?? ($rowData['referensi'] ?? 'Survei Valuasi Lapangan')));
+
+        $lowerItem = strtolower($rawItem);
+        $existing = CulturalService::where('id_jenis_tutupan_lahan', $landCoverId)
+            ->whereRaw('LOWER(TRIM(nama_aktivitas)) = ?', [$lowerItem])
+            ->first();
+
+        if ($existing) {
+            $existing->update([
+                'nilai' => $totalNilai > 0 ? $totalNilai : $existing->nilai,
+                'jumlah_pengunjung' => $jumlahPengunjung > 0 ? $jumlahPengunjung : $existing->jumlah_pengunjung,
+                'biaya_perjalanan' => $biayaPerjalanan > 0 ? $biayaPerjalanan : $existing->biaya_perjalanan,
+                'deskripsi' => $deskripsi ?: $existing->deskripsi,
+                'referensi' => $source ?: $existing->referensi,
+                'id_provinsi' => $idProvinsi ?: $existing->id_provinsi,
+                'id_kabupaten_kota' => $idKabupatenKota ?: $existing->id_kabupaten_kota,
+                'id_kecamatan' => $idKecamatan ?: $existing->id_kecamatan,
+                'id_desa_kelurahan' => $idDesaKelurahan ?: $existing->id_desa_kelurahan,
+            ]);
+            return true;
+        }
+
+        CulturalService::create([
+            'id_jenis_tutupan_lahan' => $landCoverId,
+            'nama_aktivitas' => $rawItem,
+            'deskripsi' => $deskripsi ?: 'Aktivitas pariwisata dan rekreasi',
+            'jumlah_pengunjung' => $jumlahPengunjung > 0 ? $jumlahPengunjung : 1000.0,
+            'biaya_perjalanan' => $biayaPerjalanan,
+            'frekuensi' => 1,
+            'referensi' => $source ?: 'Survei Valuasi Lapangan',
+            'nilai' => $totalNilai,
+            'kategori_tev' => 'DUV',
+            'id_provinsi' => $idProvinsi,
+            'id_kabupaten_kota' => $idKabupatenKota,
+            'id_kecamatan' => $idKecamatan,
+            'id_desa_kelurahan' => $idDesaKelurahan,
+        ]);
+
+        return true;
+    }
+}
+

@@ -32,11 +32,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import {
-  UsageStatus,
-  PROVISIONING_DATA,
-  REGULATING_DATA,
-  SUPPORTING_DATA,
-  CULTURAL_DATA
+  UsageStatus
 } from '../mock/dataMasterMock';
 import {
   getProjectDataMaster,
@@ -47,6 +43,7 @@ import {
   linkProjectMasterLandCover
 } from '../../services/dataMasterService';
 import { useProject } from '../context/ProjectContext';
+import { useSpreadsheet } from '../context/SpreadsheetContext';
 import { formatIDR, formatNumber } from '../utils/formatter';
 import {
   SkeletonTable,
@@ -335,6 +332,7 @@ export const DataMasterPage: React.FC = () => {
     getProjectIndices,
     setActiveProjectId
   } = useProject();
+  const { syncProjectToBackend } = useSpreadsheet();
 
   // Resolve current active project ID dynamically based on URL parameter
   const effectiveProjectId = params.projectId || activeProjectId || '1';
@@ -440,79 +438,16 @@ export const DataMasterPage: React.FC = () => {
     setLoading(true);
     setLoadError('');
 
-    const populateFallback = () => {
-      const ctxIndices = getProjectIndices ? getProjectIndices(effectiveProjectId) : [];
-      const validCodes = new Set(ctxIndices.map((i) => i.code));
-
-      const sanitizeUsage = (usage: UsageStatus): UsageStatus => {
-        if (!usage.used) return usage;
-        if (validCodes.size > 0 && !validCodes.has(usage.indexCode || '')) {
-          return { used: false };
-        }
-        return usage;
-      };
-
-      const targetDaerah = currentContextProject?.location && currentContextProject.location !== '-'
-        ? currentContextProject.location
-        : (projectInfo.wilayah || projectInfo.kabupaten_kota || 'Wilayah Penelitian');
-
-      const fallbackList: UnifiedMasterItem[] = [
-        ...PROVISIONING_DATA.map((item) => ({
-          id: item.id,
-          raw_id: item.id,
-          category: 'Provisioning' as JenisJasaCategory,
-          namaIndonesia: item.namaIndonesia,
-          namaLatin: item.namaLatin,
-          namaDaerah: item.namaDaerah,
-          daerah: targetDaerah,
-          landCoverId: item.landCoverId,
-          usage: sanitizeUsage(item.usage),
-          apiData: item.apiData
-        })),
-        ...REGULATING_DATA.map((item) => ({
-          id: item.id,
-          raw_id: item.id,
-          category: 'Regulating' as JenisJasaCategory,
-          namaIndonesia: item.jenisRegulating || item.namaParameter || 'Regulating Service',
-          namaLatin: item.indikator || '-',
-          namaDaerah: item.satuan || '-',
-          daerah: targetDaerah,
-          landCoverId: item.landCoverId,
-          usage: sanitizeUsage(item.usage),
-          apiData: item.apiData
-        })),
-        ...SUPPORTING_DATA.map((item) => ({
-          id: item.id,
-          raw_id: item.id,
-          category: 'Supporting' as JenisJasaCategory,
-          namaIndonesia: item.fungsiPendukung || item.klasifikasi || 'Supporting Service',
-          namaLatin: item.deskripsi || '-',
-          namaDaerah: '-',
-          daerah: targetDaerah,
-          landCoverId: item.landCoverId,
-          usage: sanitizeUsage(item.usage),
-          apiData: item.apiData
-        })),
-        ...CULTURAL_DATA.map((item) => ({
-          id: item.id,
-          raw_id: item.id,
-          category: 'Cultural' as JenisJasaCategory,
-          namaIndonesia: item.namaObjek,
-          namaLatin: item.deskripsi,
-          namaDaerah: '-',
-          daerah: targetDaerah,
-          landCoverId: item.landCoverId,
-          usage: sanitizeUsage(item.usage),
-          apiData: item.apiData
-        }))
-      ];
-      setMasterList(fallbackList);
-    };
-
     const targetProjectParam = currentContextProject?.code || effectiveProjectId;
+    const alternateCode = currentContextProject?.code !== effectiveProjectId ? currentContextProject?.code : undefined;
 
-    getProjectDataMaster(targetProjectParam)
-      .then((res: any) => {
+    const syncPromise = syncProjectToBackend
+      ? syncProjectToBackend(String(effectiveProjectId), undefined, alternateCode)
+      : Promise.resolve();
+
+    syncPromise.finally(() => {
+      getProjectDataMaster(targetProjectParam)
+        .then((res: any) => {
         if (res.project) {
           const projectIndexes = Array.isArray(res.project.indexes) ? res.project.indexes : [];
           const projectLcs = Array.isArray(res.project.land_covers) ? res.project.land_covers : [];
@@ -579,12 +514,13 @@ export const DataMasterPage: React.FC = () => {
           });
           setMasterList(list);
         } else {
-          populateFallback();
+          // Lokasi proyek belum memiliki data master terdaftar
+          setMasterList([]);
         }
       })
       .catch((err) => {
-        console.warn('Backend data master not available, using regional catalog fallback:', err);
-        populateFallback();
+        console.warn('Backend data master fetch failed:', err);
+        setMasterList([]);
         if (currentContextProject) {
           setProjectInfo((prev) => ({
             ...prev,
@@ -597,6 +533,7 @@ export const DataMasterPage: React.FC = () => {
       .finally(() => {
         setLoading(false);
       });
+    });
   };
 
   useEffect(() => {
@@ -1060,39 +997,6 @@ export const DataMasterPage: React.FC = () => {
               Basis data referensi biota, parameter pengaturan, fungsi pendukung, dan pariwisata wilayah proyek aktif.
             </p>
           </div>
-
-          {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Terapkan Template Master */}
-            <button
-              onClick={() => setIsApplyTemplateModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 active:bg-blue-200 transition-colors cursor-pointer shadow-xs"
-              title="Salin template katalog ekosistem standar ke seluruh tutupan lahan proyek ini"
-            >
-              <Layers className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-              <span>Terapkan Template Master</span>
-            </button>
-
-            {/* Ekspor CSV */}
-            <button
-              onClick={handleExportCSV}
-              disabled={masterList.length === 0}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Ekspor seluruh data master yang tampil ke file CSV"
-            >
-              <Download className="w-3.5 h-3.5 text-slate-600 shrink-0" />
-              <span>Ekspor CSV</span>
-            </button>
-
-            {/* Tambah Data Master */}
-            <button
-              onClick={handleOpenAddModal}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 transition-colors cursor-pointer shadow-xs"
-            >
-              <PlusCircle className="w-4 h-4 shrink-0" />
-              <span>Tambah Data Master</span>
-            </button>
-          </div>
         </div>
       </div>
 
@@ -1373,18 +1277,10 @@ export const DataMasterPage: React.FC = () => {
                       description={
                         searchTerm
                           ? 'Coba ubah atau hapus kata kunci pencarian Anda.'
-                          : 'Gunakan tombol "+ Tambah Data Master" atau "Terapkan Template Master" untuk mengisi data.'
+                          : 'Lokasi atau wilayah penelitian proyek ini belum memiliki data master yang terdaftar.'
                       }
-                      actionLabel={
-                        searchTerm
-                          ? 'Reset Pencarian'
-                          : 'Terapkan Template Master'
-                      }
-                      onAction={
-                        searchTerm
-                          ? () => setSearchTerm('')
-                          : () => setIsApplyTemplateModalOpen(true)
-                      }
+                      actionLabel={searchTerm ? 'Reset Pencarian' : undefined}
+                      onAction={searchTerm ? () => setSearchTerm('') : undefined}
                     />
                   </td>
                 </tr>
@@ -1400,7 +1296,15 @@ export const DataMasterPage: React.FC = () => {
                         <CategoryBadge category={item.category} />
                       </td>
                       <td className={`${tdClass} font-semibold text-slate-800`}>
-                        <span>{item.namaIndonesia}</span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span>{item.namaIndonesia}</span>
+                          {item.usage?.used && item.usage?.landCoverName && (
+                            <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200/80 px-1.5 py-0.5 rounded font-medium inline-flex items-center gap-1" title={`Terpakai di tutupan lahan: ${item.usage.landCoverName}`}>
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                              {item.usage.landCoverName}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className={`${tdClass} text-slate-600 italic`}>{item.namaLatin}</td>
                       <td className={`${tdClass} text-slate-600 font-medium`}>{item.namaDaerah}</td>

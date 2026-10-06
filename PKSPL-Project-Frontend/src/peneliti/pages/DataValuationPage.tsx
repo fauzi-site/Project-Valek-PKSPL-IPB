@@ -43,7 +43,7 @@ const DataValuationPageContent: React.FC = () => {
     updateAreaConfig,
   } = useProject();
 
-  const { importRows, addMultipleCustomColumns } = useSpreadsheet();
+  const { importRows, addMultipleCustomColumns, syncProjectToBackend } = useSpreadsheet();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
@@ -67,6 +67,14 @@ const DataValuationPageContent: React.FC = () => {
     ? queryArea
     : (landCovers[0]?.id || '');
   const highlightParam = searchParams.get('highlight');
+
+  // Auto-sync existing local valuation rows to backend and Data Master
+  useEffect(() => {
+    const projId = currentProject?.id || routeProjId;
+    if (projId && selectedAreaId) {
+      syncProjectToBackend(String(projId), String(selectedAreaId));
+    }
+  }, [currentProject?.id, routeProjId, selectedAreaId, syncProjectToBackend]);
 
   const currentArea = landCovers.find(lc => lc.id === selectedAreaId) || landCovers[0];
   const areaConfig = getAreaConfig(selectedAreaId);
