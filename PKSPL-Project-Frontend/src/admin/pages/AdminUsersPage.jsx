@@ -417,7 +417,7 @@ export const AdminUsersPage = () => {
           className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors self-start sm:self-auto cursor-pointer"
         >
           <UserPlus className="w-4 h-4" />
-          <span>+ Tambah Pengguna</span>
+          <span>Tambah Pengguna</span>
         </button>
       </div>
 

@@ -7,9 +7,8 @@ export const categories = [
   { id: 'pesisir', label: 'Pesisir Laut', color: '#06b6d4', emoji: '🏖️' },
 ];
 
-// ── URL GeoJSON Provinsi Indonesia ──
-export const PROVINCE_GEOJSON_URL =
-  'https://raw.githubusercontent.com/superpikar/indonesia-geojson/master/indonesia.geojson';
+// ── URL GeoJSON Provinsi Indonesia (38 Provinsi Terbaru) ──
+export const PROVINCE_GEOJSON_URL = '/geojson/indonesia-38-provinces.json';
 
 // ── Data Lokasi ──
 export const locations = [

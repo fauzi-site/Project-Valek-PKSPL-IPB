@@ -18,14 +18,14 @@ import {
   Calendar,
   ChevronDown,
   X,
-  FileSpreadsheet,
   FileText,
   Clock,
   ArrowRight,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { SkeletonCard, SkeletonTable, EmptyState, RefreshIndicator } from '../../components/loading';
 
 export const AdminActivityPage = () => {
@@ -219,32 +219,113 @@ export const AdminActivityPage = () => {
     }
   };
 
-  // Export to Excel handler
-  const handleExportExcel = () => {
-    const exportRows = filteredLogs.map((item, index) => ({
-      'No': index + 1,
-      'ID Log': item.id,
-      'Waktu': item.timeDisplay,
-      'Nama Pengguna': item.userName,
-      'Email': item.userEmail,
-      'Peran (Role)': item.userRole,
-      'Jenis Aktivitas': item.activityType,
-      'Judul Aksi': item.actionTitle,
-      'Rincian Tindakan': item.actionDetail,
-      'Kode Proyek': item.projectCode || '-',
-      'Nama Proyek': item.projectName || '-',
-      'Modul Sistem': item.moduleName,
-      'IP Address': item.ipAddress,
-      'Platform': item.userAgent,
-      'Status': item.status,
-      'Pesan Error': item.errorMessage || '-',
-      'Durasi (ms)': item.durationMs,
+  // Export to PDF handler
+  const handleExportPDF = () => {
+    const doc = new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+      format: 'a4',
+    });
+
+    const nowStr = new Date().toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    // ── Header Laporan PKSPL IPB ──
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(15, 23, 42);
+    doc.text('PUSAT KAJIAN SUMBERDAYA PESISIR DAN LAUT (PKSPL) — IPB UNIVERSITY', 14, 13);
+
+    doc.setFontSize(14);
+    doc.text('LAPORAN RIWAYAT AKTIVITAS & AUDIT TRAIL SISTEM', 14, 19);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Waktu Unduh: ${nowStr} WIB  |  Total Catatan: ${filteredLogs.length} Aktivitas`, 14, 25);
+
+    // Decorative Line
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.4);
+    doc.line(14, 28, 283, 28);
+
+    // ── Table Data ──
+    const tableColumns = [
+      { header: 'No', dataKey: 'no' },
+      { header: 'Waktu', dataKey: 'waktu' },
+      { header: 'Pengguna', dataKey: 'pengguna' },
+      { header: 'Peran', dataKey: 'peran' },
+      { header: 'Aktivitas', dataKey: 'aktivitas' },
+      { header: 'Judul Aksi & Rincian', dataKey: 'detail' },
+      { header: 'Proyek / Modul', dataKey: 'modul' },
+      { header: 'Status', dataKey: 'status' },
+    ];
+
+    const tableRows = filteredLogs.map((item, index) => ({
+      no: index + 1,
+      waktu: item.timeDisplay || '-',
+      pengguna: `${item.userName || '-'}\n${item.userEmail || ''}`,
+      peran: item.userRole || '-',
+      aktivitas: item.activityType || '-',
+      detail: `${item.actionTitle || '-'}${item.actionDetail ? '\n' + item.actionDetail : ''}`,
+      modul: `${item.moduleName || '-'}${item.projectCode ? '\n' + item.projectCode : ''}`,
+      status: item.status || 'Berhasil',
     }));
 
-    const worksheet = XLSX.utils.json_to_sheet(exportRows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Audit_Log');
-    XLSX.writeFile(workbook, `PKSPL_Audit_Trail_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    const totalPagesExp = '{total_pages_count_string}';
+
+    autoTable(doc, {
+      columns: tableColumns,
+      body: tableRows,
+      startY: 31,
+      theme: 'striped',
+      headStyles: {
+        fillColor: [15, 23, 42],
+        textColor: 255,
+        fontSize: 8,
+        fontStyle: 'bold',
+        halign: 'left',
+      },
+      styles: {
+        font: 'helvetica',
+        fontSize: 7.5,
+        cellPadding: 2.5,
+        overflow: 'linebreak',
+        textColor: [30, 41, 59],
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252],
+      },
+      columnStyles: {
+        no: { cellWidth: 10, halign: 'center' },
+        waktu: { cellWidth: 26 },
+        pengguna: { cellWidth: 44 },
+        peran: { cellWidth: 22 },
+        aktivitas: { cellWidth: 24 },
+        detail: { cellWidth: 'auto' },
+        modul: { cellWidth: 32 },
+        status: { cellWidth: 20, halign: 'center' },
+      },
+      didDrawPage: (data) => {
+        doc.setFontSize(7.5);
+        doc.setTextColor(148, 163, 184);
+        const str = `Dokumen Resmi Audit Trail PKSPL IPB • Halaman ${data.pageNumber} dari ${totalPagesExp}`;
+        doc.text(str, 14, 204);
+      },
+      margin: { left: 14, right: 14, bottom: 12 },
+    });
+
+    if (typeof doc.putTotalPages === 'function') {
+      doc.putTotalPages(totalPagesExp);
+    }
+
+    const fileName = `PKSPL_Audit_Trail_${new Date().toISOString().slice(0, 10)}.pdf`;
+    doc.save(fileName);
     setIsExportOpen(false);
   };
 
@@ -294,11 +375,11 @@ export const AdminActivityPage = () => {
             {isExportOpen && (
               <div className="absolute right-0 mt-2 w-52 bg-white border border-slate-200 rounded-xl shadow-xl z-20 overflow-hidden text-xs text-slate-700 animate-in fade-in slide-in-from-top-2 duration-150">
                 <button
-                  onClick={handleExportExcel}
+                  onClick={handleExportPDF}
                   className="w-full px-4 py-2.5 hover:bg-slate-50 flex items-center gap-2.5 text-left font-medium cursor-pointer"
                 >
-                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                  <span>Unduh Excel (.XLSX)</span>
+                  <FileText className="w-4 h-4 text-rose-600" />
+                  <span>Unduh PDF (.PDF)</span>
                 </button>
               </div>
             )}

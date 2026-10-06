@@ -476,7 +476,7 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                         title="Tambah baris data Flora (Vegetasi)"
                       >
                         <Plus className="w-3.5 h-3.5" />
-                        <span>+ Tambah Flora</span>
+                        <span>Tambah Flora</span>
                       </button>
                       <button
                         type="button"
@@ -485,7 +485,7 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                         title="Tambah baris data Fauna (Perikanan / Satwa)"
                       >
                         <Plus className="w-3.5 h-3.5" />
-                        <span>+ Tambah Fauna</span>
+                        <span>Tambah Fauna</span>
                       </button>
                     </div>
                   ) : (
@@ -495,7 +495,7 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                       className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold flex items-center gap-1 transition-colors shadow-xs cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      <span>+ Tambah Baris</span>
+                      <span>Tambah Baris</span>
                     </button>
                   )}
 
@@ -759,7 +759,7 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                               className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                             >
                               <Plus className="w-3 h-3" />
-                              <span>+ Tambah Flora</span>
+                              <span>Tambah Flora</span>
                             </button>
                           )}
                         </div>
@@ -777,7 +777,7 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                               onClick={() => handleAddRow('flora')}
                               className="text-emerald-700 font-semibold underline hover:text-emerald-800 ml-1 cursor-pointer"
                             >
-                              + Tambah baris Flora
+                              Tambah baris Flora
                             </button>
                           )}
                         </td>
@@ -821,7 +821,7 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                               className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                             >
                               <Plus className="w-3 h-3" />
-                              <span>+ Tambah Fauna</span>
+                              <span>Tambah Fauna</span>
                             </button>
                           )}
                         </div>
@@ -839,7 +839,7 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                               onClick={() => handleAddRow('fauna')}
                               className="text-amber-700 font-semibold underline hover:text-amber-800 ml-1 cursor-pointer"
                             >
-                              + Tambah baris Fauna
+                              Tambah baris Fauna
                             </button>
                           )}
                         </td>
@@ -855,7 +855,7 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                         colSpan={totalColSpan}
                         className="py-10 text-center text-slate-400 italic"
                       >
-                        Belum ada baris data. Klik <strong>"+ Tambah Baris"</strong> untuk memulai pengisian data {serviceName}.
+                        Belum ada baris data. Klik <strong>"Tambah Baris"</strong> untuk memulai pengisian data {serviceName}.
                       </td>
                     </tr>
                   ) : (

@@ -108,7 +108,7 @@ export const ExcelGrid: React.FC<ExcelGridProps> = ({
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={9} className="py-12 text-center text-slate-400">
-                  Belum ada baris data. Klik <strong>"+ Tambah Baris"</strong> atau <strong>"Import Excel"</strong> untuk memulai.
+                  Belum ada baris data. Klik <strong>"Tambah Baris"</strong> atau <strong>"Import Excel"</strong> untuk memulai.
                 </td>
               </tr>
             ) : (

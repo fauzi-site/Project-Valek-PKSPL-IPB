@@ -8,14 +8,15 @@ import {
   AlertCircle,
   Loader2,
   Layers,
-  FolderTree,
   ChevronRight,
   ChevronLeft,
   ChevronDown,
   Calendar,
+  X,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { categories, getCategoryInfo, PROVINCE_GEOJSON_URL } from './map/mapData';
+import indonesia38Geojson from '../data/indonesia-38-provinces.json';
 import { getPublicMapProjects } from '../services/projectService';
 import { MAP_CONFIG } from '../peneliti/config/mapConfig';
 
@@ -177,22 +178,32 @@ export default function MapSection() {
   const [locations, setLocations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeCategory, setActiveCategory] = useState('all'); // 'all' or specific category id
   const [selectedLocId, setSelectedLocId] = useState(null);
   const [selectedYear, setSelectedYear] = useState(2026);
-  const [geojsonData, setGeojsonData] = useState(null);
+  const [selectedProvinceName, setSelectedProvinceName] = useState(null);
+  const selectedProvinceNameRef = useRef(null);
+  selectedProvinceNameRef.current = selectedProvinceName;
+
+  const [geojsonData, setGeojsonData] = useState(indonesia38Geojson);
   const [currentZoom, setCurrentZoom] = useState(5);
   const [isMapReady, setIsMapReady] = useState(false);
 
   const mapRef = useRef(null);
   const markerRefs = useRef({});
 
-  // Fetch GeoJSON for province polygons
+  // Fetch GeoJSON for province polygons with fallback to static 38-province dataset
   useEffect(() => {
     fetch(PROVINCE_GEOJSON_URL)
       .then(res => res.json())
-      .then(data => setGeojsonData(data))
-      .catch(err => console.error('Error loading geojson', err));
+      .then(data => {
+        if (data && data.features && data.features.length > 0) {
+          setGeojsonData(data);
+        }
+      })
+      .catch(err => {
+        console.warn('[MapSection] Fallback to bundled 38-province GeoJSON:', err);
+        setGeojsonData(indonesia38Geojson);
+      });
   }, []);
 
   // Fetch projects from public API
@@ -275,25 +286,7 @@ export default function MapSection() {
     return locations.filter(loc => (loc.tahun || 2026) === selectedYear);
   }, [locations, selectedYear]);
 
-  // Counts per category for the selected year
-  const categoryCounts = useMemo(() => {
-    const counts = { all: yearLocations.length };
-    categories.forEach(c => {
-      counts[c.id] = 0;
-    });
-    yearLocations.forEach(loc => {
-      if (counts[loc.category] !== undefined) {
-        counts[loc.category]++;
-      }
-    });
-    return counts;
-  }, [yearLocations]);
-
-  // Filter locations based on active category
-  const filteredLocations = useMemo(() => {
-    if (activeCategory === 'all') return yearLocations;
-    return yearLocations.filter(loc => loc.category === activeCategory);
-  }, [yearLocations, activeCategory]);
+  const filteredLocations = yearLocations;
 
   // Dynamic Clustering: Groups nearby markers when zoom < 7
   const clusters = useMemo(() => {
@@ -387,13 +380,6 @@ export default function MapSection() {
     return sum;
   }, [yearLocations]);
 
-  const activeCategoriesInYear = useMemo(() => {
-    const set = new Set();
-    yearLocations.forEach(loc => {
-      if (loc.category) set.add(loc.category);
-    });
-    return set;
-  }, [yearLocations]);
 
   // Color palette for province polygons
   const provinceColors = [
@@ -402,6 +388,41 @@ export default function MapSection() {
     '#84cc16', '#e11d48', '#0ea5e9', '#a855f7', '#10b981',
   ];
   const getProvinceColor = (index) => provinceColors[index % provinceColors.length];
+
+  const getFeatureStyle = useCallback((feature) => {
+    const name = feature.properties.state || feature.properties.Propinsi || feature.properties.name || feature.properties.NAME || '';
+    const featureIndex = feature.properties.id_1 || feature.properties.code || feature.properties.cartodb_id || 0;
+    const baseColor = getProvinceColor(featureIndex);
+    const isSelected = selectedProvinceName && name.toLowerCase() === selectedProvinceName.toLowerCase();
+
+    if (isSelected) {
+      return {
+        fillColor: '#2563eb',
+        fillOpacity: 0.45,
+        weight: 3.5,
+        color: '#0f284e',
+        opacity: 1,
+      };
+    }
+
+    if (selectedProvinceName) {
+      return {
+        fillColor: baseColor,
+        fillOpacity: 0.08,
+        weight: 1,
+        color: '#cbd5e1',
+        opacity: 0.5,
+      };
+    }
+
+    return {
+      fillColor: baseColor,
+      fillOpacity: 0.15,
+      weight: 1.2,
+      color: '#ffffff',
+      opacity: 0.8,
+    };
+  }, [selectedProvinceName]);
 
   const onEachFeature = useCallback((feature, layer) => {
     const name = feature.properties.state || feature.properties.Propinsi || feature.properties.name || feature.properties.NAME || '';
@@ -413,45 +434,49 @@ export default function MapSection() {
       });
     }
 
-    const featureIndex = feature.properties.id_1 || feature.properties.cartodb_id || 0;
-    const baseColor = getProvinceColor(featureIndex);
-
-    layer.setStyle({
-      fillColor: baseColor,
-      fillOpacity: 0.15,
-      weight: 1.2,
-      color: '#ffffff',
-      opacity: 0.8,
-    });
-
     layer.on({
       mouseover: (e) => {
         const l = e.target;
-        l.setStyle({
-          fillOpacity: 0.35,
-          weight: 2,
-          color: '#1e293b',
-        });
-        l.bringToFront();
+        const isSel = selectedProvinceNameRef.current && name.toLowerCase() === selectedProvinceNameRef.current.toLowerCase();
+        if (!isSel) {
+          l.setStyle({
+            fillOpacity: 0.35,
+            weight: 2,
+            color: '#1e293b',
+          });
+          l.bringToFront();
+        }
       },
       mouseout: (e) => {
         const l = e.target;
-        l.setStyle({
-          fillOpacity: 0.15,
-          weight: 1.2,
-          color: '#ffffff',
-        });
+        const isSel = selectedProvinceNameRef.current && name.toLowerCase() === selectedProvinceNameRef.current.toLowerCase();
+        if (!isSel) {
+          const featureIndex = feature.properties.id_1 || feature.properties.code || feature.properties.cartodb_id || 0;
+          const baseColor = getProvinceColor(featureIndex);
+          l.setStyle(
+            selectedProvinceNameRef.current
+              ? { fillColor: baseColor, fillOpacity: 0.08, weight: 1, color: '#cbd5e1', opacity: 0.5 }
+              : { fillColor: baseColor, fillOpacity: 0.15, weight: 1.2, color: '#ffffff', opacity: 0.8 }
+          );
+        }
+      },
+      click: (e) => {
+        const l = e.target;
+        const nextSel = selectedProvinceNameRef.current === name ? null : name;
+        setSelectedProvinceName(nextSel);
+        if (nextSel && mapRef.current && typeof l.getBounds === 'function') {
+          const bounds = l.getBounds();
+          if (bounds && bounds.isValid()) {
+            mapRef.current.fitBounds(bounds, {
+              padding: [40, 40],
+              maxZoom: 8,
+              duration: 0.8,
+            });
+          }
+        }
       },
     });
   }, []);
-
-  const geojsonStyle = {
-    fillColor: '#3b82f6',
-    fillOpacity: 0.15,
-    weight: 1.2,
-    color: '#ffffff',
-    opacity: 0.8,
-  };
 
   // Auto-open marker popup when selectedLocId changes
   useEffect(() => {
@@ -479,6 +504,7 @@ export default function MapSection() {
   // Reset map view to national center
   const handleResetView = () => {
     setSelectedLocId(null);
+    setSelectedProvinceName(null);
     if (mapRef.current) {
       mapRef.current.flyTo([-2.5, 118.0], 5, { duration: 1.2 });
     }
@@ -505,7 +531,7 @@ export default function MapSection() {
         </div>
 
         {/* Panel PERIODE DATA (IKLI PKSPL IPB Concept) */}
-        <div className="bg-white rounded-xl border border-slate-200/90 p-4 sm:p-5 shadow-2xs mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="bg-white rounded-xl border border-slate-200/90 p-4 sm:p-5 shadow-2xs mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1">
               PERIODE DATA
@@ -561,57 +587,6 @@ export default function MapSection() {
           </div>
         </div>
 
-        {/* Category Filter Pills Toolbar (Search Box Removed) */}
-        <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200/90 shadow-2xs mb-4 flex items-center overflow-x-auto custom-scrollbar">
-          <div className="flex items-center gap-1.5 shrink-0">
-            {/* 1. Semua Lokasi */}
-            <button
-              onClick={() => setActiveCategory('all')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors border cursor-pointer ${
-                activeCategory === 'all'
-                  ? 'bg-[#0f284e] text-white border-[#0f284e] shadow-2xs'
-                  : 'bg-slate-50 text-slate-700 border-slate-200/80 hover:bg-slate-100 hover:text-slate-900'
-              }`}
-            >
-              <span>Semua Lokasi</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                  activeCategory === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200/70 text-slate-600'
-                }`}
-              >
-                {isLoading ? '...' : (categoryCounts.all || 0)}
-              </span>
-            </button>
-
-            {/* 2-6: Five Categories */}
-            {categories.map(cat => {
-              const isActive = activeCategory === cat.id;
-              const count = categoryCounts[cat.id] || 0;
-
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => setActiveCategory(cat.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors border cursor-pointer ${
-                    isActive
-                      ? 'bg-[#0f284e] text-white border-[#0f284e] shadow-2xs'
-                      : 'bg-slate-50 text-slate-700 border-slate-200/80 hover:bg-slate-100 hover:text-slate-900'
-                  }`}
-                >
-                  <span className="text-xs">{cat.emoji}</span>
-                  <span>{cat.label}</span>
-                  <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                      isActive ? 'bg-white/20 text-white' : 'bg-slate-200/70 text-slate-600'
-                    }`}
-                  >
-                    {isLoading ? '...' : count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
 
         {/* Full-Map Container (100% Full Width, Visual Focus Utama) */}
         <div className="relative w-full h-[52vh] sm:h-[60vh] md:h-[68vh] min-h-[380px] sm:min-h-[460px] md:min-h-[540px] max-h-[740px] rounded-xl overflow-hidden shadow-md border border-slate-200/90 bg-white">
@@ -635,9 +610,9 @@ export default function MapSection() {
 
             {geojsonData && (
               <GeoJSON
-                key={geojsonData.type || 'geojson'}
+                key={(geojsonData.type || 'geojson') + '_' + (selectedProvinceName || 'all')}
                 data={geojsonData}
-                style={geojsonStyle}
+                style={getFeatureStyle}
                 onEachFeature={onEachFeature}
               />
             )}
@@ -774,6 +749,24 @@ export default function MapSection() {
 
           {/* Floating Controls (Top-Right) */}
           <div className="absolute top-3 right-3 z-[400] flex items-center gap-2">
+            {selectedProvinceName && (
+              <div className="bg-[#0f284e] text-white px-3 py-1.5 rounded-lg shadow-sm border border-slate-700 flex items-center gap-2 text-xs font-semibold animate-in fade-in zoom-in-95">
+                <MapPin className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                <span>Batas Wilayah: <strong>{selectedProvinceName}</strong></span>
+                <button
+                  onClick={() => {
+                    setSelectedProvinceName(null);
+                    if (mapRef.current) {
+                      mapRef.current.flyTo([-2.5, 118.0], 5, { duration: 1.0 });
+                    }
+                  }}
+                  className="ml-1 text-slate-300 hover:text-white p-0.5 rounded hover:bg-white/20 transition cursor-pointer"
+                  title="Reset Pilihan Wilayah"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
             <button
               onClick={handleResetView}
               title={t('map.resetTooltip', 'Reset ke posisi semula')}
@@ -785,8 +778,8 @@ export default function MapSection() {
           </div>
         </div>
 
-        {/* 3 Simple & Professional KPI Cards (Desktop 3 in one row, responsive on tablet/mobile) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
+        {/* 2 Simple & Professional KPI Cards (Desktop 2 cols, responsive on tablet/mobile) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5">
           
           {/* KPI 1: Total Lokasi Penelitian */}
           <div className="bg-white rounded-xl border border-slate-200/90 p-4 sm:p-5 shadow-2xs hover:border-slate-300 transition-colors">
@@ -821,26 +814,6 @@ export default function MapSection() {
             </div>
             <p className="text-[11px] text-slate-500 mt-1">
               Akumulasi luas wilayah kajian ({selectedYear})
-            </p>
-          </div>
-
-          {/* KPI 3: Kategori Ekosistem */}
-          <div className="bg-white rounded-xl border border-slate-200/90 p-4 sm:p-5 shadow-2xs hover:border-slate-300 transition-colors">
-            <div className="flex items-center justify-between gap-2 mb-1.5">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                Kategori Ekosistem
-              </span>
-              <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
-                <FolderTree className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="text-2xl sm:text-3xl font-extrabold text-[#0f284e] tracking-tight">
-              {isLoading ? '...' : `${activeCategoriesInYear.size} Kategori`}
-            </div>
-            <p className="text-[11px] text-slate-500 mt-1 truncate" title={activeCategoriesInYear.size > 0 ? categories.filter(c => activeCategoriesInYear.has(c.id)).map(c => c.label).join(', ') : 'Belum ada data'}>
-              {activeCategoriesInYear.size > 0
-                ? categories.filter(c => activeCategoriesInYear.has(c.id)).map(c => c.label).join(', ')
-                : 'Belum ada data kategori'}
             </p>
           </div>
 

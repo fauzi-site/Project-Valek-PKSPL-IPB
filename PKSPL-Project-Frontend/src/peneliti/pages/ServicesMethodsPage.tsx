@@ -889,7 +889,7 @@ export const ServicesMethodsPage: React.FC = () => {
                       }`}
                     >
                       {isActive ? <Check className="w-3 h-3" /> : <Circle className="w-3 h-3" />}
-                      <span>{isActive ? '✓ Aktif' : 'Aktifkan'}</span>
+                      <span>{isActive ? 'Aktif' : 'Aktifkan'}</span>
                     </button>
                   </div>
 
@@ -982,7 +982,7 @@ export const ServicesMethodsPage: React.FC = () => {
                       }`}
                     >
                       {isActive ? <Check className="w-3 h-3" /> : <Circle className="w-3 h-3" />}
-                      <span>{isActive ? '✓ Aktif' : 'Aktifkan'}</span>
+                      <span>{isActive ? 'Aktif' : 'Aktifkan'}</span>
                     </button>
                   </div>
 
@@ -1074,7 +1074,7 @@ export const ServicesMethodsPage: React.FC = () => {
                       }`}
                     >
                       {isActive ? <Check className="w-3 h-3" /> : <Circle className="w-3 h-3" />}
-                      <span>{isActive ? '✓ Aktif' : 'Aktifkan'}</span>
+                      <span>{isActive ? 'Aktif' : 'Aktifkan'}</span>
                     </button>
                   </div>
 
@@ -1166,7 +1166,7 @@ export const ServicesMethodsPage: React.FC = () => {
                       }`}
                     >
                       {isActive ? <Check className="w-3 h-3" /> : <Circle className="w-3 h-3" />}
-                      <span>{isActive ? '✓ Aktif' : 'Aktifkan'}</span>
+                      <span>{isActive ? 'Aktif' : 'Aktifkan'}</span>
                     </button>
                   </div>
 
