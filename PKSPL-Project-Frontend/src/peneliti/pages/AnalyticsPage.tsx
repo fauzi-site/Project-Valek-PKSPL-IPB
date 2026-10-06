@@ -9,6 +9,11 @@ import { getHistoricalStudiesForArea } from '../mock/historicalAnalyticsMock';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
 import { EcosystemServiceId } from '../types/valuation';
 import {
+  groupLandCoversByName,
+  aggregateValuationByLandCoverName,
+  normalizeLandCoverName
+} from '../utils/landCoverGrouping';
+import {
   BarChart3,
   PieChart as PieIcon,
   TrendingUp,
@@ -121,6 +126,15 @@ const SERVICE_IDS = ['provisioning', 'regulating', 'supporting', 'cultural'] as 
 
 // ─── Formatter tooltip recharts ─────────────────────────────────────────────
 const tooltipIDR = (val: any) => [formatIDR(Number(val)), 'Nilai'];
+const customAreaTooltip = (val: any, _name: any, item: any) => {
+  const payload = item?.payload;
+  const luasStr = payload?.luas ? `${formatNumber(payload.luas, 2)} Ha` : '';
+  const idxStr = payload?.indexList && payload.indexList.length > 0 ? ` (${payload.indexList.join(', ')})` : '';
+  return [
+    `${formatIDR(Number(val))}${luasStr ? ` • ${luasStr}${idxStr}` : ''}`,
+    'Total Nilai'
+  ];
+};
 
 // ────────────────────────────────────────────────────────────────────────────
 const AnalyticsPageContent: React.FC = () => {
@@ -257,11 +271,24 @@ const AnalyticsPageContent: React.FC = () => {
     return matched.length > 0 ? matched : allLandCovers;
   }, [filterIndexId, allLandCovers, allIndices]);
 
+  // Kelompok tutupan lahan unik berbasis nama saat indeks ALL
+  const groupedFilterLandCovers = useMemo(() => {
+    return groupLandCoversByName(landCoversInSelectedIndex);
+  }, [landCoversInSelectedIndex]);
+
   // ── Tutupan lahan relevan (setelah filter tutupan lahan) ───────────────
   const relevantLandCovers = useMemo(() => {
     if (filterLandCoverId === 'ALL') return landCoversInSelectedIndex;
+    // Jika filterIndexId === 'ALL', cari tutupan lahan yang namanya sama dengan yang dipilih
+    if (filterIndexId === 'ALL') {
+      const matchedSelected = landCoversInSelectedIndex.find(lc => lc.id === filterLandCoverId);
+      if (matchedSelected) {
+        const targetNorm = normalizeLandCoverName(matchedSelected.name);
+        return landCoversInSelectedIndex.filter(lc => normalizeLandCoverName(lc.name) === targetNorm);
+      }
+    }
     return landCoversInSelectedIndex.filter(lc => lc.id === filterLandCoverId);
-  }, [filterLandCoverId, landCoversInSelectedIndex]);
+  }, [filterLandCoverId, landCoversInSelectedIndex, filterIndexId]);
 
   // ── Tutupan lahan dengan data valuasi sebagai Single Source of Truth ─────
   const inputSummary = useMemo(() => {
@@ -345,12 +372,38 @@ const AnalyticsPageContent: React.FC = () => {
   }, [relevantLandCovers, effectiveProjId, getAreaConfig, getRowsForAreaService]);
 
   // Kelompokkan per jasa untuk tampilan ringkasan (hanya area yang memiliki data valuasi)
+  // Area tutupan lahan dengan nama yang sama dikonsolidasikan
   const inputByService = useMemo(() => {
     return SERVICE_IDS.reduce((acc, sId) => {
-      acc[sId] = inputSummary.filter(d => d.serviceId === sId);
+      const rawEntries = inputSummary.filter(d => d.serviceId === sId);
+      const map = new Map<string, typeof rawEntries[0] & { indexList: string[] }>();
+
+      rawEntries.forEach(entry => {
+        const key = normalizeLandCoverName(entry.lcName);
+        const matchingLc = relevantLandCovers.find(lc => lc.id === entry.lcId);
+        const idx = matchingLc?.indexName || matchingLc?.indexCode;
+
+        const existing = map.get(key);
+        if (existing) {
+          existing.lcAreaHa = Number((existing.lcAreaHa + (Number(entry.lcAreaHa) || 0)).toFixed(2));
+          existing.subtotal += entry.subtotal;
+          existing.itemCount += entry.itemCount;
+          existing.items = [...existing.items, ...entry.items];
+          if (idx && !existing.indexList.includes(idx)) {
+            existing.indexList.push(idx);
+          }
+        } else {
+          map.set(key, {
+            ...entry,
+            indexList: idx ? [idx] : [],
+          });
+        }
+      });
+
+      acc[sId] = Array.from(map.values());
       return acc;
-    }, {} as Record<EcosystemServiceId, typeof inputSummary>);
-  }, [inputSummary]);
+    }, {} as Record<EcosystemServiceId, (typeof inputSummary[0] & { indexList: string[] })[]>);
+  }, [inputSummary, relevantLandCovers]);
 
   // ── Subtotal akurat per jasa (dihitung hanya dari area yang memiliki data valuasi) ──
   const provTotal = useMemo(() => (inputByService['provisioning'] || []).reduce((s, e) => s + e.subtotal, 0), [inputByService]);
@@ -394,25 +447,31 @@ const AnalyticsPageContent: React.FC = () => {
     : allServicesBarData.filter(s => s.id === filterService);
 
   // ── Data chart per area tutupan lahan (hanya area yang memiliki data valuasi) ──
+  // Tutupan lahan dengan nama yang sama dikelompokkan dan dijumlahkan luas serta nilainya
   const filteredAreaData = useMemo(() => {
     if (filterService === 'ALL') {
-      return valuedLandCovers.map(lc => {
+      const raw = valuedLandCovers.map(lc => {
         const areaTotal = inputSummary
           .filter(d => d.lcId === lc.id)
           .reduce((sum, d) => sum + d.subtotal, 0);
         return {
           name: lc.name || 'Area',
-          luas: lc.areaHa || 0,
+          luas: Number(lc.areaHa) || 0,
           total: Math.max(0, areaTotal),
+          indexName: lc.indexName || lc.indexCode,
+          indexCode: lc.indexCode,
         };
       });
+      return aggregateValuationByLandCoverName(raw);
     } else {
       const serviceEntries = inputByService[filterService as EcosystemServiceId] || [];
-      return serviceEntries.map(e => ({
+      const raw = serviceEntries.map(e => ({
         name: e.lcName || 'Area',
-        luas: e.lcAreaHa || 0,
+        luas: Number(e.lcAreaHa) || 0,
         total: Math.max(0, e.subtotal),
+        indexName: (e as any).indexList?.join(', '),
       }));
+      return aggregateValuationByLandCoverName(raw);
     }
   }, [filterService, valuedLandCovers, inputSummary, inputByService]);
 
@@ -654,10 +713,26 @@ const AnalyticsPageContent: React.FC = () => {
               onChange={e => setFilterLandCoverId(e.target.value)}
               className="bg-slate-50 border border-slate-300 rounded px-2.5 py-1 text-slate-700 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer"
             >
-              <option value="ALL">Semua ({landCoversInSelectedIndex.length})</option>
-              {landCoversInSelectedIndex.map(lc => (
-                <option key={lc.id} value={lc.id}>{lc.name} ({formatNumber(lc.areaHa, 2)} Ha)</option>
-              ))}
+              {filterIndexId === 'ALL' ? (
+                <>
+                  <option value="ALL">Semua ({groupedFilterLandCovers.length} Tipe Tutupan)</option>
+                  {groupedFilterLandCovers.map(grp => {
+                    const idxBadge = grp.indexNames.length > 1 ? ` • ${grp.indexNames.length} Indeks` : '';
+                    return (
+                      <option key={grp.normalizedName} value={grp.ids[0]}>
+                        {grp.name} ({formatNumber(grp.totalAreaHa, 2)} Ha{idxBadge})
+                      </option>
+                    );
+                  })}
+                </>
+              ) : (
+                <>
+                  <option value="ALL">Semua ({landCoversInSelectedIndex.length})</option>
+                  {landCoversInSelectedIndex.map(lc => (
+                    <option key={lc.id} value={lc.id}>{lc.name} ({formatNumber(lc.areaHa, 2)} Ha)</option>
+                  ))}
+                </>
+              )}
             </select>
           </div>
 
@@ -936,7 +1011,7 @@ const AnalyticsPageContent: React.FC = () => {
               <BarChart data={filteredAreaData} layout="vertical" margin={{ top: 10, right: 20, left: 30, bottom: 10 }}>
                 <XAxis type="number" tickFormatter={v => `${(v / 1e9).toFixed(0)} M`} tick={{ fontSize: 10 }} />
                 <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={130} />
-                <Tooltip formatter={tooltipIDR} />
+                <Tooltip formatter={customAreaTooltip} />
                 <Bar dataKey="total" fill="#3b82f6" radius={[0, 4, 4, 0]} animationDuration={1000} animationEasing="ease-out" className="transition-all duration-300 hover:opacity-85" />
               </BarChart>
             </ResponsiveContainer>
@@ -1063,7 +1138,12 @@ const AnalyticsPageContent: React.FC = () => {
                                 <div className="flex items-center gap-2">
                                   <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
                                   <span className="font-semibold text-slate-700">{entry.lcName}</span>
-                                  <span className="text-slate-400">{formatNumber(entry.lcAreaHa, 2)} Ha</span>
+                                  <span className="text-slate-400 font-mono">({formatNumber(entry.lcAreaHa, 2)} Ha)</span>
+                                  {(entry as any).indexList && (entry as any).indexList.length > 1 && (
+                                    <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200/60 font-medium">
+                                      {(entry as any).indexList.length} Indeks ({(entry as any).indexList.join(', ')})
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-3">
                                   <span className="text-slate-500 bg-slate-100 px-2 py-0.5 rounded text-[10px] font-medium border border-slate-200">

@@ -80,7 +80,8 @@ interface SortState {
   direction: SortDirection;
 }
 
-const ITEMS_PER_PAGE = 8;
+const DEFAULT_PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 // ─── Category Badge Component ────────────────────────────────────────────────
 
@@ -367,7 +368,7 @@ export const DataMasterPage: React.FC = () => {
 
   const kodeProyek = projectInfo.code;
   const namaProyek = projectInfo.name;
-  const wilayahPenelitian = projectInfo.wilayah || 'Wilayah Penelitian';
+  const wilayahPenelitian = projectInfo.wilayah || projectInfo.kabupaten_kota || currentContextProject?.location || 'Wilayah Penelitian';
   const ekosistemPenelitian = projectInfo.ecosystem || 'Ekosistem Pesisir';
 
   // Master List & Page States
@@ -379,11 +380,9 @@ export const DataMasterPage: React.FC = () => {
   // Filter States
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [selectedEcosystemFilter, setSelectedEcosystemFilter] = useState<string>('all'); // 'all' | 'Mangrove' | 'Padang Lamun' | 'Terumbu Karang' | 'Lainnya'
-  const [selectedUsage, setSelectedUsage] = useState<string>('all'); // 'all' | 'used' | 'unused' | 'index:XXX'
-  const [selectedLandCoverFilter, setSelectedLandCoverFilter] = useState<string>('all');
   const [sort, setSort] = useState<SortState>({ key: '', direction: null });
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
 
   // Modals States
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -453,6 +452,10 @@ export const DataMasterPage: React.FC = () => {
         return usage;
       };
 
+      const targetDaerah = currentContextProject?.location && currentContextProject.location !== '-'
+        ? currentContextProject.location
+        : (projectInfo.wilayah || projectInfo.kabupaten_kota || 'Wilayah Penelitian');
+
       const fallbackList: UnifiedMasterItem[] = [
         ...PROVISIONING_DATA.map((item) => ({
           id: item.id,
@@ -461,7 +464,7 @@ export const DataMasterPage: React.FC = () => {
           namaIndonesia: item.namaIndonesia,
           namaLatin: item.namaLatin,
           namaDaerah: item.namaDaerah,
-          daerah: item.daerah || currentContextProject?.location || 'Wilayah Penelitian',
+          daerah: targetDaerah,
           landCoverId: item.landCoverId,
           usage: sanitizeUsage(item.usage),
           apiData: item.apiData
@@ -473,7 +476,7 @@ export const DataMasterPage: React.FC = () => {
           namaIndonesia: item.jenisRegulating || item.namaParameter || 'Regulating Service',
           namaLatin: item.indikator || '-',
           namaDaerah: item.satuan || '-',
-          daerah: item.daerah || currentContextProject?.location || 'Wilayah Penelitian',
+          daerah: targetDaerah,
           landCoverId: item.landCoverId,
           usage: sanitizeUsage(item.usage),
           apiData: item.apiData
@@ -485,7 +488,7 @@ export const DataMasterPage: React.FC = () => {
           namaIndonesia: item.fungsiPendukung || item.klasifikasi || 'Supporting Service',
           namaLatin: item.deskripsi || '-',
           namaDaerah: '-',
-          daerah: item.daerah || currentContextProject?.location || 'Wilayah Penelitian',
+          daerah: targetDaerah,
           landCoverId: item.landCoverId,
           usage: sanitizeUsage(item.usage),
           apiData: item.apiData
@@ -497,7 +500,7 @@ export const DataMasterPage: React.FC = () => {
           namaIndonesia: item.namaObjek,
           namaLatin: item.deskripsi,
           namaDaerah: '-',
-          daerah: item.daerah || currentContextProject?.location || 'Wilayah Penelitian',
+          daerah: targetDaerah,
           landCoverId: item.landCoverId,
           usage: sanitizeUsage(item.usage),
           apiData: item.apiData
@@ -562,9 +565,10 @@ export const DataMasterPage: React.FC = () => {
               namaLatin: item.nama_latin || item.indikator || item.deskripsi || '-',
               namaDaerah: item.nama_daerah || item.satuan || '-',
               daerah:
-                item.daerah ||
-                res.project?.kabupaten_kota ||
                 res.project?.wilayah ||
+                res.project?.kabupaten_kota ||
+                currentContextProject?.location ||
+                item.daerah ||
                 'Wilayah Penelitian',
               landCoverId: item.landCoverId ? String(item.landCoverId) : undefined,
               landCoverName: item.landCoverName || item.usage?.landCoverName,
@@ -604,51 +608,6 @@ export const DataMasterPage: React.FC = () => {
 
   // ─── Filter & Search Handling ──────────────────────────────────────────────
 
-  const availableIndices = useMemo(() => {
-    const map = new Map<string, { code: string; name: string; count: number }>();
-
-    if (projectInfo.indexes && projectInfo.indexes.length > 0) {
-      projectInfo.indexes.forEach((idx) => {
-        if (idx.code) {
-          map.set(idx.code, {
-            code: idx.code,
-            name: idx.name || idx.code,
-            count: 0
-          });
-        }
-      });
-    } else if (getProjectIndices) {
-      const ctxIndices = getProjectIndices(effectiveProjectId);
-      ctxIndices.forEach((idx) => {
-        if (idx.code) {
-          map.set(idx.code, {
-            code: idx.code,
-            name: idx.name || idx.code,
-            count: 0
-          });
-        }
-      });
-    }
-
-    masterList.forEach((item) => {
-      if (item.usage.used && item.usage.indexCode) {
-        const key = item.usage.indexCode;
-        const existing = map.get(key);
-        if (existing) {
-          existing.count += 1;
-        } else if (map.size === 0) {
-          map.set(key, {
-            code: item.usage.indexCode,
-            name: item.usage.indexName || item.usage.indexCode,
-            count: 1
-          });
-        }
-      }
-    });
-
-    return Array.from(map.values()).sort((a, b) => a.code.localeCompare(b.code, 'id'));
-  }, [projectInfo.indexes, effectiveProjectId, getProjectIndices, masterList]);
-
   // Category counts
   const categoryCounts = useMemo(() => {
     return {
@@ -657,41 +616,6 @@ export const DataMasterPage: React.FC = () => {
       regulating: masterList.filter((i) => i.category === 'Regulating').length,
       supporting: masterList.filter((i) => i.category === 'Supporting').length,
       cultural: masterList.filter((i) => i.category === 'Cultural').length
-    };
-  }, [masterList]);
-
-  // Usage counts
-  const usageCounts = useMemo(() => {
-    const usedCount = masterList.filter((i) => i.usage.used).length;
-    const unusedCount = masterList.filter((i) => !i.usage.used).length;
-    return {
-      all: masterList.length,
-      used: usedCount,
-      unused: unusedCount
-    };
-  }, [masterList]);
-
-  // Ecosystem counts
-  const ecosystemCounts = useMemo(() => {
-    let mangrove = 0;
-    let lamun = 0;
-    let karang = 0;
-    let lainnya = 0;
-
-    masterList.forEach((item) => {
-      const eco = getEcosystemMeta(item).name;
-      if (eco === 'Mangrove') mangrove++;
-      else if (eco === 'Padang Lamun') lamun++;
-      else if (eco === 'Terumbu Karang') karang++;
-      else lainnya++;
-    });
-
-    return {
-      all: masterList.length,
-      mangrove,
-      lamun,
-      karang,
-      lainnya
     };
   }, [masterList]);
 
@@ -713,36 +637,7 @@ export const DataMasterPage: React.FC = () => {
         return false;
       }
 
-      // 2. Ecosystem Type Filter
-      if (selectedEcosystemFilter !== 'all') {
-        const eco = getEcosystemMeta(item).name;
-        if (selectedEcosystemFilter === 'Lainnya') {
-          if (eco === 'Mangrove' || eco === 'Padang Lamun' || eco === 'Terumbu Karang') return false;
-        } else if (eco !== selectedEcosystemFilter) {
-          return false;
-        }
-      }
-
-      // 3. Usage Status Filter (optional fine-grain)
-      if (selectedUsage === 'used') {
-        if (!item.usage.used) return false;
-      } else if (selectedUsage === 'unused') {
-        if (item.usage.used) return false;
-      } else if (selectedUsage.startsWith('index:')) {
-        const targetCode = selectedUsage.replace('index:', '');
-        if (!item.usage.used || item.usage.indexCode !== targetCode) {
-          return false;
-        }
-      }
-
-      // 4. Land Cover specific filter
-      if (selectedLandCoverFilter !== 'all') {
-        if (item.landCoverId !== selectedLandCoverFilter) {
-          return false;
-        }
-      }
-
-      // 4. Search query
+      // 2. Search query
       if (searchTerm) {
         const term = searchTerm.toLowerCase().trim();
         const namaIndo = (item.namaIndonesia || '').toLowerCase();
@@ -768,15 +663,33 @@ export const DataMasterPage: React.FC = () => {
 
       return true;
     });
-  }, [masterList, selectedCategory, selectedUsage, selectedLandCoverFilter, searchTerm]);
+  }, [masterList, selectedCategory, searchTerm]);
 
   const sorted = useMemo(() => {
     return sortMasterData(filtered, sort);
   }, [filtered, sort]);
 
   // Pagination calculation
-  const totalPages = Math.ceil(sorted.length / ITEMS_PER_PAGE);
-  const paged = sorted.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const paged = sorted.slice((page - 1) * pageSize, page * pageSize);
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setPage(1);
+  };
+
+  const getPageNumbers = () => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    if (page <= 4) {
+      return [1, 2, 3, 4, 5, '...', totalPages];
+    }
+    if (page >= totalPages - 3) {
+      return [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    }
+    return [1, '...', page - 1, page, page + 1, '...', totalPages];
+  };
 
   // ─── Modal Actions ─────────────────────────────────────────────────────────
 
@@ -1258,250 +1171,135 @@ export const DataMasterPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── Interactive Segmented Category Tabs ───────────────────────────── */}
-      <div className="bg-slate-100 p-1.5 rounded-xl border border-slate-200 grid grid-cols-2 sm:grid-cols-5 gap-1.5">
-        <button
-          onClick={() => {
-            setSelectedCategory('all');
-            setPage(1);
-          }}
-          className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-            selectedCategory === 'all'
-              ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80 ring-1 ring-slate-900/5'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-          }`}
-        >
-          <Database className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-          <span>Semua Jasa</span>
-          <span
-            className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-              selectedCategory === 'all' ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-600'
-            }`}
-          >
-            {categoryCounts.all}
-          </span>
-        </button>
-
-        <button
-          onClick={() => {
-            setSelectedCategory('Provisioning');
-            setPage(1);
-          }}
-          className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-            selectedCategory === 'Provisioning'
-              ? 'bg-white text-emerald-800 shadow-sm border border-emerald-200 ring-2 ring-emerald-500/20'
-              : 'text-slate-600 hover:text-emerald-800 hover:bg-emerald-50/60'
-          }`}
-        >
-          <Leaf className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-          <span>Provisioning</span>
-          <span
-            className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-              selectedCategory === 'Provisioning' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
-            }`}
-          >
-            {categoryCounts.provisioning}
-          </span>
-        </button>
-
-        <button
-          onClick={() => {
-            setSelectedCategory('Regulating');
-            setPage(1);
-          }}
-          className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-            selectedCategory === 'Regulating'
-              ? 'bg-white text-blue-800 shadow-sm border border-blue-200 ring-2 ring-blue-500/20'
-              : 'text-slate-600 hover:text-blue-800 hover:bg-blue-50/60'
-          }`}
-        >
-          <Shield className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-          <span>Regulating</span>
-          <span
-            className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-              selectedCategory === 'Regulating' ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-600'
-            }`}
-          >
-            {categoryCounts.regulating}
-          </span>
-        </button>
-
-        <button
-          onClick={() => {
-            setSelectedCategory('Supporting');
-            setPage(1);
-          }}
-          className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-            selectedCategory === 'Supporting'
-              ? 'bg-white text-rose-800 shadow-sm border border-rose-200 ring-2 ring-rose-500/20'
-              : 'text-slate-600 hover:text-rose-800 hover:bg-rose-50/60'
-          }`}
-        >
-          <Heart className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-          <span>Supporting</span>
-          <span
-            className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-              selectedCategory === 'Supporting' ? 'bg-rose-100 text-rose-800' : 'bg-slate-200 text-slate-600'
-            }`}
-          >
-            {categoryCounts.supporting}
-          </span>
-        </button>
-
-        <button
-          onClick={() => {
-            setSelectedCategory('Cultural');
-            setPage(1);
-          }}
-          className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer col-span-2 sm:col-span-1 ${
-            selectedCategory === 'Cultural'
-              ? 'bg-white text-amber-800 shadow-sm border border-amber-200 ring-2 ring-amber-500/20'
-              : 'text-slate-600 hover:text-amber-800 hover:bg-amber-50/60'
-          }`}
-        >
-          <Palette className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-          <span>Cultural</span>
-          <span
-            className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-              selectedCategory === 'Cultural' ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-600'
-            }`}
-          >
-            {categoryCounts.cultural}
-          </span>
-        </button>
-      </div>
-
       {/* ── Main Unified Table Container ─────────────────────────────────── */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         {/* Table Toolbar & Multi-Level Filters */}
-        <div className="p-4 bg-slate-50/90 border-b border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          {/* Left: Quick Status Chips & Index/LandCover Filter */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Ecosystem Filter Pills */}
-            <div className="inline-flex items-center bg-white border border-slate-200 rounded-lg p-0.5 shadow-2xs">
+        <div className="p-3.5 bg-slate-50/90 border-b border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          {/* Left: Interactive Category Tabs & Refresh Indicator */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex flex-wrap items-center bg-slate-200/70 p-1 rounded-lg gap-1 border border-slate-200/60">
               <button
+                type="button"
                 onClick={() => {
-                  setSelectedEcosystemFilter('all');
+                  setSelectedCategory('all');
                   setPage(1);
                 }}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
-                  selectedEcosystemFilter === 'all' ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-100'
+                className={`flex items-center gap-1.5 py-1.5 px-2.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                  selectedCategory === 'all'
+                    ? 'bg-white text-slate-900 shadow-2xs border border-slate-200/80'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                 }`}
               >
-                Semua Ekosistem ({ecosystemCounts.all})
+                <Database className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <span>Semua Jasa</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    selectedCategory === 'all' ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-600'
+                  }`}
+                >
+                  {categoryCounts.all}
+                </span>
               </button>
-              {ecosystemCounts.mangrove > 0 && (
-                <button
-                  onClick={() => {
-                    setSelectedEcosystemFilter('Mangrove');
-                    setPage(1);
-                  }}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
-                    selectedEcosystemFilter === 'Mangrove' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-100'
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCategory('Provisioning');
+                  setPage(1);
+                }}
+                className={`flex items-center gap-1.5 py-1.5 px-2.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                  selectedCategory === 'Provisioning'
+                    ? 'bg-white text-emerald-800 shadow-2xs border border-emerald-200 ring-1 ring-emerald-500/20'
+                    : 'text-slate-600 hover:text-emerald-800 hover:bg-white/60'
+                }`}
+              >
+                <Leaf className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span>Provisioning</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    selectedCategory === 'Provisioning' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
                   }`}
                 >
-                  Mangrove ({ecosystemCounts.mangrove})
-                </button>
-              )}
-              {ecosystemCounts.lamun > 0 && (
-                <button
-                  onClick={() => {
-                    setSelectedEcosystemFilter('Padang Lamun');
-                    setPage(1);
-                  }}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
-                    selectedEcosystemFilter === 'Padang Lamun' ? 'bg-teal-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-100'
+                  {categoryCounts.provisioning}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCategory('Regulating');
+                  setPage(1);
+                }}
+                className={`flex items-center gap-1.5 py-1.5 px-2.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                  selectedCategory === 'Regulating'
+                    ? 'bg-white text-blue-800 shadow-2xs border border-blue-200 ring-1 ring-blue-500/20'
+                    : 'text-slate-600 hover:text-blue-800 hover:bg-white/60'
+                }`}
+              >
+                <Shield className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <span>Regulating</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    selectedCategory === 'Regulating' ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-600'
                   }`}
                 >
-                  Padang Lamun ({ecosystemCounts.lamun})
-                </button>
-              )}
-              {ecosystemCounts.karang > 0 && (
-                <button
-                  onClick={() => {
-                    setSelectedEcosystemFilter('Terumbu Karang');
-                    setPage(1);
-                  }}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
-                    selectedEcosystemFilter === 'Terumbu Karang' ? 'bg-orange-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-100'
+                  {categoryCounts.regulating}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCategory('Supporting');
+                  setPage(1);
+                }}
+                className={`flex items-center gap-1.5 py-1.5 px-2.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                  selectedCategory === 'Supporting'
+                    ? 'bg-white text-rose-800 shadow-2xs border border-rose-200 ring-1 ring-rose-500/20'
+                    : 'text-slate-600 hover:text-rose-800 hover:bg-white/60'
+                }`}
+              >
+                <Heart className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                <span>Supporting</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    selectedCategory === 'Supporting' ? 'bg-rose-100 text-rose-800' : 'bg-slate-200 text-slate-600'
                   }`}
                 >
-                  Terumbu Karang ({ecosystemCounts.karang})
-                </button>
-              )}
-              {ecosystemCounts.lainnya > 0 && (
-                <button
-                  onClick={() => {
-                    setSelectedEcosystemFilter('Lainnya');
-                    setPage(1);
-                  }}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
-                    selectedEcosystemFilter === 'Lainnya' ? 'bg-slate-700 text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-100'
+                  {categoryCounts.supporting}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCategory('Cultural');
+                  setPage(1);
+                }}
+                className={`flex items-center gap-1.5 py-1.5 px-2.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                  selectedCategory === 'Cultural'
+                    ? 'bg-white text-amber-800 shadow-2xs border border-amber-200 ring-1 ring-amber-500/20'
+                    : 'text-slate-600 hover:text-amber-800 hover:bg-white/60'
+                }`}
+              >
+                <Palette className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span>Cultural</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    selectedCategory === 'Cultural' ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-600'
                   }`}
                 >
-                  Lainnya ({ecosystemCounts.lainnya})
-                </button>
-              )}
+                  {categoryCounts.cultural}
+                </span>
+              </button>
             </div>
-
-            {/* Filter Tutupan Lahan Proyek */}
-            {projectLandCovers.length > 0 && (
-              <div className="relative">
-                <select
-                  value={selectedLandCoverFilter}
-                  onChange={(e) => {
-                    setSelectedLandCoverFilter(e.target.value);
-                    setPage(1);
-                  }}
-                  className="appearance-none bg-white border border-slate-200 rounded-lg pl-7 pr-8 py-1.5 text-xs font-semibold text-slate-700 cursor-pointer hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-colors shadow-2xs"
-                  title="Filter spesifik tutupan lahan milik proyek aktif"
-                >
-                  <option value="all">Semua Tutupan Lahan ({projectLandCovers.length})</option>
-                  {projectLandCovers.map((lc) => (
-                    <option key={lc.id} value={lc.id}>
-                      {lc.index_code ? `[${lc.index_code}] ` : ''}
-                      {lc.name}
-                    </option>
-                  ))}
-                </select>
-                <Layers className="w-3.5 h-3.5 text-blue-600 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-            )}
-
-            {/* Filter per Index jika tersedia */}
-            {availableIndices.length > 0 && selectedUsage !== 'unused' && (
-              <div className="relative">
-                <select
-                  value={selectedUsage.startsWith('index:') ? selectedUsage : ''}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      setSelectedUsage(e.target.value);
-                    } else {
-                      setSelectedUsage('all');
-                    }
-                    setPage(1);
-                  }}
-                  className="appearance-none bg-white border border-slate-200 rounded-lg pl-3 pr-8 py-1.5 text-xs font-semibold text-slate-700 cursor-pointer hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-colors shadow-2xs"
-                  title="Filter per indeks spasial proyek"
-                >
-                  <option value="">Pilih Indeks Proyek...</option>
-                  {availableIndices.map((idx) => (
-                    <option key={idx.code} value={`index:${idx.code}`}>
-                      {idx.code} — {idx.name} ({idx.count})
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-            )}
 
             {/* Refresh Indicator */}
             <RefreshIndicator isRefreshing={loading && masterList.length > 0} label="Menyinkronkan..." />
           </div>
 
-          {/* Right: Search Input & Result Counter */}
-          <div className="flex items-center gap-3 w-full lg:w-auto">
+          {/* Right: Search Input, Page Size Selector & Result Counter */}
+          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
             <div className="relative flex-1 lg:w-72">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -1526,6 +1324,24 @@ export const DataMasterPage: React.FC = () => {
               )}
             </div>
 
+            <div className="flex items-center gap-1.5 text-xs text-slate-500">
+              <span className="font-medium text-slate-400">Tampilkan:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-700 font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs text-xs"
+              >
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <option key={size} value={size}>
+                    {size} data
+                  </option>
+                ))}
+                {sorted.length > 100 && (
+                  <option value={sorted.length}>Semua ({sorted.length})</option>
+                )}
+              </select>
+            </div>
+
             <span className="text-[11px] font-semibold text-slate-500 shrink-0">
               {sorted.length} item
             </span>
@@ -1543,37 +1359,30 @@ export const DataMasterPage: React.FC = () => {
                 <SortableTh label="Bahasa Latin / Indikator" sortKey="namaLatin" currentSort={sort} onSort={handleSort} />
                 <SortableTh label="Nama Daerah / Satuan" sortKey="namaDaerah" currentSort={sort} onSort={handleSort} />
                 <SortableTh label="Daerah" sortKey="daerah" currentSort={sort} onSort={handleSort} />
-                <SortableTh label="Tipe Ekosistem / Tutupan Lahan" sortKey="tipeEkosistem" currentSort={sort} onSort={handleSort} />
                 <th className={`${thClass} text-center w-36`}>Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading && masterList.length === 0 ? (
-                <SkeletonTable columns={8} rows={ITEMS_PER_PAGE} />
+                <SkeletonTable columns={7} rows={Math.min(pageSize, 10)} />
               ) : paged.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center">
+                  <td colSpan={7} className="py-12 text-center">
                     <EmptyState
                       title="Tidak Ada Data Master yang Ditemukan"
                       description={
                         searchTerm
                           ? 'Coba ubah atau hapus kata kunci pencarian Anda.'
-                          : selectedEcosystemFilter !== 'all'
-                          ? `Tidak ada data master untuk ekosistem ${selectedEcosystemFilter}.`
                           : 'Gunakan tombol "+ Tambah Data Master" atau "Terapkan Template Master" untuk mengisi data.'
                       }
                       actionLabel={
                         searchTerm
                           ? 'Reset Pencarian'
-                          : selectedEcosystemFilter !== 'all'
-                          ? 'Reset Filter Ekosistem'
                           : 'Terapkan Template Master'
                       }
                       onAction={
                         searchTerm
                           ? () => setSearchTerm('')
-                          : selectedEcosystemFilter !== 'all'
-                          ? () => setSelectedEcosystemFilter('all')
                           : () => setIsApplyTemplateModalOpen(true)
                       }
                     />
@@ -1581,7 +1390,7 @@ export const DataMasterPage: React.FC = () => {
                 </tr>
               ) : (
                 paged.map((item, index) => {
-                  const itemIndex = (page - 1) * ITEMS_PER_PAGE + index + 1;
+                  const itemIndex = (page - 1) * pageSize + index + 1;
                   return (
                     <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className={`${tdClass} text-center font-mono text-slate-500 font-semibold`}>
@@ -1591,25 +1400,15 @@ export const DataMasterPage: React.FC = () => {
                         <CategoryBadge category={item.category} />
                       </td>
                       <td className={`${tdClass} font-semibold text-slate-800`}>
-                        <div className="flex flex-col">
-                          <span>{item.namaIndonesia}</span>
-                          {item.apiData?.kategori_tev && (
-                            <div className="mt-1">
-                              <TevBadge tev={item.apiData.kategori_tev} />
-                            </div>
-                          )}
-                        </div>
+                        <span>{item.namaIndonesia}</span>
                       </td>
                       <td className={`${tdClass} text-slate-600 italic`}>{item.namaLatin}</td>
                       <td className={`${tdClass} text-slate-600 font-medium`}>{item.namaDaerah}</td>
                       <td className={`${tdClass} text-slate-600`}>
                         <div className="flex items-center gap-1">
                           <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                          <span>{item.daerah}</span>
+                          <span>{item.daerah && item.daerah !== 'Wilayah Penelitian' ? item.daerah : (wilayahPenelitian || 'Wilayah Penelitian')}</span>
                         </div>
-                      </td>
-                      <td className={tdClass}>
-                        <EcosystemLandCoverCell item={item} />
                       </td>
                       <td className={`${tdClass} text-center`}>
                         <div className="inline-flex items-center justify-center gap-1">
@@ -1620,15 +1419,6 @@ export const DataMasterPage: React.FC = () => {
                             title="Lihat Detail Ilmiah & Parameter"
                           >
                             <Eye className="w-3.5 h-3.5" />
-                          </button>
-
-                          {/* Navigasi Tahap 05: Jasa & Metode */}
-                          <button
-                            onClick={() => handleNavigateToServicesMethods(item)}
-                            className="p-1.5 rounded-md text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border border-indigo-200 transition-colors cursor-pointer"
-                            title="Pilih & Konfigurasi Metode di Tahap 05 (Jasa & Metode)"
-                          >
-                            <SlidersHorizontal className="w-3.5 h-3.5" />
                           </button>
 
                           {/* Edit Button */}
@@ -1660,38 +1450,85 @@ export const DataMasterPage: React.FC = () => {
 
         {/* Unified Pagination */}
         {!loading && sorted.length > 0 && (
-          <div className="px-4 py-3 border-t border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <span className="text-[11px] text-slate-500">
-              Menampilkan <strong>{(page - 1) * ITEMS_PER_PAGE + 1}</strong>–
-              <strong>{Math.min(page * ITEMS_PER_PAGE, sorted.length)}</strong> dari{' '}
-              <strong>{sorted.length}</strong> data
-            </span>
+          <div className="px-4 py-3 border-t border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1.5 text-slate-600">
+                <span className="font-medium text-slate-500">Tampilkan:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                  className="bg-white border border-slate-300 rounded-md px-2 py-1 text-slate-700 font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs text-xs"
+                >
+                  {PAGE_SIZE_OPTIONS.map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                  {sorted.length > 100 && (
+                    <option value={sorted.length}>Semua ({sorted.length})</option>
+                  )}
+                </select>
+                <span className="text-slate-500">per halaman</span>
+              </div>
+
+              <span className="hidden sm:inline text-slate-300">|</span>
+
+              <span className="text-[11px] text-slate-500">
+                Menampilkan <strong>{(page - 1) * pageSize + 1}</strong>–
+                <strong>{Math.min(page * pageSize, sorted.length)}</strong> dari{' '}
+                <strong>{sorted.length}</strong> data
+              </span>
+            </div>
+
             {totalPages > 1 && (
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 self-center sm:self-auto">
                 <button
+                  type="button"
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page === 1}
-                  className="p-1.5 rounded-md text-slate-500 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  className="px-2 py-1 rounded-md border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 transition-colors cursor-pointer flex items-center gap-1 font-medium shadow-2xs"
+                  title="Halaman Sebelumnya"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span className="hidden md:inline">Sebelumnya</span>
                 </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setPage(p)}
-                    className={`w-7 h-7 rounded-md text-xs font-semibold cursor-pointer transition-colors ${
-                      page === p ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
+
+                <div className="flex items-center gap-1">
+                  {getPageNumbers().map((p, idx) => {
+                    if (typeof p === 'string') {
+                      return (
+                        <span key={`ellipsis-${idx}`} className="px-1.5 py-1 text-slate-400 select-none text-xs">
+                          ...
+                        </span>
+                      );
+                    }
+                    const isActive = page === p;
+                    return (
+                      <button
+                        key={`page-${p}`}
+                        type="button"
+                        onClick={() => setPage(p)}
+                        className={`min-w-[28px] h-7 px-2 text-xs font-semibold rounded-md border transition-colors cursor-pointer ${
+                          isActive
+                            ? 'bg-blue-600 border-blue-600 text-white shadow-2xs'
+                            : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    );
+                  })}
+                </div>
+
                 <button
+                  type="button"
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages}
-                  className="p-1.5 rounded-md text-slate-500 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  className="px-2 py-1 rounded-md border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 transition-colors cursor-pointer flex items-center gap-1 font-medium shadow-2xs"
+                  title="Halaman Berikutnya"
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  <span className="hidden md:inline">Berikutnya</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
             )}
@@ -1755,7 +1592,9 @@ export const DataMasterPage: React.FC = () => {
                   </span>
                   <span className="text-xs font-semibold text-slate-800 flex items-center gap-1">
                     <MapPin className="w-3 h-3 text-emerald-600" />
-                    {selectedDetailItem.daerah}
+                    {selectedDetailItem.daerah && selectedDetailItem.daerah !== 'Wilayah Penelitian'
+                      ? selectedDetailItem.daerah
+                      : (wilayahPenelitian || 'Wilayah Penelitian')}
                   </span>
                 </div>
                 <div>

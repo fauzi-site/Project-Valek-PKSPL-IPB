@@ -5,6 +5,7 @@ import { useSpreadsheet, isMockProject } from '../context/SpreadsheetContext';
 import { exportFullProjectWorkbook } from '../utils/excelEngine';
 import { formatIDR, formatNumber, formatDate } from '../utils/formatter';
 import { buildIndexLabelMap } from '../utils/indexLabel';
+import { aggregateValuationByLandCoverName } from '../utils/landCoverGrouping';
 import { EcosystemServiceId } from '../types/valuation';
 import { getHistoricalStudiesForArea } from '../mock/historicalAnalyticsMock';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
@@ -405,7 +406,7 @@ const ReviewReportPageContent: React.FC = () => {
   ];
 
   const areaComparisonData = useMemo(() => {
-    const data = currentLandCovers.map(lc => {
+    const rawData = currentLandCovers.map(lc => {
       let total = 0;
       const cfg = getAreaConfig ? getAreaConfig(lc.id) : null;
       if (cfg?.activeServices && cfg?.selectedMethods) {
@@ -416,11 +417,14 @@ const ReviewReportPageContent: React.FC = () => {
       }
       return {
         name: lc.name || 'Area',
-        luas: lc.areaHa || 0,
-        total: Math.max(0, total || 0)
+        luas: Number(lc.areaHa) || 0,
+        total: Math.max(0, total || 0),
+        indexName: lc.indexName || lc.indexCode,
+        indexCode: lc.indexCode,
       };
     });
-    return [...data].sort((a, b) => b.total - a.total).slice(0, 10);
+    const aggregated = aggregateValuationByLandCoverName(rawData);
+    return aggregated.sort((a, b) => b.total - a.total).slice(0, 10);
   }, [currentLandCovers, getAreaConfig, getGrandTotalForArea, effectiveProjId]);
 
   // Defensive flags for charts to prevent NaN

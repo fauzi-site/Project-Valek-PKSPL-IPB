@@ -177,12 +177,14 @@ export const ReportPrintView: React.FC = () => {
 
   // ── Report Dataset Processing: Grouping, Deduplication, & Sorting ──
   const spatialReportData = useMemo(() => {
-    // 1. Group records by identical substantive identity: (name + indexCode)
+    // 1. Group records by identical substantive identity: land cover name
     const groupedMap = new Map<string, {
       id: string;
       name: string;
       indexCode: string;
       indexName: string;
+      indexCodes: string[];
+      indexNames: string[];
       areaHa: number;
       totalValue: number;
       percentageOfTev: number;
@@ -191,22 +193,33 @@ export const ReportPrintView: React.FC = () => {
 
     for (const ab of areaBreakdowns) {
       const trimmedName = (ab.name || 'Area Tutupan').trim();
-      const trimmedCode = (ab.indexCode || '-').trim();
-      const key = `${trimmedName.toLowerCase()}__${trimmedCode.toLowerCase()}`;
+      const trimmedCode = (ab.indexCode || '').trim();
+      const trimmedIdxName = (ab.indexName || trimmedCode).trim();
+      const key = trimmedName.toLowerCase();
 
       const existing = groupedMap.get(key);
       if (existing) {
-        existing.areaHa += ab.areaHa;
-        existing.totalValue += ab.totalValue;
+        existing.areaHa = Number((existing.areaHa + (Number(ab.areaHa) || 0)).toFixed(2));
+        existing.totalValue += Number(ab.totalValue) || 0;
         existing.count += 1;
+        if (trimmedCode && !existing.indexCodes.includes(trimmedCode)) {
+          existing.indexCodes.push(trimmedCode);
+          existing.indexCode = existing.indexCodes.join(', ');
+        }
+        if (trimmedIdxName && !existing.indexNames.includes(trimmedIdxName)) {
+          existing.indexNames.push(trimmedIdxName);
+          existing.indexName = existing.indexNames.join(', ');
+        }
       } else {
         groupedMap.set(key, {
           id: ab.id,
           name: trimmedName,
-          indexCode: trimmedCode,
-          indexName: ab.indexName || trimmedName,
-          areaHa: ab.areaHa,
-          totalValue: ab.totalValue,
+          indexCode: trimmedCode || '-',
+          indexName: trimmedIdxName || trimmedName,
+          indexCodes: trimmedCode ? [trimmedCode] : [],
+          indexNames: trimmedIdxName ? [trimmedIdxName] : [],
+          areaHa: Number(ab.areaHa) || 0,
+          totalValue: Number(ab.totalValue) || 0,
           percentageOfTev: 0,
           count: 1
         });
@@ -928,7 +941,9 @@ export const ReportPrintView: React.FC = () => {
                   <td className="py-2 px-3 text-center border-r border-slate-300 font-mono text-slate-500">{idx + 1}</td>
                   <td className="py-2 px-3 border-r border-slate-300 font-medium text-slate-900">{ab.name}</td>
                   <td className="py-2 px-3 border-r border-slate-300 font-medium text-center text-slate-700">
-                    {ab.indexCode ? (indexLabelMap.get(ab.indexCode) ?? ab.indexCode) : '—'}
+                    {ab.indexCodes && ab.indexCodes.length > 0
+                      ? ab.indexCodes.map(code => indexLabelMap.get(code) ?? code).join(', ')
+                      : (ab.indexCode ? (indexLabelMap.get(ab.indexCode) ?? ab.indexCode) : '—')}
                   </td>
                   <td className="py-2 px-3 border-r border-slate-300 text-right font-mono whitespace-nowrap">{formatNumber(ab.areaHa, 2)}</td>
                   <td className="py-2 px-3 border-r border-slate-300 text-right font-mono text-slate-600">

@@ -704,7 +704,7 @@ class ProjectDataMasterController extends Controller
             'nama_indonesia' => $namaIndonesia,
             'nama_latin' => $namaLatin,
             'nama_daerah' => $namaDaerah,
-            'daerah' => $item->kabupatenKota?->nama_kabupaten_kota ?? $defaultDaerah,
+            'daerah' => $defaultDaerah ?: ($item->kabupatenKota?->nama_kabupaten_kota ?? 'Wilayah Penelitian'),
             'landCoverId' => (string) ($item->id_jenis_tutupan_lahan ?? ''),
             'landCoverName' => $lcName,
             'tipe_ekosistem' => $tipeEkosistem,

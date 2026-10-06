@@ -108,6 +108,16 @@ export const IndexPage: React.FC = () => {
     return (list && list.length > 0) ? list : (defaultLandCovers || []);
   }, [getProjectLandCovers, routeProjId, defaultLandCovers]);
 
+  // Unique list of land cover names already existing in this project
+  const existingLandCoverNames = useMemo(() => {
+    const names = new Set<string>();
+    landCovers.forEach((lc) => {
+      const trimmed = (lc.name || '').trim();
+      if (trimmed) names.add(trimmed);
+    });
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [landCovers]);
+
   // Resolve current project's indices
   const indices = useMemo(() => {
     const list = getProjectIndices ? getProjectIndices(routeProjId) : defaultIndices;
@@ -571,7 +581,7 @@ export const IndexPage: React.FC = () => {
                     Data Spasial {renderSortIcon('SPASIAL')}
                   </div>
                 </th>
-                <th className="py-3 px-4 w-[20%] min-w-[180px] text-right">Aksi</th>
+                <th className="py-3 px-4 w-[20%] min-w-[100px] text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -626,10 +636,7 @@ export const IndexPage: React.FC = () => {
                     : (item.landCoverName ? [item.landCoverName] : []);
                   const count = linked.length > 0 ? linked.length : coverNames.length;
 
-                  // Target area ID for quick navigation
-                  const targetAreaId = linked[0]?.id || item.landCoverId || item.id;
-
-                  // Limit display to max 3 lines/items with ... and count after it
+                  // Limit display to max 3 items
                   const maxDisplay = 3;
                   const visibleCovers = coverNames.slice(0, maxDisplay);
                   const remainingCount = coverNames.length - maxDisplay;
@@ -640,7 +647,6 @@ export const IndexPage: React.FC = () => {
                       <td className="py-3.5 px-4 font-semibold text-blue-700">
                         <span>{indexLabelMap.get(item.code) ?? indexLabelMap.get(item.id) ?? '—'}</span>
                       </td>
-
 
                       {/* Area Tutupan Lahan (Maksimal 3 Baris + ... jika lebih + Jumlah Tutupan Lahan setelahnya) */}
                       <td className="py-3.5 px-4 text-slate-700 max-w-[320px]">
@@ -695,42 +701,26 @@ export const IndexPage: React.FC = () => {
                       </td>
 
                       {/* Action */}
-                      <td className="py-3.5 px-4 text-right space-x-1">
-                        {isAdmin ? (
-                          <button
-                            onClick={() => navigate(`/peneliti/projects/${effectiveProjectId}/valuation-data?area=${targetAreaId}`)}
-                            className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded text-[11px] border border-blue-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
-                          >
-                            <span>Buka Data Valuasi</span>
-                            <ArrowRight className="w-3 h-3" />
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => navigate(`/peneliti/projects/${effectiveProjectId}/services-methods?area=${targetAreaId}`)}
-                            className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded text-[11px] border border-blue-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
-                          >
-                            <span>Atur Jasa & Metode</span>
-                            <ArrowRight className="w-3 h-3" />
-                          </button>
-                        )}
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1">
+                          {!isAdmin && (
+                            <button
+                              onClick={() => handleOpenEditModal(item)}
+                              className="p-1 text-slate-400 hover:text-blue-600 rounded hover:bg-blue-50 transition-colors cursor-pointer"
+                              title="Edit Index"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
 
-                        {!isAdmin && (
                           <button
-                            onClick={() => handleOpenEditModal(item)}
-                            className="p-1 text-slate-400 hover:text-blue-600 rounded hover:bg-blue-50 transition-colors cursor-pointer"
-                            title="Edit Index"
+                            onClick={() => setIndexToDelete(item)}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors cursor-pointer"
+                            title="Hapus Index"
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
-                        )}
-
-                        <button
-                          onClick={() => setIndexToDelete(item)}
-                          className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors cursor-pointer"
-                          title="Hapus Index"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -935,18 +925,31 @@ export const IndexPage: React.FC = () => {
                       </div>
                     </div>
 
+                    <datalist id="existing-land-cover-suggestions">
+                      {existingLandCoverNames.map((nameOption) => (
+                        <option key={nameOption} value={nameOption} />
+                      ))}
+                    </datalist>
+
                     <div className="space-y-2 overflow-y-auto pr-1 flex-1 mt-2">
                       {formLandCovers.map((landCover, index) => (
-                        <div key={index} className="grid grid-cols-[1fr_100px_auto] gap-2 items-center p-2.5 bg-white border border-slate-200 rounded-lg shadow-2xs">
+                        <div key={index} className="grid grid-cols-[1fr_100px_auto] gap-2 items-start p-2.5 bg-white border border-slate-200 rounded-lg shadow-2xs">
                           <div className="min-w-0">
                             <label className="block text-[10px] text-slate-500 mb-0.5">Nama Tutupan</label>
                             <input
+                              list="existing-land-cover-suggestions"
                               value={landCover.name}
                               onChange={(e) => setFormLandCovers((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, name: e.target.value } : item))}
-                              placeholder="Contoh: Mangrove Barat"
+                              placeholder="Ketik atau pilih nama tutupan (misal: Hutan Mangrove)"
                               className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
                               required
                             />
+                            {landCover.name && existingLandCoverNames.includes(landCover.name.trim()) && (
+                              <div className="flex items-center gap-1 mt-1 text-[10px] text-blue-700 bg-blue-50/80 px-2 py-0.5 rounded border border-blue-200/60 font-medium">
+                                <CheckCircle2 className="w-3 h-3 text-blue-600 shrink-0" />
+                                <span>Tercatat di index lain • Luas akan digabungkan di analitik</span>
+                              </div>
+                            )}
                           </div>
                           <div>
                             <label className="block text-[10px] text-slate-500 mb-0.5">Luas (Ha)</label>
@@ -960,7 +963,7 @@ export const IndexPage: React.FC = () => {
                               required
                             />
                           </div>
-                          <div className="pt-3">
+                          <div className="pt-5">
                             {formLandCovers.length > 1 && (
                               <button
                                 type="button"
