@@ -179,7 +179,7 @@ export const MapsPage: React.FC = () => {
               className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
             >
               <Upload className="w-3.5 h-3.5" />
-              <span>+ Upload Ulang SHP</span>
+              <span>Upload Ulang SHP</span>
             </button>
             <button
               type="button"
@@ -364,7 +364,7 @@ export const MapsPage: React.FC = () => {
                     className="mt-6 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs md:text-sm font-semibold shadow-xs flex items-center gap-2 mx-auto transition-colors cursor-pointer"
                   >
                     <Upload className="w-4 h-4" />
-                    <span>+ Upload SHP</span>
+                    <span>Upload SHP</span>
                   </button>
 
                   {/* Format yang didukung */}
