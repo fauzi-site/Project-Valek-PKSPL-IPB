@@ -12,9 +12,11 @@ import {
   ChevronLeft,
   ChevronDown,
   Calendar,
+  X,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { getCategoryInfo, PROVINCE_GEOJSON_URL } from './map/mapData';
+import { categories, getCategoryInfo, PROVINCE_GEOJSON_URL } from './map/mapData';
+import indonesia38Geojson from '../data/indonesia-38-provinces.json';
 import { getPublicMapProjects } from '../services/projectService';
 import { MAP_CONFIG } from '../peneliti/config/mapConfig';
 
@@ -178,19 +180,30 @@ export default function MapSection() {
   const [error, setError] = useState(null);
   const [selectedLocId, setSelectedLocId] = useState(null);
   const [selectedYear, setSelectedYear] = useState(2026);
-  const [geojsonData, setGeojsonData] = useState(null);
+  const [selectedProvinceName, setSelectedProvinceName] = useState(null);
+  const selectedProvinceNameRef = useRef(null);
+  selectedProvinceNameRef.current = selectedProvinceName;
+
+  const [geojsonData, setGeojsonData] = useState(indonesia38Geojson);
   const [currentZoom, setCurrentZoom] = useState(5);
   const [isMapReady, setIsMapReady] = useState(false);
 
   const mapRef = useRef(null);
   const markerRefs = useRef({});
 
-  // Fetch GeoJSON for province polygons
+  // Fetch GeoJSON for province polygons with fallback to static 38-province dataset
   useEffect(() => {
     fetch(PROVINCE_GEOJSON_URL)
       .then(res => res.json())
-      .then(data => setGeojsonData(data))
-      .catch(err => console.error('Error loading geojson', err));
+      .then(data => {
+        if (data && data.features && data.features.length > 0) {
+          setGeojsonData(data);
+        }
+      })
+      .catch(err => {
+        console.warn('[MapSection] Fallback to bundled 38-province GeoJSON:', err);
+        setGeojsonData(indonesia38Geojson);
+      });
   }, []);
 
   // Fetch projects from public API
@@ -376,6 +389,41 @@ export default function MapSection() {
   ];
   const getProvinceColor = (index) => provinceColors[index % provinceColors.length];
 
+  const getFeatureStyle = useCallback((feature) => {
+    const name = feature.properties.state || feature.properties.Propinsi || feature.properties.name || feature.properties.NAME || '';
+    const featureIndex = feature.properties.id_1 || feature.properties.code || feature.properties.cartodb_id || 0;
+    const baseColor = getProvinceColor(featureIndex);
+    const isSelected = selectedProvinceName && name.toLowerCase() === selectedProvinceName.toLowerCase();
+
+    if (isSelected) {
+      return {
+        fillColor: '#2563eb',
+        fillOpacity: 0.45,
+        weight: 3.5,
+        color: '#0f284e',
+        opacity: 1,
+      };
+    }
+
+    if (selectedProvinceName) {
+      return {
+        fillColor: baseColor,
+        fillOpacity: 0.08,
+        weight: 1,
+        color: '#cbd5e1',
+        opacity: 0.5,
+      };
+    }
+
+    return {
+      fillColor: baseColor,
+      fillOpacity: 0.15,
+      weight: 1.2,
+      color: '#ffffff',
+      opacity: 0.8,
+    };
+  }, [selectedProvinceName]);
+
   const onEachFeature = useCallback((feature, layer) => {
     const name = feature.properties.state || feature.properties.Propinsi || feature.properties.name || feature.properties.NAME || '';
     if (name) {
@@ -386,45 +434,49 @@ export default function MapSection() {
       });
     }
 
-    const featureIndex = feature.properties.id_1 || feature.properties.cartodb_id || 0;
-    const baseColor = getProvinceColor(featureIndex);
-
-    layer.setStyle({
-      fillColor: baseColor,
-      fillOpacity: 0.15,
-      weight: 1.2,
-      color: '#ffffff',
-      opacity: 0.8,
-    });
-
     layer.on({
       mouseover: (e) => {
         const l = e.target;
-        l.setStyle({
-          fillOpacity: 0.35,
-          weight: 2,
-          color: '#1e293b',
-        });
-        l.bringToFront();
+        const isSel = selectedProvinceNameRef.current && name.toLowerCase() === selectedProvinceNameRef.current.toLowerCase();
+        if (!isSel) {
+          l.setStyle({
+            fillOpacity: 0.35,
+            weight: 2,
+            color: '#1e293b',
+          });
+          l.bringToFront();
+        }
       },
       mouseout: (e) => {
         const l = e.target;
-        l.setStyle({
-          fillOpacity: 0.15,
-          weight: 1.2,
-          color: '#ffffff',
-        });
+        const isSel = selectedProvinceNameRef.current && name.toLowerCase() === selectedProvinceNameRef.current.toLowerCase();
+        if (!isSel) {
+          const featureIndex = feature.properties.id_1 || feature.properties.code || feature.properties.cartodb_id || 0;
+          const baseColor = getProvinceColor(featureIndex);
+          l.setStyle(
+            selectedProvinceNameRef.current
+              ? { fillColor: baseColor, fillOpacity: 0.08, weight: 1, color: '#cbd5e1', opacity: 0.5 }
+              : { fillColor: baseColor, fillOpacity: 0.15, weight: 1.2, color: '#ffffff', opacity: 0.8 }
+          );
+        }
+      },
+      click: (e) => {
+        const l = e.target;
+        const nextSel = selectedProvinceNameRef.current === name ? null : name;
+        setSelectedProvinceName(nextSel);
+        if (nextSel && mapRef.current && typeof l.getBounds === 'function') {
+          const bounds = l.getBounds();
+          if (bounds && bounds.isValid()) {
+            mapRef.current.fitBounds(bounds, {
+              padding: [40, 40],
+              maxZoom: 8,
+              duration: 0.8,
+            });
+          }
+        }
       },
     });
   }, []);
-
-  const geojsonStyle = {
-    fillColor: '#3b82f6',
-    fillOpacity: 0.15,
-    weight: 1.2,
-    color: '#ffffff',
-    opacity: 0.8,
-  };
 
   // Auto-open marker popup when selectedLocId changes
   useEffect(() => {
@@ -452,6 +504,7 @@ export default function MapSection() {
   // Reset map view to national center
   const handleResetView = () => {
     setSelectedLocId(null);
+    setSelectedProvinceName(null);
     if (mapRef.current) {
       mapRef.current.flyTo([-2.5, 118.0], 5, { duration: 1.2 });
     }
@@ -557,9 +610,9 @@ export default function MapSection() {
 
             {geojsonData && (
               <GeoJSON
-                key={geojsonData.type || 'geojson'}
+                key={(geojsonData.type || 'geojson') + '_' + (selectedProvinceName || 'all')}
                 data={geojsonData}
-                style={geojsonStyle}
+                style={getFeatureStyle}
                 onEachFeature={onEachFeature}
               />
             )}
@@ -696,6 +749,24 @@ export default function MapSection() {
 
           {/* Floating Controls (Top-Right) */}
           <div className="absolute top-3 right-3 z-[400] flex items-center gap-2">
+            {selectedProvinceName && (
+              <div className="bg-[#0f284e] text-white px-3 py-1.5 rounded-lg shadow-sm border border-slate-700 flex items-center gap-2 text-xs font-semibold animate-in fade-in zoom-in-95">
+                <MapPin className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                <span>Batas Wilayah: <strong>{selectedProvinceName}</strong></span>
+                <button
+                  onClick={() => {
+                    setSelectedProvinceName(null);
+                    if (mapRef.current) {
+                      mapRef.current.flyTo([-2.5, 118.0], 5, { duration: 1.0 });
+                    }
+                  }}
+                  className="ml-1 text-slate-300 hover:text-white p-0.5 rounded hover:bg-white/20 transition cursor-pointer"
+                  title="Reset Pilihan Wilayah"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
             <button
               onClick={handleResetView}
               title={t('map.resetTooltip', 'Reset ke posisi semula')}
