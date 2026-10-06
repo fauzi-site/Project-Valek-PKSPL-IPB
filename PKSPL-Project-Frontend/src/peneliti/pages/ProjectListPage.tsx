@@ -212,7 +212,7 @@ export const ProjectListPage: React.FC = () => {
           className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs md:text-sm font-semibold transition-colors shadow-xs"
         >
           <Plus className="w-4 h-4" />
-          <span>+ Proyek Baru</span>
+          <span>Proyek Baru</span>
         </button>
       </div>
 
@@ -264,7 +264,7 @@ export const ProjectListPage: React.FC = () => {
                     <EmptyState
                       title="Proyek Tidak Ditemukan"
                       description={searchTerm ? `Tidak ditemukan proyek yang cocok dengan "${searchTerm}".` : "Belum ada proyek penelitian yang terdaftar."}
-                      actionText={searchTerm ? "Reset Pencarian" : "+ Buat Proyek Baru"}
+                      actionText={searchTerm ? "Reset Pencarian" : "Buat Proyek Baru"}
                       onAction={searchTerm ? () => setSearchTerm('') : handleOpenCreateModal}
                     />
                   </td>

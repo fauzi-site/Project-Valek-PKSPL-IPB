@@ -441,7 +441,7 @@ export const IndexPage: React.FC = () => {
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs md:text-sm font-semibold flex items-center gap-1.5 transition-colors shadow-xs self-start sm:self-auto cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Buat Index</span>
+            <span>Buat Index</span>
           </button>
         )}
       </div>

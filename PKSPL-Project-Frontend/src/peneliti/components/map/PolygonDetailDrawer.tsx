@@ -366,7 +366,7 @@ export const PolygonDetailDrawer: React.FC<PolygonDetailDrawerProps> = ({
                         className="w-full py-1.5 px-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
                       >
                         <Plus className="w-3.5 h-3.5" />
-                        <span>+ Buat Index dari Area Ini</span>
+                        <span>Buat Index dari Area Ini</span>
                       </button>
 
                       {indices.length > 0 && (
