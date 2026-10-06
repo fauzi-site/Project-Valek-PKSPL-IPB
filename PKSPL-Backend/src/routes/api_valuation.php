@@ -41,7 +41,6 @@ Route::middleware('auth:sanctum')->prefix('v1/jenis-tutupan-lahan/{landCoverId}/
     Route::post('rows', [ValuationDataController::class, 'addRow']);
     Route::post('rows/batch', [ValuationDataController::class, 'batchImportRows']);
     Route::post('rows/reorder', [ValuationDataController::class, 'reorderRows']);
-    Route::post('sync-all', [ValuationDataController::class, 'syncAllSections']);
     Route::put('rows/{rowId}', [ValuationDataController::class, 'updateRow']);
     Route::delete('rows/{rowId}', [ValuationDataController::class, 'deleteRow']);
 

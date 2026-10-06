@@ -122,26 +122,6 @@ export async function batchAddValuationRows(
   }
 }
 
-export interface SyncAllSectionPayload {
-  service_id: string;
-  method_id: string;
-  biota?: string;
-  rows: Record<string, any>[];
-}
-
-export async function syncAllValuationSections(
-  landCoverId: string | number,
-  sections: SyncAllSectionPayload[]
-): Promise<{ message: string; mappings: Record<string, number>; count: number }> {
-  try {
-    const response = await api.post(`/jenis-tutupan-lahan/${landCoverId}/valuation/sync-all`, { sections });
-    return unwrap(response);
-  } catch (error) {
-    console.error('[ValuationService] Error syncAllValuationSections:', error);
-    throw new Error('Gagal menyinkronkan seluruh section valuasi');
-  }
-}
-
 export async function updateValuationRow(landCoverId: string | number, rowId: number, payload: UpdateRowPayload): Promise<ValuationRowDTO> {
   try {
     const response = await api.put(`/jenis-tutupan-lahan/${landCoverId}/valuation/rows/${rowId}`, payload);
