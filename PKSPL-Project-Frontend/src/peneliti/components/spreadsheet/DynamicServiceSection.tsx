@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useSpreadsheet } from '../../context/SpreadsheetContext';
 import { useProject } from '../../context/ProjectContext';
 import { getMethodSchema, ColumnDefinition, CustomColumnDefinition, CustomColumnType } from '../../types/methodSchemas';
 import { ECOSYSTEM_SERVICES_CONFIG } from '../../mock/valuationMock';
+import { PROVISIONING_DATA } from '../../mock/dataMasterMock';
 import { downloadContextTemplate } from '../../utils/excelEngine';
 import { formatIDR } from '../../utils/formatter';
+import { getProjectDataMaster } from '../../../services/dataMasterService';
 import { CustomColumnModal } from './CustomColumnModal';
 import { DeleteColumnConfirmModal } from './DeleteColumnConfirmModal';
 import { FormattedNumberInput } from './FormattedNumberInput';
@@ -39,6 +41,89 @@ interface DynamicServiceSectionProps {
   highlightedRowId?: string | null;
 }
 
+const BiotaAutocomplete = ({ value, onChange, options, placeholder, isHighlighted, activeLocation }: { value: string, onChange: (v: string) => void, options: any[], placeholder: string, isHighlighted: boolean, activeLocation?: string }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredOptions = React.useMemo(() => {
+    // If there's an active location, separate into matched and unmatched
+    let locationFiltered = options;
+    if (activeLocation) {
+      const projLoc = activeLocation.toLowerCase();
+      const matched = options.filter(opt => {
+        const optLoc = (opt.daerah || opt.apiData?.daerah || '').toLowerCase();
+        return optLoc && (optLoc.includes(projLoc) || projLoc.includes(optLoc));
+      });
+      // Use location-matched if we have any, otherwise show all
+      if (matched.length > 0) locationFiltered = matched;
+    }
+    
+    return locationFiltered.filter(opt => {
+      const namaIndo = opt.namaIndonesia || opt.nama_indonesia || opt.apiData?.namaIndonesia || '';
+      const namaLatin = opt.namaLatin || opt.nama_latin || opt.apiData?.namaLatin || '';
+      const label = namaLatin ? `${namaIndo} (${namaLatin})` : namaIndo;
+      if (!label) return false;
+      
+      // Filter by typed value (starts with)
+      if (!value) return true;
+      const lowerVal = value.toLowerCase();
+      const lowerLabel = label.toLowerCase();
+      
+      return lowerLabel.startsWith(lowerVal) || lowerLabel.includes(` ${lowerVal}`) || lowerLabel.includes(`(${lowerVal}`);
+    }).slice(0, 10);
+  }, [options, value, activeLocation]);
+
+  return (
+    <div ref={wrapperRef} className="relative w-full">
+      <input
+        type="text"
+        value={value || ''}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setIsOpen(true);
+        }}
+        onFocus={() => setIsOpen(true)}
+        placeholder={placeholder}
+        className={`w-full px-2 py-1 bg-transparent hover:bg-white focus:bg-white focus:ring-1 focus:ring-blue-500 rounded border border-transparent hover:border-slate-300 focus:border-blue-500 text-slate-800 font-medium ${isHighlighted ? 'border-rose-400 bg-rose-50 text-rose-800' : ''}`}
+      />
+      {isOpen && filteredOptions.length > 0 && (
+        <ul className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-48 overflow-y-auto text-xs font-medium text-slate-700">
+          {filteredOptions.map((opt, i) => {
+            const namaIndo = opt.namaIndonesia || opt.nama_indonesia || opt.apiData?.namaIndonesia || '';
+            const namaLatin = opt.namaLatin || opt.nama_latin || opt.apiData?.namaLatin || '';
+            const label = namaLatin ? `${namaIndo} (${namaLatin})` : namaIndo;
+            return (
+              <li
+                key={i}
+                onClick={() => {
+                  onChange(label);
+                  setIsOpen(false);
+                }}
+                className="px-3 py-2 cursor-pointer hover:bg-blue-50 hover:text-blue-700 border-b border-slate-100 last:border-0"
+              >
+                <div className="flex flex-col">
+                  <span>{namaIndo}</span>
+                  {namaLatin && <span className="text-[10px] text-slate-400 italic font-normal">{namaLatin}</span>}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+};
+
 export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
   projectId,
   prefixLetter,
@@ -56,7 +141,7 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
   onOpenImportModal,
   highlightedRowId,
 }) => {
-  const { activeProjectId } = useProject();
+  const { activeProjectId, activeProject } = useProject();
   const { user } = useAuth() || {};
   const roleName = (user?.role?.nama_role || (typeof user?.role === 'string' ? user.role : '')).toLowerCase();
   const isAdmin = roleName.includes('admin');
@@ -81,6 +166,37 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
   const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
   const [editingColumn, setEditingColumn] = useState<CustomColumnDefinition | null>(null);
   const [deletingColumn, setDeletingColumn] = useState<CustomColumnDefinition | null>(null);
+  
+  // Data Master Autocomplete State
+  const [masterBiotaList, setMasterBiotaList] = useState<{ flora: any[], fauna: any[] }>({ flora: [], fauna: [] });
+
+  React.useEffect(() => {
+    if (serviceId === 'provisioning' && isOpen) {
+      const processBiotaList = (prov: any[]) => {
+        setMasterBiotaList({ flora: prov, fauna: prov });
+        console.log("Master Biota loaded:", prov.length, "items");
+      };
+
+      if (currentProjId) {
+        getProjectDataMaster(currentProjId)
+          .then((res: any) => {
+            const prov = res?.data?.provisioning || res?.provisioning;
+            if (Array.isArray(prov) && prov.length > 0) {
+              processBiotaList(prov);
+            } else {
+              console.log("API returned empty, using mock data");
+              processBiotaList(PROVISIONING_DATA);
+            }
+          })
+          .catch(() => {
+            console.log("API failed, using mock data");
+            processBiotaList(PROVISIONING_DATA);
+          });
+      } else {
+        processBiotaList(PROVISIONING_DATA);
+      }
+    }
+  }, [serviceId, currentProjId, isOpen]);
 
   // Category visual accent tokens
   const ACCENT_STYLES: Record<string, { badgeBg: string; badgeText: string; borderLeft: string; pillBg: string; pillText: string }> = {
@@ -272,20 +388,29 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
           }
 
           // Text Column
+          const isBiotaItem = col.key === 'item' && serviceId === 'provisioning';
+          
           return (
             <td key={col.key} className="py-1 px-2 border-r border-slate-200">
-              <input
-                key={`${row.id}-${col.key}`}
-                type="text"
-                value={val || ''}
-                onChange={(e) => handleCellChange(row.id, col.key, e.target.value, rowBiota)}
-                placeholder={
-                  col.key === 'item' && serviceId === 'provisioning'
-                    ? (rowBiota === 'fauna' ? 'Contoh: Scylla serrata (Kepiting Bakau)' : 'Contoh: Rhizophora apiculata')
-                    : (col.placeholder || '')
-                }
-                className="w-full px-2 py-1 bg-transparent hover:bg-white focus:bg-white focus:ring-1 focus:ring-blue-500 rounded border border-transparent hover:border-slate-300 focus:border-blue-500 text-slate-800 font-medium"
-              />
+              {isBiotaItem ? (
+                <BiotaAutocomplete
+                  value={val || ''}
+                  onChange={(v) => handleCellChange(row.id, col.key, v, rowBiota)}
+                  options={rowBiota === 'fauna' ? masterBiotaList.fauna : masterBiotaList.flora}
+                  placeholder={rowBiota === 'fauna' ? 'Contoh: Scylla serrata (Kepiting Bakau)' : 'Contoh: Rhizophora apiculata'}
+                  isHighlighted={isHighlighted}
+                  activeLocation={activeProject?.location}
+                />
+              ) : (
+                <input
+                  key={`${row.id}-${col.key}`}
+                  type="text"
+                  value={val || ''}
+                  onChange={(e) => handleCellChange(row.id, col.key, e.target.value, rowBiota)}
+                  placeholder={col.placeholder || ''}
+                  className="w-full px-2 py-1 bg-transparent hover:bg-white focus:bg-white focus:ring-1 focus:ring-blue-500 rounded border border-transparent hover:border-slate-300 focus:border-blue-500 text-slate-800 font-medium"
+                />
+              )}
             </td>
           );
         })}
@@ -475,8 +600,7 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                         className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold flex items-center gap-1 transition-colors shadow-xs cursor-pointer"
                         title="Tambah baris data Flora (Vegetasi)"
                       >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Tambah Flora</span>
+                        <span>+ Tambah Flora</span>
                       </button>
                       <button
                         type="button"
@@ -484,8 +608,7 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                         className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-semibold flex items-center gap-1 transition-colors shadow-xs cursor-pointer"
                         title="Tambah baris data Fauna (Perikanan / Satwa)"
                       >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Tambah Fauna</span>
+                        <span>+ Tambah Fauna</span>
                       </button>
                     </div>
                   ) : (
@@ -758,8 +881,7 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                               onClick={() => handleAddRow('flora')}
                               className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                             >
-                              <Plus className="w-3 h-3" />
-                              <span>Tambah Flora</span>
+                              <span>+ Tambah Flora</span>
                             </button>
                           )}
                         </div>
@@ -820,8 +942,7 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                               onClick={() => handleAddRow('fauna')}
                               className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                             >
-                              <Plus className="w-3 h-3" />
-                              <span>Tambah Fauna</span>
+                              <span>+ Tambah Fauna</span>
                             </button>
                           )}
                         </div>
