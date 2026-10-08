@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Project, ProjectStatus } from '../types/project';
 import { LandCoverPolygon, IndexItem, MapLayer } from '../types/spatial';
@@ -29,7 +29,7 @@ import { saveSpatialToIndexedDB, loadAllSpatialFromIndexedDB, deleteSpatialFromI
 import { createProyek, deleteProyek, getProyekList, updateProyek, deleteProjectShapefileApi } from '../../services/projectService';
 import { createIndexApi, createLandCoverApi, deleteLandCoverApi, deleteIndexApi, getIndexesApi, updateIndexApi, updateLandCoverApi } from '../../services/indexService';
 
-import { AreaServiceConfig, EcosystemServiceId } from '../types/valuation';
+import { AreaServiceConfig, EcosystemServiceId, normalizeMethods } from '../types/valuation';
 import { getValuationConfigs, upsertValuationConfigs } from '../services/valuationDataService';
 import { isValidPoint } from '../utils/geoValidation';
 import { healPolygonsColors, getPolygonColor } from '../utils/spatialColors';
@@ -99,10 +99,10 @@ export const DEFAULT_AREA_CONFIG: AreaServiceConfig = {
     cultural: true,
   },
   selectedMethods: {
-    provisioning: 'market-price',
-    regulating: 'replacement-cost',
-    supporting: 'nursery-ground',
-    cultural: 'tcm',
+    provisioning: ['market-price'],
+    regulating: ['replacement-cost'],
+    supporting: ['nursery-ground'],
+    cultural: ['tcm'],
   },
   biota: 'flora',
 };
@@ -697,30 +697,33 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const proj = projects.find(p => p.id === activeProjectId);
       return proj?.code ? (ALL_PROJECT_LAND_COVERS[proj.code] || []) : [];
     })();
-  const landCovers: LandCoverPolygon[] = rawLandCovers.length > 0
-    ? (rawLandCovers[0]?.id?.startsWith('shp-poly-')
-        ? rawLandCovers
-        : rawLandCovers.map((lc) => {
-            const mockMatch = enrichedMockLCs.find(
-              (m) => m.id === lc.id || m.indexCode === lc.indexCode || m.code === lc.code || m.name === lc.name || m.indexName === lc.indexName
-            );
-            const isStale = lc.totalValue === 35800000000 || lc.totalValue === 15350000000 || lc.totalValue === 7573271140 || lc.totalValue === 58723271140 || !lc.serviceDetails || lc.serviceDetails.length === 0;
-            if (mockMatch && (isStale || (mockMatch.totalValue && mockMatch.totalValue !== lc.totalValue))) {
-              return {
-                ...lc,
-                name: mockMatch.name || lc.name,
-                code: mockMatch.code || lc.code,
-                areaHa: mockMatch.areaHa || lc.areaHa,
-                activeServices: mockMatch.activeServices || lc.activeServices,
-                serviceDetails: mockMatch.serviceDetails || lc.serviceDetails,
-                totalValue: mockMatch.totalValue,
-                coordinates: (lc.coordinates && lc.coordinates.length > 0) ? lc.coordinates : mockMatch.coordinates,
-                center: (lc.center && (lc.center[0] !== 0 || lc.center[1] !== 0)) ? lc.center : mockMatch.center,
-              };
-            }
-            return lc;
-          }))
-    : enrichedMockLCs;
+  const landCovers: LandCoverPolygon[] = useMemo(() => {
+    return rawLandCovers.length > 0
+      ? (rawLandCovers[0]?.id?.startsWith('shp-poly-')
+          ? rawLandCovers
+          : rawLandCovers.map((lc) => {
+              const mockMatch = enrichedMockLCs.find(
+                (m) => m.id === lc.id || m.indexCode === lc.indexCode || m.code === lc.code || m.name === lc.name || m.indexName === lc.indexName
+              );
+              const isStale = lc.totalValue === 35800000000 || lc.totalValue === 15350000000 || lc.totalValue === 7573271140 || lc.totalValue === 58723271140 || !lc.serviceDetails || lc.serviceDetails.length === 0;
+              if (mockMatch && (isStale || (mockMatch.totalValue && mockMatch.totalValue !== lc.totalValue))) {
+                return {
+                  ...lc,
+                  name: mockMatch.name || lc.name,
+                  code: mockMatch.code || lc.code,
+                  areaHa: mockMatch.areaHa || lc.areaHa,
+                  activeServices: mockMatch.activeServices || lc.activeServices,
+                  serviceDetails: mockMatch.serviceDetails || lc.serviceDetails,
+                  totalValue: mockMatch.totalValue,
+                  coordinates: (lc.coordinates && lc.coordinates.length > 0) ? lc.coordinates : mockMatch.coordinates,
+                  center: (lc.center && (lc.center[0] !== 0 || lc.center[1] !== 0)) ? lc.center : mockMatch.center,
+                };
+              }
+              return lc;
+            }))
+      : enrichedMockLCs;
+  }, [rawLandCovers, enrichedMockLCs]);
+
   const rawProjectIndices = getProjectIndices(activeProjectId);
   const indices: IndexItem[] = rawProjectIndices.length > 0
     ? rawProjectIndices
@@ -761,12 +764,19 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         : []);
   const layers = projectLayers[activeProjectId] || [];
 
+  const landCoverIdsKey = useMemo(() => {
+    return landCovers
+      .map(lc => lc.id)
+      .filter(id => !isNaN(Number(id)) && Number(id) > 0)
+      .sort()
+      .join(',');
+  }, [landCovers]);
+
   useEffect(() => {
+    if (!landCoverIdsKey) return;
+    const numericAreaIds = landCoverIdsKey.split(',').filter(Boolean);
+
     const fetchConfigs = async () => {
-      const numericAreaIds = landCovers
-        .map(lc => lc.id)
-        .filter(id => !isNaN(Number(id)) && Number(id) > 0);
-        
       for (const areaId of numericAreaIds) {
         try {
           const apiConfigs = await getValuationConfigs(areaId);
@@ -777,15 +787,28 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
               const nextMethods = { ...current.selectedMethods };
               let nextBiota = current.biota;
               
+              const serviceMethodsMap: Record<string, string[]> = {
+                provisioning: [],
+                regulating: [],
+                supporting: [],
+                cultural: [],
+              };
+              
               apiConfigs.forEach(cfg => {
                 const sId = cfg.service_id as keyof AreaServiceConfig['activeServices'];
                 if (sId) {
                   nextServices[sId] = cfg.is_active;
-                  nextMethods[sId] = cfg.method_id;
+                  if (cfg.is_active && !serviceMethodsMap[sId].includes(cfg.method_id)) {
+                    serviceMethodsMap[sId].push(cfg.method_id);
+                  }
                   if (sId === 'provisioning' && cfg.biota) {
                     nextBiota = cfg.biota;
                   }
                 }
+              });
+
+              (Object.keys(serviceMethodsMap) as (keyof AreaServiceConfig['activeServices'])[]).forEach(sId => {
+                nextMethods[sId] = serviceMethodsMap[sId];
               });
               
               return {
@@ -804,10 +827,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       }
     };
-    if (landCovers && landCovers.length > 0) {
-      fetchConfigs();
-    }
-  }, [landCovers]);
+
+    fetchConfigs();
+  }, [landCoverIdsKey, activeProjectId]);
 
 
 
@@ -840,12 +862,24 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       
       // Sync ke backend jika areaId adalah numeric
       if (!isNaN(Number(areaId)) && Number(areaId) > 0) {
-        const configsPayload = [
-          { service_id: 'provisioning', is_active: next.activeServices.provisioning, method_id: next.selectedMethods.provisioning, biota: next.biota },
-          { service_id: 'regulating', is_active: next.activeServices.regulating, method_id: next.selectedMethods.regulating },
-          { service_id: 'supporting', is_active: next.activeServices.supporting, method_id: next.selectedMethods.supporting },
-          { service_id: 'cultural', is_active: next.activeServices.cultural, method_id: next.selectedMethods.cultural },
-        ];
+        const configsPayload: { service_id: string; is_active: boolean; method_id: string; biota?: string }[] = [];
+        const serviceKeys: (keyof AreaServiceConfig['activeServices'])[] = ['provisioning', 'regulating', 'supporting', 'cultural'];
+
+        serviceKeys.forEach(sId => {
+          const isActive = !!next.activeServices[sId];
+          const defaultM = sId === 'provisioning' ? 'market-price' : sId === 'regulating' ? 'replacement-cost' : sId === 'supporting' ? 'nursery-ground' : 'tcm';
+          const methods = normalizeMethods(next.selectedMethods[sId], defaultM);
+
+          methods.forEach(mId => {
+            configsPayload.push({
+              service_id: sId,
+              is_active: isActive,
+              method_id: mId,
+              ...(sId === 'provisioning' ? { biota: next.biota } : {}),
+            });
+          });
+        });
+
         upsertValuationConfigs(areaId, configsPayload).catch(err => 
           console.warn('[ValuationData] Gagal sync configs ke backend:', err)
         );

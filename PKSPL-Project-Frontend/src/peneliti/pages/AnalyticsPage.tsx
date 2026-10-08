@@ -419,8 +419,18 @@ const AnalyticsPageContent: React.FC = () => {
   const totalAreaHa = relevantLandCovers.reduce((s, lc) => s + (Number(lc.areaHa) || 0), 0);
   const tevPerHa  = totalValuedAreaHa > 0 ? Math.round(totalTEV / totalValuedAreaHa) : 0;
 
-  // ── Kontribusi 4 Jasa ──────────────────────────────────────────────────
-  const serviceContributions = SERVICE_IDS.map(sId => {
+  // ── Jasa yang aktif pada minimal satu tutupan lahan relevan ──────────────
+  const activeServiceIds = useMemo(() => {
+    return SERVICE_IDS.filter(sId =>
+      relevantLandCovers.some(lc => {
+        const cfg = getAreaConfig ? getAreaConfig(lc.id) : null;
+        return cfg?.activeServices ? (cfg.activeServices[sId] ?? true) : true;
+      })
+    );
+  }, [relevantLandCovers, getAreaConfig]);
+
+  // ── Kontribusi Jasa Aktif ───────────────────────────────────────────────
+  const serviceContributions = activeServiceIds.map(sId => {
     const meta  = SERVICE_META[sId];
     const nominal = sId === 'provisioning' ? provTotal
                   : sId === 'regulating'   ? regTotal
@@ -744,11 +754,13 @@ const AnalyticsPageContent: React.FC = () => {
               onChange={e => setFilterService(e.target.value)}
               className="bg-slate-50 border border-slate-300 rounded px-2.5 py-1 text-slate-700 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer"
             >
-              <option value="ALL">Semua Jasa (4 Kategori)</option>
-              <option value="provisioning">A. Provisioning</option>
-              <option value="regulating">B. Regulating</option>
-              <option value="supporting">C. Supporting</option>
-              <option value="cultural">D. Cultural</option>
+              <option value="ALL">Semua Jasa Aktif ({activeServiceIds.length})</option>
+              {activeServiceIds.map(sId => {
+                const meta = SERVICE_META[sId];
+                return (
+                  <option key={sId} value={sId}>{meta.code}. {meta.label}</option>
+                );
+              })}
             </select>
           </div>
         </div>
@@ -1070,8 +1082,8 @@ const AnalyticsPageContent: React.FC = () => {
 
         {(() => {
           const visibleServiceIds = filterService === 'ALL'
-            ? SERVICE_IDS
-            : [filterService as EcosystemServiceId];
+            ? activeServiceIds
+            : activeServiceIds.filter(id => id === filterService);
 
           return (
             <div className="space-y-4">

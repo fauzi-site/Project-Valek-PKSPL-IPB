@@ -29,6 +29,7 @@ interface DynamicServiceSectionProps {
   serviceId: 'provisioning' | 'regulating' | 'supporting' | 'cultural';
   serviceName: string;
   methodId: string;
+  activeMethodIds?: string[];
   biota?: 'flora' | 'fauna';
   areaId: string;
   areaName: string;
@@ -130,6 +131,7 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
   serviceId,
   serviceName,
   methodId,
+  activeMethodIds,
   biota = 'flora',
   areaId,
   areaName,
@@ -534,9 +536,36 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
               <h3 className="font-bold text-slate-900 text-sm">
                 {prefixLetter}. {serviceName}
               </h3>
-              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${accent.pillBg} ${accent.pillText} border border-slate-200/60 hidden sm:inline-block`}>
-                {cleanMethodName}
-              </span>
+              {activeMethodIds && activeMethodIds.length > 1 ? (
+                <div className="flex items-center gap-1.5 hidden sm:flex" onClick={(e) => e.stopPropagation()}>
+                  {activeMethodIds.map(mId => {
+                    const mSchema = getMethodSchema(serviceId, mId);
+                    const isCur = mId === methodId;
+                    const mName = mSchema?.methodName?.split('(')[0]?.trim() || mId;
+                    return (
+                      <button
+                        key={mId}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onMethodChange?.(mId);
+                        }}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer ${
+                          isCur
+                            ? `${accent.pillBg} ${accent.pillText} border-blue-400 ring-1 ring-blue-300`
+                            : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        {mName}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${accent.pillBg} ${accent.pillText} border border-slate-200/60 hidden sm:inline-block`}>
+                  {cleanMethodName}
+                </span>
+              )}
               {customColumns.length > 0 && (
                 <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 hidden md:inline-block">
                   +{customColumns.length} Kolom Custom
@@ -558,7 +587,7 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
               </span>
             ) : (
               <span className="text-xs font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded">
-                {rows.length} item
+                {rows.length} item {activeMethodIds && activeMethodIds.length > 1 ? `(${cleanMethodName.split('(')[0].trim()})` : ''}
               </span>
             )}
           </div>
@@ -577,14 +606,44 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
         <div className="p-4 space-y-3 bg-white animate-in slide-in-from-top-1 duration-150">
           {/* Sub-toolbar */}
           <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200 text-xs">
-            {/* Left: Method Display Badge */}
+            {/* Left: Method Display Badge / Multi-Method Sub-Tabs */}
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2">
                 <span className="text-slate-500 font-semibold">Metode:</span>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-100 text-slate-800 border border-slate-300 font-semibold text-xs shadow-2xs">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
-                  {cleanMethodName}
-                </span>
+                {activeMethodIds && activeMethodIds.length > 1 ? (
+                  <div className="inline-flex p-0.5 rounded-lg bg-slate-100 border border-slate-200 gap-1">
+                    {activeMethodIds.map(mId => {
+                      const mSchema = getMethodSchema(serviceId, mId);
+                      const isCur = mId === methodId;
+                      const mRows = serviceId === 'provisioning'
+                        ? getRows(currentProjId, areaId, serviceId, mId, 'flora').length + getRows(currentProjId, areaId, serviceId, mId, 'fauna').length
+                        : getRows(currentProjId, areaId, serviceId, mId, 'none').length;
+                      return (
+                        <button
+                          key={mId}
+                          type="button"
+                          onClick={() => onMethodChange?.(mId)}
+                          className={`px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                            isCur
+                              ? 'bg-white text-slate-900 shadow-2xs font-bold border border-slate-200'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                          }`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${isCur ? 'bg-blue-600' : 'bg-slate-400'}`}></span>
+                          <span>{mSchema?.methodName || mId}</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600 font-mono">
+                            {mRows}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-100 text-slate-800 border border-slate-300 font-semibold text-xs shadow-2xs">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
+                    {cleanMethodName}
+                  </span>
+                )}
               </div>
             </div>
 

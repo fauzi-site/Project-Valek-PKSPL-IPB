@@ -23,6 +23,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
 import { DeleteShpConfirmModal } from '../components/map/DeleteShpConfirmModal';
 import { useSpreadsheet } from '../context/SpreadsheetContext';
+import { normalizeMethods } from '../types/valuation';
 
 export const MapsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -69,15 +70,24 @@ export const MapsPage: React.FC = () => {
       const realTev = getGrandTotalForArea(effectiveProjId, poly.id, act, meth, 'flora');
 
       if (realTev > 0) {
-        // Rebuild serviceDetails per jasa dari method yang aktif
+        // Rebuild serviceDetails per jasa dari method-method yang aktif
         const serviceDetails = (['provisioning', 'regulating', 'supporting', 'cultural'] as const).map(sId => {
-          const mId = meth[sId] || sId;
-          const val = sId === 'provisioning'
-            ? getServiceSubtotal(effectiveProjId, poly.id, sId, mId, 'flora') +
-              getServiceSubtotal(effectiveProjId, poly.id, sId, mId, 'fauna')
-            : getServiceSubtotal(effectiveProjId, poly.id, sId, mId, 'none');
+          const defaultM = sId === 'provisioning' ? 'market-price' : sId === 'regulating' ? 'replacement-cost' : sId === 'supporting' ? 'nursery-ground' : 'tcm';
+          const activeMethods = normalizeMethods(meth[sId], defaultM);
+          let val = 0;
+          for (const mId of activeMethods) {
+            val += sId === 'provisioning'
+              ? getServiceSubtotal(effectiveProjId, poly.id, sId, mId, 'flora') +
+                getServiceSubtotal(effectiveProjId, poly.id, sId, mId, 'fauna')
+              : getServiceSubtotal(effectiveProjId, poly.id, sId, mId, 'none');
+          }
           const existing = poly.serviceDetails?.find(s => s.serviceId === sId);
-          return { serviceId: sId, methodName: mId, value: val > 0 ? val : (existing?.value || 0), status: 'verified' as const };
+          return {
+            serviceId: sId,
+            methodName: activeMethods.join(', '),
+            value: val > 0 ? val : (existing?.value || 0),
+            status: 'verified' as const
+          };
         });
         return { ...poly, totalValue: realTev, serviceDetails };
       }

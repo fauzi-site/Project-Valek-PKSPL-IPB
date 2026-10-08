@@ -1197,16 +1197,15 @@ export const DataMasterPage: React.FC = () => {
                 </span>
               </button>
             </div>
-
-            {/* Refresh Indicator */}
-            <RefreshIndicator isRefreshing={loading && masterList.length > 0} label="Menyinkronkan..." />
           </div>
 
-          {/* Right: Search Input, Page Size Selector & Result Counter */}
+          {/* Right: Search Input, Page Size Selector, Result Counter & Refresh Indicator */}
           <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
             <div className="relative flex-1 lg:w-72">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
+                id="search-data-master"
+                name="searchTerm"
                 type="text"
                 value={searchTerm}
                 onChange={(e) => {
@@ -1229,8 +1228,10 @@ export const DataMasterPage: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-1.5 text-xs text-slate-500">
-              <span className="font-medium text-slate-400">Tampilkan:</span>
+              <label htmlFor="page-size-select-top" className="font-medium text-slate-400">Tampilkan:</label>
               <select
+                id="page-size-select-top"
+                name="pageSizeTop"
                 value={pageSize}
                 onChange={(e) => handlePageSizeChange(Number(e.target.value))}
                 className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-700 font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs text-xs"
@@ -1249,6 +1250,9 @@ export const DataMasterPage: React.FC = () => {
             <span className="text-[11px] font-semibold text-slate-500 shrink-0">
               {sorted.length} item
             </span>
+
+            {/* Refresh Indicator */}
+            <RefreshIndicator isRefreshing={loading && masterList.length > 0} label="Menyinkronkan..." />
           </div>
         </div>
 
@@ -1357,8 +1361,10 @@ export const DataMasterPage: React.FC = () => {
           <div className="px-4 py-3 border-t border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-1.5 text-slate-600">
-                <span className="font-medium text-slate-500">Tampilkan:</span>
+                <label htmlFor="page-size-select-bottom" className="font-medium text-slate-500">Tampilkan:</label>
                 <select
+                  id="page-size-select-bottom"
+                  name="pageSizeBottom"
                   value={pageSize}
                   onChange={(e) => handlePageSizeChange(Number(e.target.value))}
                   className="bg-white border border-slate-300 rounded-md px-2 py-1 text-slate-700 font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs text-xs"
@@ -1720,10 +1726,12 @@ export const DataMasterPage: React.FC = () => {
               {/* Tutupan Lahan Selection */}
               {projectLandCovers.length > 0 && (
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="form-add-landcover" className="block text-xs font-bold text-slate-700 mb-1">
                     Kaitkan ke Tutupan Lahan Proyek (Opsional)
                   </label>
                   <select
+                    id="form-add-landcover"
+                    name="landCoverId"
                     value={formLandCoverId}
                     onChange={(e) => setFormLandCoverId(e.target.value)}
                     className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
@@ -1741,7 +1749,7 @@ export const DataMasterPage: React.FC = () => {
 
               {/* Dynamic Inputs based on Category */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label htmlFor="form-add-nama-indonesia" className="block text-xs font-bold text-slate-700 mb-1">
                   {formCategory === 'Provisioning' && 'Nama Objek (Bahasa Indonesia)'}
                   {formCategory === 'Regulating' && 'Jenis Jasa Pengaturan (Parameter)'}
                   {formCategory === 'Supporting' && 'Fungsi Pendukung Ekologis'}
@@ -1749,6 +1757,8 @@ export const DataMasterPage: React.FC = () => {
                   <span className="text-rose-500"> *</span>
                 </label>
                 <input
+                  id="form-add-nama-indonesia"
+                  name="namaIndonesia"
                   type="text"
                   required
                   placeholder={
@@ -1768,13 +1778,15 @@ export const DataMasterPage: React.FC = () => {
 
               {/* Latin / Indicator */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label htmlFor="form-add-nama-latin" className="block text-xs font-bold text-slate-700 mb-1">
                   {formCategory === 'Provisioning' && 'Nama Latin (Nama Ilmiah)'}
                   {formCategory === 'Regulating' && 'Indikator Pengaturan'}
                   {formCategory === 'Supporting' && 'Deskripsi Fungsi'}
                   {formCategory === 'Cultural' && 'Deskripsi Objek'}
                 </label>
                 <input
+                  id="form-add-nama-latin"
+                  name="namaLatin"
                   type="text"
                   placeholder={
                     formCategory === 'Provisioning'
@@ -1792,8 +1804,10 @@ export const DataMasterPage: React.FC = () => {
               {/* Local Name & Unit */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Nama Daerah / Lokal</label>
+                  <label htmlFor="form-add-nama-daerah" className="block text-xs font-bold text-slate-700 mb-1">Nama Daerah / Lokal</label>
                   <input
+                    id="form-add-nama-daerah"
+                    name="namaDaerah"
                     type="text"
                     placeholder="Contoh: Kerapu Tikus, Bakau"
                     value={formNamaDaerah}
@@ -1802,8 +1816,10 @@ export const DataMasterPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Satuan Nilai</label>
+                  <label htmlFor="form-add-satuan" className="block text-xs font-bold text-slate-700 mb-1">Satuan Nilai</label>
                   <input
+                    id="form-add-satuan"
+                    name="satuan"
                     type="text"
                     placeholder="Contoh: kg, Ton CO2e, org/thn"
                     value={formSatuan}
@@ -1817,8 +1833,10 @@ export const DataMasterPage: React.FC = () => {
               {formCategory === 'Provisioning' && (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Produktivitas (kg/ha/thn)</label>
+                    <label htmlFor="form-add-produktivitas" className="block text-xs font-bold text-slate-700 mb-1">Produktivitas (kg/ha/thn)</label>
                     <input
+                      id="form-add-produktivitas"
+                      name="produktivitas"
                       type="number"
                       step="any"
                       placeholder="1.25"
@@ -1828,8 +1846,10 @@ export const DataMasterPage: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Harga Pasar (Rp/kg)</label>
+                    <label htmlFor="form-add-harga-pasar" className="block text-xs font-bold text-slate-700 mb-1">Harga Pasar (Rp/kg)</label>
                     <input
+                      id="form-add-harga-pasar"
+                      name="hargaPasar"
                       type="number"
                       step="any"
                       placeholder="35000"
@@ -1844,8 +1864,10 @@ export const DataMasterPage: React.FC = () => {
               {/* Nilai Estimasi & TEV */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Klasifikasi TEV</label>
+                  <label htmlFor="form-add-kategori-tev" className="block text-xs font-bold text-slate-700 mb-1">Klasifikasi TEV</label>
                   <select
+                    id="form-add-kategori-tev"
+                    name="kategoriTev"
                     value={formKategoriTev}
                     onChange={(e) => setFormKategoriTev(e.target.value)}
                     className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
@@ -1857,8 +1879,10 @@ export const DataMasterPage: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Nilai Total Acuan (Rp)</label>
+                  <label htmlFor="form-add-nilai" className="block text-xs font-bold text-slate-700 mb-1">Nilai Total Acuan (Rp)</label>
                   <input
+                    id="form-add-nilai"
+                    name="nilai"
                     type="number"
                     step="any"
                     placeholder="Contoh: 10000000"
@@ -1871,8 +1895,10 @@ export const DataMasterPage: React.FC = () => {
 
               {/* Deskripsi & Referensi */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Pustaka / Referensi Ilmiah</label>
+                <label htmlFor="form-add-deskripsi" className="block text-xs font-bold text-slate-700 mb-1">Pustaka / Referensi Ilmiah</label>
                 <input
+                  id="form-add-deskripsi"
+                  name="deskripsi"
                   type="text"
                   placeholder="Contoh: Laporan BPS 2025, Riset Valuasi PKSPL IPB"
                   value={formDeskripsi}
@@ -1943,10 +1969,12 @@ export const DataMasterPage: React.FC = () => {
             {/* Modal Body Form */}
             <form onSubmit={handleSaveEditItem} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label htmlFor="form-edit-nama-indonesia" className="block text-xs font-bold text-slate-700 mb-1">
                   Nama Objek / Parameter <span className="text-rose-500">*</span>
                 </label>
                 <input
+                  id="form-edit-nama-indonesia"
+                  name="namaIndonesia"
                   type="text"
                   required
                   value={formNamaIndonesia}
@@ -1956,10 +1984,12 @@ export const DataMasterPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label htmlFor="form-edit-nama-latin" className="block text-xs font-bold text-slate-700 mb-1">
                   Nama Latin / Indikator
                 </label>
                 <input
+                  id="form-edit-nama-latin"
+                  name="namaLatin"
                   type="text"
                   value={formNamaLatin}
                   onChange={(e) => setFormNamaLatin(e.target.value)}
@@ -1969,8 +1999,10 @@ export const DataMasterPage: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Nama Daerah / Lokal</label>
+                  <label htmlFor="form-edit-nama-daerah" className="block text-xs font-bold text-slate-700 mb-1">Nama Daerah / Lokal</label>
                   <input
+                    id="form-edit-nama-daerah"
+                    name="namaDaerah"
                     type="text"
                     value={formNamaDaerah}
                     onChange={(e) => setFormNamaDaerah(e.target.value)}
@@ -1978,8 +2010,10 @@ export const DataMasterPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Satuan</label>
+                  <label htmlFor="form-edit-satuan" className="block text-xs font-bold text-slate-700 mb-1">Satuan</label>
                   <input
+                    id="form-edit-satuan"
+                    name="satuan"
                     type="text"
                     value={formSatuan}
                     onChange={(e) => setFormSatuan(e.target.value)}
@@ -1990,10 +2024,12 @@ export const DataMasterPage: React.FC = () => {
 
               {projectLandCovers.length > 0 && (
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="form-edit-landcover" className="block text-xs font-bold text-slate-700 mb-1">
                     Tutupan Lahan Proyek Terkait
                   </label>
                   <select
+                    id="form-edit-landcover"
+                    name="landCoverId"
                     value={formLandCoverId}
                     onChange={(e) => setFormLandCoverId(e.target.value)}
                     className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
@@ -2011,8 +2047,10 @@ export const DataMasterPage: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Klasifikasi TEV</label>
+                  <label htmlFor="form-edit-kategori-tev" className="block text-xs font-bold text-slate-700 mb-1">Klasifikasi TEV</label>
                   <select
+                    id="form-edit-kategori-tev"
+                    name="kategoriTev"
                     value={formKategoriTev}
                     onChange={(e) => setFormKategoriTev(e.target.value)}
                     className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
@@ -2024,8 +2062,10 @@ export const DataMasterPage: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Nilai Total Acuan (Rp)</label>
+                  <label htmlFor="form-edit-nilai" className="block text-xs font-bold text-slate-700 mb-1">Nilai Total Acuan (Rp)</label>
                   <input
+                    id="form-edit-nilai"
+                    name="nilai"
                     type="number"
                     step="any"
                     value={formNilai}
@@ -2036,8 +2076,10 @@ export const DataMasterPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Pustaka / Referensi</label>
+                <label htmlFor="form-edit-deskripsi" className="block text-xs font-bold text-slate-700 mb-1">Pustaka / Referensi</label>
                 <input
+                  id="form-edit-deskripsi"
+                  name="deskripsi"
                   type="text"
                   value={formDeskripsi}
                   onChange={(e) => setFormDeskripsi(e.target.value)}
@@ -2142,11 +2184,13 @@ export const DataMasterPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                <label htmlFor="link-landcover-select" className="block text-xs font-bold text-slate-700 mb-1.5">
                   Pilih Tutupan Lahan Proyek Tujuan <span className="text-rose-500">*</span>
                 </label>
                 {projectLandCovers.length > 0 ? (
                   <select
+                    id="link-landcover-select"
+                    name="selectedLinkLcId"
                     value={selectedLinkLcId}
                     onChange={(e) => setSelectedLinkLcId(e.target.value)}
                     className="w-full text-xs px-3 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-semibold"

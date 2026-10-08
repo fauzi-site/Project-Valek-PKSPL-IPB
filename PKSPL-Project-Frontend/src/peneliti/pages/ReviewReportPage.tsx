@@ -6,7 +6,8 @@ import { exportFullProjectWorkbook } from '../utils/excelEngine';
 import { formatIDR, formatNumber, formatDate } from '../utils/formatter';
 import { buildIndexLabelMap } from '../utils/indexLabel';
 import { aggregateValuationByLandCoverName } from '../utils/landCoverGrouping';
-import { EcosystemServiceId } from '../types/valuation';
+import { EcosystemServiceId, normalizeMethods } from '../types/valuation';
+import { getMethodSchema } from '../types/methodSchemas';
 import { getHistoricalStudiesForArea } from '../mock/historicalAnalyticsMock';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
 import { useAuth } from '../../contexts/AuthContext';
@@ -345,10 +346,14 @@ const ReviewReportPageContent: React.FC = () => {
       if (Array.isArray(lc.activeServices) && !lc.activeServices.includes(sId)) {
         return sum;
       }
-      const m = cfg?.selectedMethods ? cfg.selectedMethods[sId] : undefined;
-      const sub = sId === 'provisioning'
-        ? (getServiceSubtotal(effectiveProjId, lc.id, sId, m || '', 'flora') + getServiceSubtotal(effectiveProjId, lc.id, sId, m || '', 'fauna'))
-        : getServiceSubtotal(effectiveProjId, lc.id, sId, m || '', 'none');
+      const defaultM = sId === 'provisioning' ? 'market-price' : sId === 'regulating' ? 'replacement-cost' : sId === 'supporting' ? 'nursery-ground' : 'tcm';
+      const methods = normalizeMethods(cfg?.selectedMethods?.[sId], defaultM);
+      let sub = 0;
+      methods.forEach(mId => {
+        sub += sId === 'provisioning'
+          ? (getServiceSubtotal(effectiveProjId, lc.id, sId, mId, 'flora') + getServiceSubtotal(effectiveProjId, lc.id, sId, mId, 'fauna'))
+          : getServiceSubtotal(effectiveProjId, lc.id, sId, mId, 'none');
+      });
       if (sub > 0) return sum + sub;
 
       // Fallback to pre-calculated serviceDetails ONLY if this is a template mock project
@@ -398,12 +403,19 @@ const ReviewReportPageContent: React.FC = () => {
     { name: 'Supporting Value', value: Math.max(0, supportingValue), color: '#8b5cf6' }
   ];
 
+  const isServiceActiveInProject = (sId: EcosystemServiceId): boolean => {
+    return currentLandCovers.some(lc => {
+      const cfg = getAreaConfig ? getAreaConfig(lc.id) : null;
+      return cfg?.activeServices ? (cfg.activeServices[sId] ?? true) : true;
+    });
+  };
+
   const serviceBarData = [
-    { name: 'Provisioning', value: Math.max(0, provTotal), fill: '#0e7490' },
-    { name: 'Regulating', value: Math.max(0, regTotal), fill: '#2563eb' },
-    { name: 'Supporting', value: Math.max(0, suppTotal), fill: '#7c3aed' },
-    { name: 'Cultural', value: Math.max(0, cultTotal), fill: '#d97706' }
-  ];
+    { id: 'provisioning', name: 'Provisioning', value: Math.max(0, provTotal), fill: '#0e7490' },
+    { id: 'regulating', name: 'Regulating', value: Math.max(0, regTotal), fill: '#2563eb' },
+    { id: 'supporting', name: 'Supporting', value: Math.max(0, suppTotal), fill: '#7c3aed' },
+    { id: 'cultural', name: 'Cultural', value: Math.max(0, cultTotal), fill: '#d97706' }
+  ].filter(s => isServiceActiveInProject(s.id as EcosystemServiceId));
 
   const areaComparisonData = useMemo(() => {
     const rawData = currentLandCovers.map(lc => {
@@ -445,7 +457,7 @@ const ReviewReportPageContent: React.FC = () => {
     { id: 'regulating', code: 'B', name: 'Regulating Services', shortName: 'Regulating', nominal: regTotal, percentage: grandTEV > 0 ? (regTotal / grandTEV) * 100 : 0, color: '#2563eb' },
     { id: 'supporting', code: 'C', name: 'Supporting Services', shortName: 'Supporting', nominal: suppTotal, percentage: grandTEV > 0 ? (suppTotal / grandTEV) * 100 : 0, color: '#7c3aed' },
     { id: 'cultural', code: 'D', name: 'Cultural Services', shortName: 'Cultural', nominal: cultTotal, percentage: grandTEV > 0 ? (cultTotal / grandTEV) * 100 : 0, color: '#d97706' },
-  ];
+  ].filter(s => isServiceActiveInProject(s.id as EcosystemServiceId));
 
   const componentCompositions = [
     { name: 'Direct Use Value (DUV)', value: directValue, percentage: grandTEV > 0 ? (directValue / grandTEV) * 100 : 0, color: '#2563eb', description: 'Manfaat langsung: komoditas panen & wisata rekreasi' },
@@ -525,25 +537,39 @@ const ReviewReportPageContent: React.FC = () => {
 
       currentLandCovers.forEach((lc) => {
         const cfg = getAreaConfig(lc.id);
-        const pFlora = getRows(effectiveProjId, lc.id, 'provisioning', cfg.selectedMethods.provisioning, 'flora');
-        const pFauna = getRows(effectiveProjId, lc.id, 'provisioning', cfg.selectedMethods.provisioning, 'fauna');
-        const rRows = getRows(effectiveProjId, lc.id, 'regulating', cfg.selectedMethods.regulating);
-        const sRows = getRows(effectiveProjId, lc.id, 'supporting', cfg.selectedMethods.supporting);
-        const cRows = getRows(effectiveProjId, lc.id, 'cultural', cfg.selectedMethods.cultural);
+        const provMethods = normalizeMethods(cfg.selectedMethods?.provisioning, 'market-price');
+        const regMethods = normalizeMethods(cfg.selectedMethods?.regulating, 'replacement-cost');
+        const suppMethods = normalizeMethods(cfg.selectedMethods?.supporting, 'nursery-ground');
+        const cultMethods = normalizeMethods(cfg.selectedMethods?.cultural, 'tcm');
 
-        const filledPFlora = getFilledRowsForService('provisioning', lc, pFlora, 'flora');
-        const filledPFauna = getFilledRowsForService('provisioning', lc, pFauna, 'fauna');
-        const filledReg = getFilledRowsForService('regulating', lc, rRows);
-        const filledSupp = getFilledRowsForService('supporting', lc, sRows);
-        const filledCult = getFilledRowsForService('cultural', lc, cRows);
+        provMethods.forEach(mId => {
+          const pFlora = getRows(effectiveProjId, lc.id, 'provisioning', mId, 'flora');
+          const pFauna = getRows(effectiveProjId, lc.id, 'provisioning', mId, 'fauna');
+          const filledPFlora = getFilledRowsForService('provisioning', lc, pFlora, 'flora');
+          const filledPFauna = getFilledRowsForService('provisioning', lc, pFauna, 'fauna');
+          allProvRows.push(
+            ...filledPFlora.map(r => ({ ...r, areaName: lc.name, indexCode: lc.indexCode, methodName: mId })),
+            ...filledPFauna.map(r => ({ ...r, areaName: lc.name, indexCode: lc.indexCode, methodName: mId }))
+          );
+        });
 
-        allProvRows.push(
-          ...filledPFlora.map(r => ({ ...r, areaName: lc.name, indexCode: lc.indexCode })),
-          ...filledPFauna.map(r => ({ ...r, areaName: lc.name, indexCode: lc.indexCode }))
-        );
-        allRegRows.push(...filledReg.map(r => ({ ...r, areaName: lc.name, indexCode: lc.indexCode })));
-        allSuppRows.push(...filledSupp.map(r => ({ ...r, areaName: lc.name, indexCode: lc.indexCode })));
-        allCultRows.push(...filledCult.map(r => ({ ...r, areaName: lc.name, indexCode: lc.indexCode })));
+        regMethods.forEach(mId => {
+          const rRows = getRows(effectiveProjId, lc.id, 'regulating', mId);
+          const filledReg = getFilledRowsForService('regulating', lc, rRows);
+          allRegRows.push(...filledReg.map(r => ({ ...r, areaName: lc.name, indexCode: lc.indexCode, methodName: mId })));
+        });
+
+        suppMethods.forEach(mId => {
+          const sRows = getRows(effectiveProjId, lc.id, 'supporting', mId);
+          const filledSupp = getFilledRowsForService('supporting', lc, sRows);
+          allSuppRows.push(...filledSupp.map(r => ({ ...r, areaName: lc.name, indexCode: lc.indexCode, methodName: mId })));
+        });
+
+        cultMethods.forEach(mId => {
+          const cRows = getRows(effectiveProjId, lc.id, 'cultural', mId);
+          const filledCult = getFilledRowsForService('cultural', lc, cRows);
+          allCultRows.push(...filledCult.map(r => ({ ...r, areaName: lc.name, indexCode: lc.indexCode, methodName: mId })));
+        });
       });
 
       exportFullProjectWorkbook(currentProject, currentLandCovers, allProvRows as any, {
@@ -990,87 +1016,120 @@ const ReviewReportPageContent: React.FC = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
-          {/* Provisioning */}
-          <div className="p-4 rounded-lg border border-cyan-200 bg-cyan-50/40 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-cyan-900 text-xs">Provisioning Services</span>
-              <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium text-[10px]">
-                ✓ Dikonfigurasi
-              </span>
-            </div>
-            <div className="text-sm font-semibold text-slate-900">Market Price</div>
-            <div className="text-[11px] text-slate-500">Biota: Flora & Fauna Mangrove</div>
-            <div className="pt-2 border-t border-cyan-200/60 flex justify-end">
-              <button
-                onClick={() => navigate(`/peneliti/projects/${effectiveProjId}/services-methods`)}
-                className="text-blue-600 hover:text-blue-800 font-medium hover:underline text-[11px]"
-              >
-                [ Lihat Data ]
-              </button>
-            </div>
+        {/* Dynamic 04. Jasa & Metode Cards based on activeServices */}
+        {(!currentAreaConfig.activeServices.provisioning && !currentAreaConfig.activeServices.regulating && !currentAreaConfig.activeServices.supporting && !currentAreaConfig.activeServices.cultural) ? (
+          <div className="p-5 bg-slate-50 border border-slate-200 rounded-lg text-center text-slate-500 text-xs">
+            Belum ada jasa ekosistem yang diaktifkan untuk area ini.
           </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+            {/* Provisioning */}
+            {currentAreaConfig.activeServices.provisioning && (
+              <div className="p-4 rounded-lg border border-cyan-200 bg-cyan-50/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-cyan-900 text-xs">Provisioning Services</span>
+                  <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium text-[10px]">
+                    ✓ Dikonfigurasi
+                  </span>
+                </div>
+                <div className="text-sm font-semibold text-slate-900">
+                  {normalizeMethods(currentAreaConfig.selectedMethods?.provisioning, 'market-price')
+                    .map(m => getMethodSchema('provisioning', m, 'flora')?.methodName?.split('(')[0]?.trim() || m)
+                    .join(', ')}
+                </div>
+                <div className="text-[11px] text-slate-500">
+                  Biota: {currentAreaConfig.biota === 'fauna' ? 'Fauna Perikanan' : 'Flora & Tegakan Pesisir'}
+                </div>
+                <div className="pt-2 border-t border-cyan-200/60 flex justify-end">
+                  <button
+                    onClick={() => navigate(`/peneliti/projects/${effectiveProjId}/services-methods?area=${selectedAreaId}`)}
+                    className="text-blue-600 hover:text-blue-800 font-medium hover:underline text-[11px] cursor-pointer"
+                  >
+                    [ Lihat Data ]
+                  </button>
+                </div>
+              </div>
+            )}
 
-          {/* Regulating */}
-          <div className="p-4 rounded-lg border border-blue-200 bg-blue-50/40 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-blue-900 text-xs">Regulating Services</span>
-              <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium text-[10px]">
-                ✓ Dikonfigurasi
-              </span>
-            </div>
-            <div className="text-sm font-semibold text-slate-900">Replacement Cost</div>
-            <div className="text-[11px] text-slate-500">Pemecah Gelombang & Carbon Blue</div>
-            <div className="pt-2 border-t border-blue-200/60 flex justify-end">
-              <button
-                onClick={() => navigate(`/peneliti/projects/${effectiveProjId}/services-methods`)}
-                className="text-blue-600 hover:text-blue-800 font-medium hover:underline text-[11px]"
-              >
-                [ Lihat Data ]
-              </button>
-            </div>
-          </div>
+            {/* Regulating */}
+            {currentAreaConfig.activeServices.regulating && (
+              <div className="p-4 rounded-lg border border-blue-200 bg-blue-50/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-blue-900 text-xs">Regulating Services</span>
+                  <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium text-[10px]">
+                    ✓ Dikonfigurasi
+                  </span>
+                </div>
+                <div className="text-sm font-semibold text-slate-900">
+                  {normalizeMethods(currentAreaConfig.selectedMethods?.regulating, 'replacement-cost')
+                    .map(m => getMethodSchema('regulating', m)?.methodName?.split('(')[0]?.trim() || m)
+                    .join(', ')}
+                </div>
+                <div className="text-[11px] text-slate-500">Pemecah Gelombang &amp; Karbon Biru</div>
+                <div className="pt-2 border-t border-blue-200/60 flex justify-end">
+                  <button
+                    onClick={() => navigate(`/peneliti/projects/${effectiveProjId}/services-methods?area=${selectedAreaId}`)}
+                    className="text-blue-600 hover:text-blue-800 font-medium hover:underline text-[11px] cursor-pointer"
+                  >
+                    [ Lihat Data ]
+                  </button>
+                </div>
+              </div>
+            )}
 
-          {/* Supporting */}
-          <div className="p-4 rounded-lg border border-purple-200 bg-purple-50/40 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-purple-900 text-xs">Supporting Services</span>
-              <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium text-[10px]">
-                ✓ Dikonfigurasi
-              </span>
-            </div>
-            <div className="text-sm font-semibold text-slate-900">Habitat & Nursery Ground</div>
-            <div className="text-[11px] text-slate-500">Tempat Asuhan & Rekrutmen Benih</div>
-            <div className="pt-2 border-t border-purple-200/60 flex justify-end">
-              <button
-                onClick={() => navigate(`/peneliti/projects/${effectiveProjId}/services-methods`)}
-                className="text-blue-600 hover:text-blue-800 font-medium hover:underline text-[11px]"
-              >
-                [ Lihat Data ]
-              </button>
-            </div>
-          </div>
+            {/* Supporting */}
+            {currentAreaConfig.activeServices.supporting && (
+              <div className="p-4 rounded-lg border border-purple-200 bg-purple-50/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-purple-900 text-xs">Supporting Services</span>
+                  <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium text-[10px]">
+                    ✓ Dikonfigurasi
+                  </span>
+                </div>
+                <div className="text-sm font-semibold text-slate-900">
+                  {normalizeMethods(currentAreaConfig.selectedMethods?.supporting, 'nursery-ground')
+                    .map(m => getMethodSchema('supporting', m)?.methodName?.split('(')[0]?.trim() || m)
+                    .join(', ')}
+                </div>
+                <div className="text-[11px] text-slate-500">Tempat Asuhan &amp; Rekrutmen Benih</div>
+                <div className="pt-2 border-t border-purple-200/60 flex justify-end">
+                  <button
+                    onClick={() => navigate(`/peneliti/projects/${effectiveProjId}/services-methods?area=${selectedAreaId}`)}
+                    className="text-blue-600 hover:text-blue-800 font-medium hover:underline text-[11px] cursor-pointer"
+                  >
+                    [ Lihat Data ]
+                  </button>
+                </div>
+              </div>
+            )}
 
-          {/* Cultural */}
-          <div className="p-4 rounded-lg border border-amber-200 bg-amber-50/40 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-amber-900 text-xs">Cultural Services</span>
-              <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium text-[10px]">
-                ✓ Dikonfigurasi
-              </span>
-            </div>
-            <div className="text-sm font-semibold text-slate-900">TCM (Travel Cost Method)</div>
-            <div className="text-[11px] text-slate-500">Ekowisata & Rekreasi Pantai</div>
-            <div className="pt-2 border-t border-amber-200/60 flex justify-end">
-              <button
-                onClick={() => navigate(`/peneliti/projects/${effectiveProjId}/services-methods`)}
-                className="text-blue-600 hover:text-blue-800 font-medium hover:underline text-[11px]"
-              >
-                [ Lihat Data ]
-              </button>
-            </div>
+            {/* Cultural */}
+            {currentAreaConfig.activeServices.cultural && (
+              <div className="p-4 rounded-lg border border-amber-200 bg-amber-50/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-amber-900 text-xs">Cultural Services</span>
+                  <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium text-[10px]">
+                    ✓ Dikonfigurasi
+                  </span>
+                </div>
+                <div className="text-sm font-semibold text-slate-900">
+                  {normalizeMethods(currentAreaConfig.selectedMethods?.cultural, 'tcm')
+                    .map(m => getMethodSchema('cultural', m)?.methodName?.split('(')[0]?.trim() || m)
+                    .join(', ')}
+                </div>
+                <div className="text-[11px] text-slate-500">Ekowisata &amp; Rekreasi Pantai</div>
+                <div className="pt-2 border-t border-amber-200/60 flex justify-end">
+                  <button
+                    onClick={() => navigate(`/peneliti/projects/${effectiveProjId}/services-methods?area=${selectedAreaId}`)}
+                    className="text-blue-600 hover:text-blue-800 font-medium hover:underline text-[11px] cursor-pointer"
+                  >
+                    [ Lihat Data ]
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </section>
 
       {/* 7. SECTION 05: DATA VALUASI — SELURUH TABEL (Bagian Terpenting, Read-Only) */}
@@ -1119,10 +1178,18 @@ const ReviewReportPageContent: React.FC = () => {
         <div className="space-y-4">
           {/* A. PROVISIONING SERVICES TABLE */}
           {currentAreaConfig.activeServices.provisioning && (() => {
-            const pFloraRowsRaw = getRows(effectiveProjId, selectedAreaId, 'provisioning', currentAreaConfig.selectedMethods.provisioning, 'flora');
-            const pFaunaRowsRaw = getRows(effectiveProjId, selectedAreaId, 'provisioning', currentAreaConfig.selectedMethods.provisioning, 'fauna');
-            const pSubFloraRaw = getServiceSubtotal(effectiveProjId, selectedAreaId, 'provisioning', currentAreaConfig.selectedMethods.provisioning, 'flora');
-            const pSubFaunaRaw = getServiceSubtotal(effectiveProjId, selectedAreaId, 'provisioning', currentAreaConfig.selectedMethods.provisioning, 'fauna');
+            const provMethods = normalizeMethods(currentAreaConfig.selectedMethods?.provisioning, 'market-price');
+            const pFloraRowsRaw: any[] = [];
+            const pFaunaRowsRaw: any[] = [];
+            let pSubFloraRaw = 0;
+            let pSubFaunaRaw = 0;
+
+            provMethods.forEach(mId => {
+              pFloraRowsRaw.push(...getRows(effectiveProjId, selectedAreaId, 'provisioning', mId, 'flora'));
+              pFaunaRowsRaw.push(...getRows(effectiveProjId, selectedAreaId, 'provisioning', mId, 'fauna'));
+              pSubFloraRaw += getServiceSubtotal(effectiveProjId, selectedAreaId, 'provisioning', mId, 'flora');
+              pSubFaunaRaw += getServiceSubtotal(effectiveProjId, selectedAreaId, 'provisioning', mId, 'fauna');
+            });
 
             const pFloraRows = getFilledRowsForService('provisioning', currentArea, pFloraRowsRaw, 'flora');
             const pFaunaRows = getFilledRowsForService('provisioning', currentArea, pFaunaRowsRaw, 'fauna');
@@ -1130,6 +1197,7 @@ const ReviewReportPageContent: React.FC = () => {
 
             const pSubRaw = pSubFloraRaw + pSubFaunaRaw;
             const pSub = pSubRaw > 0 ? pSubRaw : (isMock ? (currentArea?.serviceDetails?.find(d => d.serviceId === 'provisioning')?.value || [...pFloraRows, ...pFaunaRows].reduce((s: number, r: any) => s + (r.totalNilai || 0), 0)) : 0);
+            const methodsLabel = provMethods.map(m => getMethodSchema('provisioning', m, 'flora')?.methodName?.split('(')[0]?.trim() || m).join(', ');
 
             return (
               <div className="border border-cyan-200 rounded-xl overflow-hidden bg-white shadow-2xs">
@@ -1146,7 +1214,7 @@ const ReviewReportPageContent: React.FC = () => {
                         Provisioning Services (Jasa Penyediaan)
                       </span>
                       <div className="text-[11px] text-slate-500">
-                        Metode: Market Price • {totalItems} baris data ({pFloraRows.length} Flora, {pFaunaRows.length} Fauna)
+                        Metode: {methodsLabel} • {totalItems} baris data ({pFloraRows.length} Flora, {pFaunaRows.length} Fauna)
                       </div>
                     </div>
                   </div>
@@ -1268,10 +1336,18 @@ const ReviewReportPageContent: React.FC = () => {
 
           {/* B. REGULATING SERVICES TABLE */}
           {currentAreaConfig.activeServices.regulating && (() => {
-            const rRowsRaw = getRows(effectiveProjId, selectedAreaId, 'regulating', currentAreaConfig.selectedMethods.regulating, 'none');
-            const rSubRaw = getServiceSubtotal(effectiveProjId, selectedAreaId, 'regulating', currentAreaConfig.selectedMethods.regulating, 'none');
+            const regMethods = normalizeMethods(currentAreaConfig.selectedMethods?.regulating, 'replacement-cost');
+            const rRowsRaw: any[] = [];
+            let rSubRaw = 0;
+
+            regMethods.forEach(mId => {
+              rRowsRaw.push(...getRows(effectiveProjId, selectedAreaId, 'regulating', mId, 'none'));
+              rSubRaw += getServiceSubtotal(effectiveProjId, selectedAreaId, 'regulating', mId, 'none');
+            });
+
             const rRows = getFilledRowsForService('regulating', currentArea, rRowsRaw);
             const rSub = rSubRaw > 0 ? rSubRaw : (isMock ? (currentArea?.serviceDetails?.find(d => d.serviceId === 'regulating')?.value || rRows.reduce((s: number, r: any) => s + (r.totalNilai || 0), 0)) : 0);
+            const methodsLabel = regMethods.map(m => getMethodSchema('regulating', m)?.methodName?.split('(')[0]?.trim() || m).join(', ');
 
             return (
               <div className="border border-blue-200 rounded-xl overflow-hidden bg-white shadow-2xs">
@@ -1288,7 +1364,7 @@ const ReviewReportPageContent: React.FC = () => {
                         Regulating Services (Jasa Pengaturan)
                       </span>
                       <div className="text-[11px] text-slate-500">
-                        Metode: Replacement Cost / Carbon • {rRows.length} baris data
+                        Metode: {methodsLabel} • {rRows.length} baris data
                       </div>
                     </div>
                   </div>
@@ -1352,10 +1428,18 @@ const ReviewReportPageContent: React.FC = () => {
 
           {/* C. SUPPORTING SERVICES TABLE */}
           {currentAreaConfig.activeServices.supporting && (() => {
-            const sRowsRaw = getRows(effectiveProjId, selectedAreaId, 'supporting', currentAreaConfig.selectedMethods.supporting, 'none');
-            const sSubRaw = getServiceSubtotal(effectiveProjId, selectedAreaId, 'supporting', currentAreaConfig.selectedMethods.supporting, 'none');
+            const suppMethods = normalizeMethods(currentAreaConfig.selectedMethods?.supporting, 'nursery-ground');
+            const sRowsRaw: any[] = [];
+            let sSubRaw = 0;
+
+            suppMethods.forEach(mId => {
+              sRowsRaw.push(...getRows(effectiveProjId, selectedAreaId, 'supporting', mId, 'none'));
+              sSubRaw += getServiceSubtotal(effectiveProjId, selectedAreaId, 'supporting', mId, 'none');
+            });
+
             const sRows = getFilledRowsForService('supporting', currentArea, sRowsRaw);
             const sSub = sSubRaw > 0 ? sSubRaw : (isMock ? (currentArea?.serviceDetails?.find(d => d.serviceId === 'supporting')?.value || sRows.reduce((s: number, r: any) => s + (r.totalNilai || 0), 0)) : 0);
+            const methodsLabel = suppMethods.map(m => getMethodSchema('supporting', m)?.methodName?.split('(')[0]?.trim() || m).join(', ');
 
             return (
               <div className="border border-purple-200 rounded-xl overflow-hidden bg-white shadow-2xs">
@@ -1372,7 +1456,7 @@ const ReviewReportPageContent: React.FC = () => {
                         Supporting Services (Jasa Pendukung)
                       </span>
                       <div className="text-[11px] text-slate-500">
-                        Metode: Habitat & Nursery Ground • {sRows.length} baris data
+                        Metode: {methodsLabel} • {sRows.length} baris data
                       </div>
                     </div>
                   </div>
@@ -1436,10 +1520,18 @@ const ReviewReportPageContent: React.FC = () => {
 
           {/* D. CULTURAL SERVICES TABLE */}
           {currentAreaConfig.activeServices.cultural && (() => {
-            const cRowsRaw = getRows(effectiveProjId, selectedAreaId, 'cultural', currentAreaConfig.selectedMethods.cultural, 'none');
-            const cSubRaw = getServiceSubtotal(effectiveProjId, selectedAreaId, 'cultural', currentAreaConfig.selectedMethods.cultural, 'none');
+            const cultMethods = normalizeMethods(currentAreaConfig.selectedMethods?.cultural, 'tcm');
+            const cRowsRaw: any[] = [];
+            let cSubRaw = 0;
+
+            cultMethods.forEach(mId => {
+              cRowsRaw.push(...getRows(effectiveProjId, selectedAreaId, 'cultural', mId, 'none'));
+              cSubRaw += getServiceSubtotal(effectiveProjId, selectedAreaId, 'cultural', mId, 'none');
+            });
+
             const cRows = getFilledRowsForService('cultural', currentArea, cRowsRaw);
             const cSub = cSubRaw > 0 ? cSubRaw : (isMock ? (currentArea?.serviceDetails?.find(d => d.serviceId === 'cultural')?.value || cRows.reduce((s: number, r: any) => s + (r.totalNilai || 0), 0)) : 0);
+            const methodsLabel = cultMethods.map(m => getMethodSchema('cultural', m)?.methodName?.split('(')[0]?.trim() || m).join(', ');
 
             return (
               <div className="border border-amber-200 rounded-xl overflow-hidden bg-white shadow-2xs">
@@ -1456,7 +1548,7 @@ const ReviewReportPageContent: React.FC = () => {
                         Cultural Services (Jasa Budaya & Rekreasi)
                       </span>
                       <div className="text-[11px] text-slate-500">
-                        Metode: Travel Cost Method (TCM) • {cRows.length} baris data
+                        Metode: {methodsLabel} • {cRows.length} baris data
                       </div>
                     </div>
                   </div>

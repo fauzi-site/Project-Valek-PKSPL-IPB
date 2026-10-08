@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useProject } from '../context/ProjectContext';
 import { useSpreadsheet } from '../context/SpreadsheetContext';
 import { getMethodSchema } from '../types/methodSchemas';
-import { EcosystemServiceId } from '../types/valuation';
+import { EcosystemServiceId, normalizeMethods } from '../types/valuation';
 import { formatIDR, formatNumber } from '../utils/formatter';
 import { buildIndexLabelMap } from '../utils/indexLabel';
 import {
@@ -57,6 +57,7 @@ interface RowFormulaBreakdown {
   areaHa: number;
   indexCode: string;
   indexName: string;
+  methodId: string;
   methodName: string;
   formulaDescription: string;
 }
@@ -376,34 +377,50 @@ const CalculationPageContent: React.FC = () => {
     return tableFilteredLandCovers.slice(startIndex, startIndex + tablePageSize);
   }, [tableFilteredLandCovers, tableCurrentPage, tablePageSize]);
 
-  // Dynamic subtotals per service for target scope
+  // Dynamic subtotals per service for target scope (iterating over all active methods)
   const provTotal = targetLandCovers.reduce((sum, lc) => {
     const cfg = getAreaConfig(lc.id);
     if (!cfg.activeServices.provisioning) return sum;
-    const subFlora = getServiceSubtotal(activeProjectId, lc.id, 'provisioning', cfg.selectedMethods.provisioning, 'flora');
-    const subFauna = getServiceSubtotal(activeProjectId, lc.id, 'provisioning', cfg.selectedMethods.provisioning, 'fauna');
-    return sum + subFlora + subFauna;
+    const methods = normalizeMethods(cfg.selectedMethods?.provisioning, 'market-price');
+    let provSum = 0;
+    methods.forEach(mId => {
+      provSum += getServiceSubtotal(activeProjectId, lc.id, 'provisioning', mId, 'flora');
+      provSum += getServiceSubtotal(activeProjectId, lc.id, 'provisioning', mId, 'fauna');
+    });
+    return sum + provSum;
   }, 0);
 
   const regTotal = targetLandCovers.reduce((sum, lc) => {
     const cfg = getAreaConfig(lc.id);
     if (!cfg.activeServices.regulating) return sum;
-    const sub = getServiceSubtotal(activeProjectId, lc.id, 'regulating', cfg.selectedMethods.regulating, 'none');
-    return sum + sub;
+    const methods = normalizeMethods(cfg.selectedMethods?.regulating, 'replacement-cost');
+    let regSum = 0;
+    methods.forEach(mId => {
+      regSum += getServiceSubtotal(activeProjectId, lc.id, 'regulating', mId, 'none');
+    });
+    return sum + regSum;
   }, 0);
 
   const suppTotal = targetLandCovers.reduce((sum, lc) => {
     const cfg = getAreaConfig(lc.id);
     if (!cfg.activeServices.supporting) return sum;
-    const sub = getServiceSubtotal(activeProjectId, lc.id, 'supporting', cfg.selectedMethods.supporting, 'none');
-    return sum + sub;
+    const methods = normalizeMethods(cfg.selectedMethods?.supporting, 'nursery-ground');
+    let suppSum = 0;
+    methods.forEach(mId => {
+      suppSum += getServiceSubtotal(activeProjectId, lc.id, 'supporting', mId, 'none');
+    });
+    return sum + suppSum;
   }, 0);
 
   const cultTotal = targetLandCovers.reduce((sum, lc) => {
     const cfg = getAreaConfig(lc.id);
     if (!cfg.activeServices.cultural) return sum;
-    const sub = getServiceSubtotal(activeProjectId, lc.id, 'cultural', cfg.selectedMethods.cultural, 'none');
-    return sum + sub;
+    const methods = normalizeMethods(cfg.selectedMethods?.cultural, 'tcm');
+    let cultSum = 0;
+    methods.forEach(mId => {
+      cultSum += getServiceSubtotal(activeProjectId, lc.id, 'cultural', mId, 'none');
+    });
+    return sum + cultSum;
   }, 0);
 
   const tevScope = provTotal + regTotal + suppTotal + cultTotal;
@@ -418,41 +435,48 @@ const CalculationPageContent: React.FC = () => {
   const refAreaId = targetLandCovers[0]?.id || landCovers[0]?.id || 'lc-01';
   const refConfig = getAreaConfig(refAreaId);
 
-  const provSchema = getMethodSchema('provisioning', refConfig.selectedMethods.provisioning, 'flora');
-  const regSchema = getMethodSchema('regulating', refConfig.selectedMethods.regulating);
-  const suppSchema = getMethodSchema('supporting', refConfig.selectedMethods.supporting);
-  const cultSchema = getMethodSchema('cultural', refConfig.selectedMethods.cultural);
+  const provMethod = normalizeMethods(refConfig.selectedMethods?.provisioning, 'market-price')[0];
+  const regMethod = normalizeMethods(refConfig.selectedMethods?.regulating, 'replacement-cost')[0];
+  const suppMethod = normalizeMethods(refConfig.selectedMethods?.supporting, 'nursery-ground')[0];
+  const cultMethod = normalizeMethods(refConfig.selectedMethods?.cultural, 'tcm')[0];
 
-  // Count rows in scope per service
+  const provSchema = getMethodSchema('provisioning', provMethod, 'flora');
+  const regSchema = getMethodSchema('regulating', regMethod);
+  const suppSchema = getMethodSchema('supporting', suppMethod);
+  const cultSchema = getMethodSchema('cultural', cultMethod);
+
+  // Count rows in scope per service across all active methods
   const getRowCount = (serviceId: EcosystemServiceId): number => {
+    const defaultM = serviceId === 'provisioning' ? 'market-price' : serviceId === 'regulating' ? 'replacement-cost' : serviceId === 'supporting' ? 'nursery-ground' : 'tcm';
     return targetLandCovers.reduce((acc, lc) => {
       const cfg = getAreaConfig(lc.id);
       if (!cfg.activeServices[serviceId]) return acc;
-      const mId = cfg.selectedMethods[serviceId];
-      if (serviceId === 'provisioning') {
-        const rf = getRows(activeProjectId, lc.id, serviceId, mId, 'flora');
-        const rfa = getRows(activeProjectId, lc.id, serviceId, mId, 'fauna');
-        return acc + rf.length + rfa.length;
-      }
-      const r = getRows(activeProjectId, lc.id, serviceId, mId, 'none');
-      return acc + r.length;
+      const methods = normalizeMethods(cfg.selectedMethods?.[serviceId], defaultM);
+      let count = 0;
+      methods.forEach(mId => {
+        if (serviceId === 'provisioning') {
+          const rf = getRows(activeProjectId, lc.id, serviceId, mId, 'flora');
+          const rfa = getRows(activeProjectId, lc.id, serviceId, mId, 'fauna');
+          count += rf.length + rfa.length;
+        } else {
+          const r = getRows(activeProjectId, lc.id, serviceId, mId, 'none');
+          count += r.length;
+        }
+      });
+      return acc + count;
     }, 0);
   };
 
   // Helper to construct row breakdown data for detail modal
   const getBreakdownRows = (serviceId: EcosystemServiceId): RowFormulaBreakdown[] => {
     const breakdownList: RowFormulaBreakdown[] = [];
+    const defaultM = serviceId === 'provisioning' ? 'market-price' : serviceId === 'regulating' ? 'replacement-cost' : serviceId === 'supporting' ? 'nursery-ground' : 'tcm';
 
     targetLandCovers.forEach((lc) => {
       const cfg = getAreaConfig(lc.id);
       if (!cfg.activeServices[serviceId]) return;
 
-      const mId = cfg.selectedMethods[serviceId];
-      const schema = getMethodSchema(
-        serviceId,
-        mId,
-        serviceId === 'provisioning' ? 'flora' : 'none'
-      );
+      const methods = normalizeMethods(cfg.selectedMethods?.[serviceId], defaultM);
 
       const matchingIdx = (indices || []).find(
         idx => idx.id === lc.indexId || idx.code === lc.indexCode || idx.name === lc.indexName
@@ -460,115 +484,124 @@ const CalculationPageContent: React.FC = () => {
       const indexCode = lc.indexCode || matchingIdx?.code || 'NON-INDEX';
       const indexName = matchingIdx?.name || lc.indexName || (indexCode === 'NON-INDEX' ? 'Tanpa Indeks' : `Indeks ${indexCode}`);
 
-      const rawRows = serviceId === 'provisioning'
-        ? [
-            ...getRows(activeProjectId, lc.id, serviceId, mId, 'flora'),
-            ...getRows(activeProjectId, lc.id, serviceId, mId, 'fauna')
-          ]
-        : getRows(activeProjectId, lc.id, serviceId, mId, 'none');
+      methods.forEach(mId => {
+        const schema = getMethodSchema(
+          serviceId,
+          mId,
+          serviceId === 'provisioning' ? 'flora' : 'none'
+        );
 
-      rawRows.forEach((r, idx) => {
-        let params = '';
-        let formulaText = '';
-        const total = Number(r.totalNilai) || 0;
+        const rawRows = serviceId === 'provisioning'
+          ? [
+              ...getRows(activeProjectId, lc.id, serviceId, mId, 'flora'),
+              ...getRows(activeProjectId, lc.id, serviceId, mId, 'fauna')
+            ]
+          : getRows(activeProjectId, lc.id, serviceId, mId, 'none');
 
-        if (serviceId === 'provisioning') {
-          if (mId === 'effect-production') {
-            const q = Number(r.outputQty) || 0;
-            const p = Number(r.hargaOutput) || 0;
-            const c = Number(r.biayaTambahan) || 0;
-            params = `Output: ${formatNumber(q)} kg | Margin: Rp ${formatNumber(Math.max(0, p - c))}`;
-            formulaText = `${formatNumber(q)} kg × (Rp ${formatNumber(p)} - Rp ${formatNumber(c)}) = ${formatIDR(total)}`;
-          } else {
-            // Market Price (Flora/Fauna)
-            const prod = Number(r.produktivitas) || 0;
-            const luas = Number(r.luasHa) || lc.areaHa;
-            const harga = Number(r.hargaUnit) || 0;
-            params = `Prod: ${formatNumber(prod)} kg/ha | Luas: ${formatNumber(luas)} ha | Harga: Rp ${formatNumber(harga)}/kg`;
-            formulaText = `${formatNumber(prod)} kg/ha × ${formatNumber(luas)} ha × Rp ${formatNumber(harga)} = ${formatIDR(total)}`;
-          }
-        } else if (serviceId === 'regulating') {
-          if (mId === 'carbon-storage') {
-            const c = Number(r.stokKarbon) || 0;
-            const luas = Number(r.luasHa) || lc.areaHa;
-            const harga = Number(r.hargaKarbon) || 0;
-            params = `Stok: ${formatNumber(c)} ton C/ha | Luas: ${formatNumber(luas)} ha | Harga: Rp ${formatNumber(harga)}/ton`;
-            formulaText = `${formatNumber(c)} ton C/ha × ${formatNumber(luas)} ha × 3.67 (CO₂e) × Rp ${formatNumber(harga)} = ${formatIDR(total)}`;
-          } else if (mId === 'avoided-cost') {
-            const aset = Number(r.nilaiAset) || 0;
-            const prob = Number(r.probabilitasBencana) || 0;
-            params = `Nilai Aset: Rp ${formatNumber(aset)} | Probabilitas: ${prob}`;
-            formulaText = `Rp ${formatNumber(aset)} × ${prob} = ${formatIDR(total)}`;
-          } else if (mId === 'hpm') {
-            const unit = Number(r.jumlahUnit) || 0;
-            const premi = Number(r.hargaLingkungan) || 0;
-            params = `Unit: ${formatNumber(unit)} | Premi: Rp ${formatNumber(premi)}/unit`;
-            formulaText = `${formatNumber(unit)} unit × Rp ${formatNumber(premi)} = ${formatIDR(total)}`;
-          } else {
-            // Replacement Cost (default)
-            const pjg = Number(r.panjangUnit) || 0;
-            const bPengganti = Number(r.biayaPengganti) || 0;
-            const bMaint = Number(r.biayaPemeliharaan) || 0;
-            params = `Panjang: ${formatNumber(pjg)} m | Biaya Seawall: Rp ${formatNumber(bPengganti)}/m | Maint: Rp ${formatNumber(bMaint)}`;
-            formulaText = `(${formatNumber(pjg)} m × Rp ${formatNumber(bPengganti)}) + Rp ${formatNumber(bMaint)} = ${formatIDR(total)}`;
-          }
-        } else if (serviceId === 'supporting') {
-          if (mId === 'nutrient-cycling') {
-            const laju = Number(r.lajuSedimentasi) || 0;
-            const luas = Number(r.luasHa) || lc.areaHa;
-            const nilai = Number(r.nilaiKonservasi) || 0;
-            params = `Laju: ${formatNumber(laju)} ton/ha/th | Luas: ${formatNumber(luas)} ha | Nilai: Rp ${formatNumber(nilai)}/ton`;
-            formulaText = `${formatNumber(laju)} ton/ha/th × ${formatNumber(luas)} ha × Rp ${formatNumber(nilai)} = ${formatIDR(total)}`;
-          } else {
-            // Nursery Ground (default)
-            const luas = Number(r.luasHa) || lc.areaHa;
-            const k = Number(r.kontribusiPerHa) || 0;
-            const ef = Number(r.efektivitas) || 100;
-            params = `Luas: ${formatNumber(luas)} ha | Nilai Rekrutmen: Rp ${formatNumber(k)}/ha | Kerapatan: ${ef}%`;
-            formulaText = `${formatNumber(luas)} ha × Rp ${formatNumber(k)}/ha × (${ef}/100) = ${formatIDR(total)}`;
-          }
-        } else if (serviceId === 'cultural') {
-          if (mId === 'cvm') {
-            const pop = Number(r.populasi) || 0;
-            const wtp = Number(r.wtp) || 0;
-            const bProg = Number(r.biayaProgram) || 0;
-            params = `Populasi: ${formatNumber(pop)} KK | WTP: Rp ${formatNumber(wtp)}/KK/th | Biaya: Rp ${formatNumber(bProg)}`;
-            formulaText = `(${formatNumber(pop)} KK × Rp ${formatNumber(wtp)}) - Rp ${formatNumber(bProg)} = ${formatIDR(total)}`;
-          } else if (mId === 'choice-experiment') {
-            const resp = Number(r.responden) || 0;
-            const mwtp = Number(r.nilaiMarginal) || 0;
-            const biayaSkema = Number(r.biayaSkema) || 0;
-            params = `Responden: ${formatNumber(resp)} | Nilai Marginal: Rp ${formatNumber(mwtp)} | Biaya Skema: Rp ${formatNumber(biayaSkema)}`;
-            formulaText = `${formatNumber(resp)} × Rp ${formatNumber(mwtp)} - Rp ${formatNumber(biayaSkema)} = ${formatIDR(total)}`;
-          } else if (mId === 'hpm') {
-            const unit = Number(r.jumlahUnit) || 0;
-            const premi = Number(r.hargaLingkungan) || 0;
-            params = `Unit: ${formatNumber(unit)} | Premi: Rp ${formatNumber(premi)}/unit`;
-            formulaText = `${formatNumber(unit)} unit × Rp ${formatNumber(premi)} = ${formatIDR(total)}`;
-          } else {
-            // TCM (default)
-            const q = Number(r.kunjungan) || 0;
-            const bp = Number(r.biayaPerjalanan) || 0;
-            const bt = Number(r.biayaTiket) || 0;
-            params = `Kunjungan: ${formatNumber(q)} org/th | Travel: Rp ${formatNumber(bp)} | Tiket: Rp ${formatNumber(bt)}`;
-            formulaText = `${formatNumber(q)} org × (Rp ${formatNumber(bp)} + Rp ${formatNumber(bt)}) = ${formatIDR(total)}`;
-          }
-        }
+        rawRows.forEach((r, idx) => {
+          let params = '';
+          let formulaText = '';
+          const total = Number(r.totalNilai) || 0;
 
-        breakdownList.push({
-          no: breakdownList.length + 1,
-          item: r.item || r.fungsi || r.spesies || `Komponen #${idx + 1}`,
-          parameters: params,
-          formulaText,
-          resultValue: total,
-          source: r.source || r.dasarRujukan || 'Survei & Rujukan PKSPL',
-          areaId: lc.id,
-          areaName: lc.name,
-          areaHa: lc.areaHa,
-          indexCode,
-          indexName,
-          methodName: schema.methodName,
-          formulaDescription: schema.formulaDescription,
+          if (serviceId === 'provisioning') {
+            if (mId === 'effect-production') {
+              const q = Number(r.outputQty) || 0;
+              const p = Number(r.hargaOutput) || 0;
+              const c = Number(r.biayaTambahan) || 0;
+              params = `Output: ${formatNumber(q)} kg | Margin: Rp ${formatNumber(Math.max(0, p - c))}`;
+              formulaText = `${formatNumber(q)} kg × (Rp ${formatNumber(p)} - Rp ${formatNumber(c)}) = ${formatIDR(total)}`;
+            } else {
+              // Market Price (Flora/Fauna)
+              const prod = Number(r.produktivitas) || 0;
+              const luas = Number(r.luasHa) || lc.areaHa;
+              const harga = Number(r.hargaUnit) || 0;
+              params = `Prod: ${formatNumber(prod)} kg/ha | Luas: ${formatNumber(luas)} ha | Harga: Rp ${formatNumber(harga)}/kg`;
+              formulaText = `${formatNumber(prod)} kg/ha × ${formatNumber(luas)} ha × Rp ${formatNumber(harga)} = ${formatIDR(total)}`;
+            }
+          } else if (serviceId === 'regulating') {
+            if (mId === 'carbon-storage') {
+              const c = Number(r.stokKarbon) || 0;
+              const luas = Number(r.luasHa) || lc.areaHa;
+              const harga = Number(r.hargaKarbon) || 0;
+              params = `Stok: ${formatNumber(c)} ton C/ha | Luas: ${formatNumber(luas)} ha | Harga: Rp ${formatNumber(harga)}/ton`;
+              formulaText = `${formatNumber(c)} ton C/ha × ${formatNumber(luas)} ha × 3.67 (CO₂e) × Rp ${formatNumber(harga)} = ${formatIDR(total)}`;
+            } else if (mId === 'avoided-cost') {
+              const aset = Number(r.nilaiAset) || 0;
+              const prob = Number(r.probabilitasBencana) || 0;
+              params = `Nilai Aset: Rp ${formatNumber(aset)} | Probabilitas: ${prob}`;
+              formulaText = `Rp ${formatNumber(aset)} × ${prob} = ${formatIDR(total)}`;
+            } else if (mId === 'hpm') {
+              const unit = Number(r.jumlahUnit) || 0;
+              const premi = Number(r.hargaLingkungan) || 0;
+              params = `Unit: ${formatNumber(unit)} | Premi: Rp ${formatNumber(premi)}/unit`;
+              formulaText = `${formatNumber(unit)} unit × Rp ${formatNumber(premi)} = ${formatIDR(total)}`;
+            } else {
+              // Replacement Cost (default)
+              const pjg = Number(r.panjangUnit) || 0;
+              const bPengganti = Number(r.biayaPengganti) || 0;
+              const bMaint = Number(r.biayaPemeliharaan) || 0;
+              params = `Panjang: ${formatNumber(pjg)} m | Biaya Seawall: Rp ${formatNumber(bPengganti)}/m | Maint: Rp ${formatNumber(bMaint)}`;
+              formulaText = `(${formatNumber(pjg)} m × Rp ${formatNumber(bPengganti)}) + Rp ${formatNumber(bMaint)} = ${formatIDR(total)}`;
+            }
+          } else if (serviceId === 'supporting') {
+            if (mId === 'nutrient-cycling') {
+              const laju = Number(r.lajuSedimentasi) || 0;
+              const luas = Number(r.luasHa) || lc.areaHa;
+              const nilai = Number(r.nilaiKonservasi) || 0;
+              params = `Laju: ${formatNumber(laju)} ton/ha/th | Luas: ${formatNumber(luas)} ha | Nilai: Rp ${formatNumber(nilai)}/ton`;
+              formulaText = `${formatNumber(laju)} ton/ha/th × ${formatNumber(luas)} ha × Rp ${formatNumber(nilai)} = ${formatIDR(total)}`;
+            } else {
+              // Nursery Ground (default)
+              const luas = Number(r.luasHa) || lc.areaHa;
+              const k = Number(r.kontribusiPerHa) || 0;
+              const ef = Number(r.efektivitas) || 100;
+              params = `Luas: ${formatNumber(luas)} ha | Nilai Rekrutmen: Rp ${formatNumber(k)}/ha | Kerapatan: ${ef}%`;
+              formulaText = `${formatNumber(luas)} ha × Rp ${formatNumber(k)}/ha × (${ef}/100) = ${formatIDR(total)}`;
+            }
+          } else if (serviceId === 'cultural') {
+            if (mId === 'cvm') {
+              const pop = Number(r.populasi) || 0;
+              const wtp = Number(r.wtp) || 0;
+              const bProg = Number(r.biayaProgram) || 0;
+              params = `Populasi: ${formatNumber(pop)} KK | WTP: Rp ${formatNumber(wtp)}/KK/th | Biaya: Rp ${formatNumber(bProg)}`;
+              formulaText = `(${formatNumber(pop)} KK × Rp ${formatNumber(wtp)}) - Rp ${formatNumber(bProg)} = ${formatIDR(total)}`;
+            } else if (mId === 'choice-experiment') {
+              const resp = Number(r.responden) || 0;
+              const mwtp = Number(r.nilaiMarginal) || 0;
+              const biayaSkema = Number(r.biayaSkema) || 0;
+              params = `Responden: ${formatNumber(resp)} | Nilai Marginal: Rp ${formatNumber(mwtp)} | Biaya Skema: Rp ${formatNumber(biayaSkema)}`;
+              formulaText = `${formatNumber(resp)} × Rp ${formatNumber(mwtp)} - Rp ${formatNumber(biayaSkema)} = ${formatIDR(total)}`;
+            } else if (mId === 'hpm') {
+              const unit = Number(r.jumlahUnit) || 0;
+              const premi = Number(r.hargaLingkungan) || 0;
+              params = `Unit: ${formatNumber(unit)} | Premi: Rp ${formatNumber(premi)}/unit`;
+              formulaText = `${formatNumber(unit)} unit × Rp ${formatNumber(premi)} = ${formatIDR(total)}`;
+            } else {
+              // TCM (default)
+              const q = Number(r.kunjungan) || 0;
+              const bp = Number(r.biayaPerjalanan) || 0;
+              const bt = Number(r.biayaTiket) || 0;
+              params = `Kunjungan: ${formatNumber(q)} org/th | Travel: Rp ${formatNumber(bp)} | Tiket: Rp ${formatNumber(bt)}`;
+              formulaText = `${formatNumber(q)} org × (Rp ${formatNumber(bp)} + Rp ${formatNumber(bt)}) = ${formatIDR(total)}`;
+            }
+          }
+
+          breakdownList.push({
+            no: breakdownList.length + 1,
+            item: r.item || r.fungsi || r.spesies || `Komponen #${idx + 1}`,
+            parameters: params,
+            formulaText,
+            resultValue: total,
+            source: r.source || r.dasarRujukan || 'Survei & Rujukan PKSPL',
+            areaId: lc.id,
+            areaName: lc.name,
+            areaHa: lc.areaHa,
+            indexCode,
+            indexName,
+            methodId: mId,
+            methodName: schema.methodName,
+            formulaDescription: schema.formulaDescription,
+          });
         });
       });
     });
@@ -586,31 +619,33 @@ const CalculationPageContent: React.FC = () => {
   // List of valuation methods used across targetLandCovers for a service
   const getUsedMethods = (serviceId: EcosystemServiceId): { id: string; name: string; areaCount: number }[] => {
     const methodMap = new Map<string, { id: string; name: string; areaCount: number }>();
+    const defaultM = serviceId === 'provisioning' ? 'market-price' : serviceId === 'regulating' ? 'replacement-cost' : serviceId === 'supporting' ? 'nursery-ground' : 'tcm';
 
     targetLandCovers.forEach((lc) => {
       const cfg = getAreaConfig(lc.id);
       if (!cfg.activeServices[serviceId]) return;
 
-      const mId = cfg.selectedMethods[serviceId];
-      if (!mId) return;
+      const methods = normalizeMethods(cfg.selectedMethods?.[serviceId], defaultM);
 
-      const schema = getMethodSchema(
-        serviceId,
-        mId,
-        serviceId === 'provisioning' ? (cfg.biota || 'flora') : undefined
-      );
+      methods.forEach(mId => {
+        const schema = getMethodSchema(
+          serviceId,
+          mId,
+          serviceId === 'provisioning' ? (cfg.biota || 'flora') : undefined
+        );
 
-      const methodName = schema?.methodName || mId;
-      const existing = methodMap.get(methodName);
-      if (existing) {
-        existing.areaCount += 1;
-      } else {
-        methodMap.set(methodName, {
-          id: mId,
-          name: methodName,
-          areaCount: 1,
-        });
-      }
+        const methodName = schema?.methodName || mId;
+        const existing = methodMap.get(methodName);
+        if (existing) {
+          existing.areaCount += 1;
+        } else {
+          methodMap.set(methodName, {
+            id: mId,
+            name: methodName,
+            areaCount: 1,
+          });
+        }
+      });
     });
 
     return Array.from(methodMap.values());
@@ -1649,15 +1684,22 @@ const CalculationPageContent: React.FC = () => {
         const breakdownRows = getBreakdownRows(detailModalService);
         const totalBreakdown = breakdownRows.reduce((acc, r) => acc + r.resultValue, 0);
 
-        // Kelompokkan baris berdasarkan Indeks, lalu di dalam indeks dikelompokkan berdasarkan Tutupan Lahan
-        interface LandCoverGroup {
-          areaId: string;
-          areaName: string;
-          areaHa: number;
+        // Kelompokkan baris berdasarkan Indeks, lalu Tutupan Lahan, lalu Metode Valuasi
+        interface MethodGroup {
+          methodId: string;
           methodName: string;
           formulaDescription: string;
           rows: RowFormulaBreakdown[];
           subtotal: number;
+        }
+
+        interface LandCoverGroup {
+          areaId: string;
+          areaName: string;
+          areaHa: number;
+          methods: MethodGroup[];
+          subtotal: number;
+          totalRows: number;
         }
 
         interface IndexGroup {
@@ -1690,16 +1732,29 @@ const CalculationPageContent: React.FC = () => {
               areaId: row.areaId,
               areaName: row.areaName,
               areaHa: row.areaHa,
+              methods: [],
+              subtotal: 0,
+              totalRows: 0,
+            };
+            idxGroup.landCovers.push(lcGroup);
+            idxGroup.totalHa += row.areaHa;
+          }
+          lcGroup.subtotal += row.resultValue;
+          lcGroup.totalRows += 1;
+
+          let methGroup = lcGroup.methods.find(m => m.methodId === (row.methodId || row.methodName));
+          if (!methGroup) {
+            methGroup = {
+              methodId: row.methodId || row.methodName,
               methodName: row.methodName,
               formulaDescription: row.formulaDescription,
               rows: [],
               subtotal: 0,
             };
-            idxGroup.landCovers.push(lcGroup);
-            idxGroup.totalHa += row.areaHa;
+            lcGroup.methods.push(methGroup);
           }
-          lcGroup.rows.push(row);
-          lcGroup.subtotal += row.resultValue;
+          methGroup.rows.push(row);
+          methGroup.subtotal += row.resultValue;
         });
 
         // Nomor baris global
@@ -1803,78 +1858,114 @@ const CalculationPageContent: React.FC = () => {
 
                                 return (
                                   <React.Fragment key={`${idxGroup.indexCode}-${lcGroup.areaId}`}>
-                                    {/* Heading Tutupan Lahan dengan Formula Perhitungan tersemat */}
-                                    <tr className="bg-slate-100/90 border-y border-slate-300 text-slate-800 font-semibold text-xs">
+                                    {/* Heading Tutupan Lahan */}
+                                    <tr className="bg-slate-100/95 border-y border-slate-300 text-slate-800 font-semibold text-xs">
                                       <td colSpan={5} className="py-2.5 px-4">
-                                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                           <div className="flex items-center gap-2">
                                             <Layers className="w-3.5 h-3.5 text-emerald-700" />
                                             <span className="font-bold text-slate-900 tracking-wide text-xs">
                                               Tutupan Lahan: {lcGroup.areaName}
                                             </span>
                                             <span className="text-slate-500 font-mono text-[11px]">
-                                              ({formatNumber(lcGroup.areaHa)} ha • {lcGroup.rows.length} komponen)
+                                              ({formatNumber(lcGroup.areaHa)} ha • {lcGroup.totalRows} komponen • {lcGroup.methods.length} metode)
                                             </span>
                                           </div>
-
-                                          {/* Formula Perhitungan dipindahkan di sini */}
-                                          <div className="flex items-center gap-2.5 flex-wrap">
-                                            <div className="flex items-center gap-1.5 bg-white border border-blue-200 px-2.5 py-1 rounded-md text-blue-900 font-mono text-[11px] shadow-2xs">
-                                              <span className="font-sans font-bold text-blue-700 text-[10px] uppercase">
-                                                Formula Perhitungan:
-                                              </span>
-                                              <span className="font-semibold text-blue-950">
-                                                {lcGroup.formulaDescription}
-                                              </span>
-                                            </div>
-                                            <span className="text-[11px] font-mono text-slate-700 bg-slate-200/80 px-2 py-0.5 rounded font-semibold">
-                                              Subtotal: {formatIDR(lcGroup.subtotal)} ({percentOfLc}%)
-                                            </span>
-                                          </div>
+                                          <span className="text-[11px] font-mono text-slate-700 bg-slate-200/80 px-2.5 py-0.5 rounded font-semibold">
+                                            Subtotal Tutupan Lahan: {formatIDR(lcGroup.subtotal)} ({percentOfLc}%)
+                                          </span>
                                         </div>
                                       </td>
                                     </tr>
 
-                                    {/* Baris Komponen di dalam Tutupan Lahan ini */}
-                                    {lcGroup.rows.map((row) => {
-                                      globalRowNo += 1;
+                                    {/* 3. Sub-grup per Metode di dalam Tutupan Lahan ini */}
+                                    {lcGroup.methods.map((methGroup) => {
+                                      const percentOfMeth = lcGroup.subtotal > 0
+                                        ? ((methGroup.subtotal / lcGroup.subtotal) * 100).toFixed(1)
+                                        : '0.0';
+
                                       return (
-                                        <tr
-                                          key={`${idxGroup.indexCode}-${lcGroup.areaId}-${row.no}`}
-                                          className="hover:bg-slate-50/80 border-b border-slate-100 transition-colors"
-                                        >
-                                          <td className="py-3 px-3 text-center font-mono text-slate-400">
-                                            {globalRowNo}
-                                          </td>
-                                          <td className="py-3 px-4 font-semibold text-slate-900">
-                                            {row.item}
-                                            {row.parameters && (
-                                              <div className="text-[10.5px] text-slate-500 font-normal font-mono mt-0.5">
-                                                {row.parameters}
+                                        <React.Fragment key={`${idxGroup.indexCode}-${lcGroup.areaId}-${methGroup.methodId}`}>
+                                          {/* Header Metode dengan Formula Perhitungan Spesifik untuk metode ini */}
+                                          <tr className="bg-blue-50/70 border-b border-blue-200/70 text-blue-950 font-semibold text-xs">
+                                            <td colSpan={5} className="py-2 px-4 pl-6">
+                                              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+                                                <div className="flex items-center gap-2">
+                                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-700 text-white shadow-2xs">
+                                                    {methGroup.methodName}
+                                                  </span>
+                                                  <span className="text-blue-800 text-[11px] font-medium">
+                                                    ({methGroup.rows.length} komponen)
+                                                  </span>
+                                                </div>
+
+                                                <div className="flex items-center gap-2.5 flex-wrap">
+                                                  <div className="flex items-center gap-1.5 bg-white border border-blue-200 px-2.5 py-1 rounded-md text-blue-900 font-mono text-[11px] shadow-2xs">
+                                                    <span className="font-sans font-bold text-blue-700 text-[10px] uppercase">
+                                                      Formula Perhitungan:
+                                                    </span>
+                                                    <span className="font-semibold text-blue-950">
+                                                      {methGroup.formulaDescription}
+                                                    </span>
+                                                  </div>
+                                                  <span className="text-[11px] font-mono text-blue-900 bg-blue-100/80 px-2 py-0.5 rounded font-bold">
+                                                    Subtotal {methGroup.methodName.split('(')[0].trim()}: {formatIDR(methGroup.subtotal)} ({percentOfMeth}%)
+                                                  </span>
+                                                </div>
                                               </div>
-                                            )}
-                                          </td>
-                                          <td className="py-3 px-4">
-                                            <span className="font-mono text-[11px] bg-slate-50 text-blue-900 px-2.5 py-1 rounded border border-slate-200 inline-block font-semibold">
-                                              {row.formulaText}
-                                            </span>
-                                          </td>
-                                          <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
-                                            {formatIDR(row.resultValue)}
-                                          </td>
-                                          <td className="py-3 px-4 text-slate-500 text-[11px] italic">
-                                            {row.source}
-                                          </td>
-                                        </tr>
+                                            </td>
+                                          </tr>
+
+                                          {/* Baris Komponen di dalam Metode ini */}
+                                          {methGroup.rows.map((row) => {
+                                            globalRowNo += 1;
+                                            return (
+                                              <tr
+                                                key={`${idxGroup.indexCode}-${lcGroup.areaId}-${methGroup.methodId}-${row.no}`}
+                                                className="hover:bg-slate-50/80 border-b border-slate-100 transition-colors"
+                                              >
+                                                <td className="py-3 px-3 text-center font-mono text-slate-400">
+                                                  {globalRowNo}
+                                                </td>
+                                                <td className="py-3 px-4 font-semibold text-slate-900">
+                                                  <div className="flex items-center gap-1.5">
+                                                    <span>{row.item}</span>
+                                                    {lcGroup.methods.length > 1 && (
+                                                      <span className="text-[9px] font-bold uppercase px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                                                        {methGroup.methodId.toUpperCase()}
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                  {row.parameters && (
+                                                    <div className="text-[10.5px] text-slate-500 font-normal font-mono mt-0.5">
+                                                      {row.parameters}
+                                                    </div>
+                                                  )}
+                                                </td>
+                                                <td className="py-3 px-4">
+                                                  <span className="font-mono text-[11px] bg-slate-50 text-blue-900 px-2.5 py-1 rounded border border-slate-200 inline-block font-semibold">
+                                                    {row.formulaText}
+                                                  </span>
+                                                </td>
+                                                <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
+                                                  {formatIDR(row.resultValue)}
+                                                </td>
+                                                <td className="py-3 px-4 text-slate-500 text-[11px] italic">
+                                                  {row.source}
+                                                </td>
+                                              </tr>
+                                            );
+                                          })}
+                                        </React.Fragment>
                                       );
                                     })}
 
                                     {/* Subtotal per Tutupan Lahan */}
                                     <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700">
-                                      <td colSpan={3} className="py-2 px-4 text-right font-sans">
+                                      <td colSpan={3} className="py-2.5 px-4 text-right font-sans">
                                         Subtotal Tutupan Lahan ({lcGroup.areaName}):
                                       </td>
-                                      <td className="py-2 px-4 text-right font-mono font-bold text-slate-900">
+                                      <td className="py-2.5 px-4 text-right font-mono font-bold text-slate-900">
                                         {formatIDR(lcGroup.subtotal)}
                                       </td>
                                       <td></td>

@@ -16,6 +16,8 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -341,21 +343,55 @@ class ProyekController extends ApiResourceController
             }
         }
 
-        // Hapus data anak berelasi secara terstruktur
-        foreach ($proyek->indexes as $index) {
-            DB::table('jenis_tutupan_lahan')->where('id_index', $index->id_index)->delete();
-            $index->delete();
-        }
-        $proyek->areaTerdampak()->delete();
-        $proyek->reviews()->delete();
-        $proyek->histori()->delete();
-        $proyek->analisisAi()->delete();
-        $proyek->benefits()->delete();
-        $proyek->costs()->delete();
-        $proyek->valuationModules()->delete();
-        $proyek->projectValuationSetting()->delete();
+        // Hapus data anak berelasi secara terstruktur dan atomic
+        return DB::transaction(function () use ($proyek) {
+            $this->deleteLandCoversAndIndices($proyek);
 
-        return $this->destroyResource($proyek);
+            $areaIds = $proyek->areaTerdampak()->pluck('id_area')->toArray();
+            if (!empty($areaIds)) {
+                DB::table('provisioning_service')->whereIn('id_area', $areaIds)->delete();
+                DB::table('regulating_service')->whereIn('id_area', $areaIds)->delete();
+                DB::table('supporting_service')->whereIn('id_area', $areaIds)->delete();
+                DB::table('cultural_service')->whereIn('id_area', $areaIds)->delete();
+                DB::table('hasil_valuasi')->whereIn('id_area', $areaIds)->delete();
+                $proyek->areaTerdampak()->delete();
+            }
+
+            if (Schema::hasTable('cvm_analyses')) {
+                DB::table('cvm_analyses')->where('id_proyek', $proyek->id_proyek)->delete();
+            }
+            if (Schema::hasTable('cvm_data')) {
+                DB::table('cvm_data')->where('id_proyek', $proyek->id_proyek)->delete();
+            }
+            if (Schema::hasTable('tcm_analyses')) {
+                DB::table('tcm_analyses')->where('id_proyek', $proyek->id_proyek)->delete();
+            }
+            if (Schema::hasTable('tcm_data')) {
+                DB::table('tcm_data')->where('id_proyek', $proyek->id_proyek)->delete();
+            }
+            if (Schema::hasTable('eop_data')) {
+                DB::table('eop_data')->where('id_proyek', $proyek->id_proyek)->delete();
+            }
+
+            $proyek->reviews()->delete();
+            $proyek->histori()->delete();
+            $proyek->analisisAi()->delete();
+            $proyek->benefits()->delete();
+            $proyek->costs()->delete();
+            $proyek->valuationModules()->delete();
+            if ($proyek->projectValuationSetting) {
+                $proyek->projectValuationSetting()->delete();
+            }
+
+            try {
+                Storage::disk(config('filesystems.default'))
+                    ->deleteDirectory("proyek/{$proyek->id_proyek}");
+            } catch (\Throwable $e) {
+                Log::warning("Gagal menghapus direktori berkas proyek {$proyek->id_proyek}: " . $e->getMessage());
+            }
+
+            return $this->destroyResource($proyek);
+        });
     }
 
     /**
@@ -380,7 +416,7 @@ class ProyekController extends ApiResourceController
                 Storage::disk(config('filesystems.default'))
                     ->deleteDirectory("proyek/{$proyek->id_proyek}/shapefile");
             } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::warning("Gagal menghapus direktori berkas SHP proyek {$proyek->id_proyek}: " . $e->getMessage());
+                Log::warning("Gagal menghapus direktori berkas SHP proyek {$proyek->id_proyek}: " . $e->getMessage());
             }
         }
 
@@ -399,10 +435,7 @@ class ProyekController extends ApiResourceController
             || $request->input('delete_indices') === 1;
 
         if ($deleteIndices) {
-            foreach ($proyek->indexes as $index) {
-                DB::table('jenis_tutupan_lahan')->where('id_index', $index->id_index)->delete();
-                $index->delete();
-            }
+            $this->deleteLandCoversAndIndices($proyek);
         }
 
         return response()->json([
@@ -412,6 +445,44 @@ class ProyekController extends ApiResourceController
                 : 'Data SHP berhasil dihapus, daftar indeks dipertahankan.',
             'data' => new ProyekResource($proyek->refresh()),
         ]);
+    }
+
+    /**
+     * Menghapus tutupan lahan dan seluruh referensi data anak secara aman.
+     */
+    private function deleteLandCoversAndIndices(Proyek $proyek): void
+    {
+        $indexIds = $proyek->indexes()->pluck('id_index')->toArray();
+        if (empty($indexIds)) {
+            return;
+        }
+
+        $landCoverIds = DB::table('jenis_tutupan_lahan')
+            ->whereIn('id_index', $indexIds)
+            ->pluck('id_jenis_tutupan_lahan')
+            ->toArray();
+
+        if (!empty($landCoverIds)) {
+            DB::table('provisioning_service')->whereIn('id_jenis_tutupan_lahan', $landCoverIds)->delete();
+            DB::table('regulating_service')->whereIn('id_jenis_tutupan_lahan', $landCoverIds)->delete();
+            DB::table('supporting_service')->whereIn('id_jenis_tutupan_lahan', $landCoverIds)->delete();
+            DB::table('cultural_service')->whereIn('id_jenis_tutupan_lahan', $landCoverIds)->delete();
+            DB::table('hasil_valuasi')->whereIn('id_jenis_tutupan_lahan', $landCoverIds)->delete();
+
+            if (Schema::hasTable('valuation_rows')) {
+                DB::table('valuation_rows')->whereIn('id_jenis_tutupan_lahan', $landCoverIds)->delete();
+            }
+            if (Schema::hasTable('valuation_custom_columns')) {
+                DB::table('valuation_custom_columns')->whereIn('id_jenis_tutupan_lahan', $landCoverIds)->delete();
+            }
+            if (Schema::hasTable('area_service_configs')) {
+                DB::table('area_service_configs')->whereIn('id_jenis_tutupan_lahan', $landCoverIds)->delete();
+            }
+
+            DB::table('jenis_tutupan_lahan')->whereIn('id_index', $indexIds)->delete();
+        }
+
+        $proyek->indexes()->delete();
     }
 
     /**
