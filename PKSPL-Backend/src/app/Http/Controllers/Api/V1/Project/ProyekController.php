@@ -164,7 +164,7 @@ class ProyekController extends ApiResourceController
                 'provinsi' => $proyek->provinsi?->nama_provinsi ?? 'Indonesia',
                 'kabupaten' => $proyek->kabupatenKota?->nama_kabupaten_kota ?? '-',
                 'kabupaten_kota' => $proyek->kabupatenKota?->nama_kabupaten_kota ?? '-',
-                'status' => (string) ($proyek->status ?: 'Selesai'),
+                'status' => 'Selesai',
                 'tahun' => (int) ($proyek->tahun ?: 2026),
                 'category' => $category,
                 'tev' => $tevFormatted,

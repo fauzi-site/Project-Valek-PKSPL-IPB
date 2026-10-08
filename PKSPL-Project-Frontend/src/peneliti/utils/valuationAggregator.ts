@@ -1,6 +1,13 @@
 import { LandCoverPolygon, IndexItem } from '../types/spatial';
 import { EcosystemServiceId, AreaServiceConfig, normalizeMethods } from '../types/valuation';
 import { isMockProject } from '../context/SpreadsheetContext';
+import { getMethodSchema } from '../types/methodSchemas';
+
+export interface ActiveMethodItem {
+  methodId: string;
+  methodName: string;
+  nominal: number;
+}
 
 export interface ServiceContributionItem {
   id: EcosystemServiceId;
@@ -10,6 +17,9 @@ export interface ServiceContributionItem {
   nominal: number;
   percentage: number;
   color: string;
+  methods: ActiveMethodItem[];
+  methodNamesLabel: string;
+  methodNamesBullet: string;
 }
 
 export interface ComponentCompositionItem {
@@ -92,6 +102,14 @@ export function aggregateProjectValuation(
   let sumRawSupp = 0;
   let sumRawCult = 0;
 
+  // Track active methods and subtotals across project
+  const serviceMethodsMap: Record<EcosystemServiceId, Map<string, { methodName: string; nominal: number }>> = {
+    provisioning: new Map(),
+    regulating: new Map(),
+    supporting: new Map(),
+    cultural: new Map(),
+  };
+
   const areaBreakdowns: AreaValuationBreakdown[] = safeLandCovers.map((lc) => {
     const cfg = getAreaConfig ? getAreaConfig(lc.id) : null;
     const act = cfg?.activeServices || { provisioning: true, regulating: true, supporting: true, cultural: true };
@@ -110,11 +128,18 @@ export function aggregateProjectValuation(
 
     if (act.provisioning) {
       const pMethods = normalizeMethods(meth.provisioning, 'market-price');
-      prov = pMethods.reduce((acc, m) => {
-        return acc +
-          getServiceSubtotal(projectId, lc.id, 'provisioning', m, 'flora') +
-          getServiceSubtotal(projectId, lc.id, 'provisioning', m, 'fauna');
-      }, 0);
+      pMethods.forEach(m => {
+        const mSub = getServiceSubtotal(projectId, lc.id, 'provisioning', m, 'flora') +
+                     getServiceSubtotal(projectId, lc.id, 'provisioning', m, 'fauna');
+        prov += mSub;
+
+        const schema = getMethodSchema('provisioning', m, 'flora');
+        const mName = schema.methodName || m;
+        const map = serviceMethodsMap.provisioning;
+        const prev = map.get(m)?.nominal || 0;
+        map.set(m, { methodName: mName, nominal: prev + mSub });
+      });
+
       if (prov === 0 && isMock && Array.isArray(lc.serviceDetails)) {
         prov = lc.serviceDetails.find((d) => d.serviceId === 'provisioning')?.value || 0;
       }
@@ -122,7 +147,17 @@ export function aggregateProjectValuation(
 
     if (act.regulating) {
       const rMethods = normalizeMethods(meth.regulating, 'replacement-cost');
-      reg = rMethods.reduce((acc, m) => acc + getServiceSubtotal(projectId, lc.id, 'regulating', m, 'none'), 0);
+      rMethods.forEach(m => {
+        const mSub = getServiceSubtotal(projectId, lc.id, 'regulating', m, 'none');
+        reg += mSub;
+
+        const schema = getMethodSchema('regulating', m, 'none');
+        const mName = schema.methodName || m;
+        const map = serviceMethodsMap.regulating;
+        const prev = map.get(m)?.nominal || 0;
+        map.set(m, { methodName: mName, nominal: prev + mSub });
+      });
+
       if (reg === 0 && isMock && Array.isArray(lc.serviceDetails)) {
         reg = lc.serviceDetails.find((d) => d.serviceId === 'regulating')?.value || 0;
       }
@@ -130,7 +165,17 @@ export function aggregateProjectValuation(
 
     if (act.supporting) {
       const sMethods = normalizeMethods(meth.supporting, 'nursery-ground');
-      supp = sMethods.reduce((acc, m) => acc + getServiceSubtotal(projectId, lc.id, 'supporting', m, 'none'), 0);
+      sMethods.forEach(m => {
+        const mSub = getServiceSubtotal(projectId, lc.id, 'supporting', m, 'none');
+        supp += mSub;
+
+        const schema = getMethodSchema('supporting', m, 'none');
+        const mName = schema.methodName || m;
+        const map = serviceMethodsMap.supporting;
+        const prev = map.get(m)?.nominal || 0;
+        map.set(m, { methodName: mName, nominal: prev + mSub });
+      });
+
       if (supp === 0 && isMock && Array.isArray(lc.serviceDetails)) {
         supp = lc.serviceDetails.find((d) => d.serviceId === 'supporting')?.value || 0;
       }
@@ -138,7 +183,17 @@ export function aggregateProjectValuation(
 
     if (act.cultural) {
       const cMethods = normalizeMethods(meth.cultural, 'tcm');
-      cult = cMethods.reduce((acc, m) => acc + getServiceSubtotal(projectId, lc.id, 'cultural', m, 'none'), 0);
+      cMethods.forEach(m => {
+        const mSub = getServiceSubtotal(projectId, lc.id, 'cultural', m, 'none');
+        cult += mSub;
+
+        const schema = getMethodSchema('cultural', m, 'none');
+        const mName = schema.methodName || m;
+        const map = serviceMethodsMap.cultural;
+        const prev = map.get(m)?.nominal || 0;
+        map.set(m, { methodName: mName, nominal: prev + mSub });
+      });
+
       if (cult === 0 && isMock && Array.isArray(lc.serviceDetails)) {
         cult = lc.serviceDetails.find((d) => d.serviceId === 'cultural')?.value || 0;
       }
@@ -161,7 +216,6 @@ export function aggregateProjectValuation(
     const areaHa = Number(lc.areaHa) || 0;
     const valuePerHa = areaHa > 0 ? Math.round(areaTotal / areaHa) : 0;
 
-    // Find linked index metadata
     const linkedIndex = indices.find(
       (idx) => idx.id === lc.indexId || idx.code === lc.indexCode || idx.code === lc.id
     );
@@ -177,7 +231,7 @@ export function aggregateProjectValuation(
       suppTotal: supp,
       cultTotal: cult,
       totalValue: areaTotal,
-      percentageOfTev: 0, // Will be computed after grandTEV
+      percentageOfTev: 0,
       valuePerHa,
     };
   });
@@ -201,14 +255,12 @@ export function aggregateProjectValuation(
     return cfg?.activeServices ? (cfg.activeServices.cultural ?? true) : true;
   });
 
-  // Use raw sums or template mock defaults if completely 0 on a mock template
   const provTotal = isProvActive ? ((rawGrand > 0 || !isMock) ? sumRawProv : (isMock ? 19920297915 : 0)) : 0;
   const regTotal = isRegActive ? ((rawGrand > 0 || !isMock) ? sumRawReg : (isMock ? 2357865750 : 0)) : 0;
   const suppTotal = isSuppActive ? ((rawGrand > 0 || !isMock) ? sumRawSupp : (isMock ? 1521514120 : 0)) : 0;
   const cultTotal = isCultActive ? ((rawGrand > 0 || !isMock) ? sumRawCult : (isMock ? 1072000000 : 0)) : 0;
   const grandTEV = provTotal + regTotal + suppTotal + cultTotal;
 
-  // Compute percentageOfTev for each area
   areaBreakdowns.forEach((item) => {
     item.percentageOfTev = grandTEV > 0 ? (item.totalValue / grandTEV) * 100 : 0;
   });
@@ -220,6 +272,34 @@ export function aggregateProjectValuation(
   const totalAreaHa = safeLandCovers.reduce((s, lc) => s + (Number(lc.areaHa) || 0), 0);
   const tevPerHa = totalAreaHa > 0 ? Math.round(grandTEV / totalAreaHa) : 0;
 
+  // Format method items & labels per service
+  const buildMethodMeta = (sId: EcosystemServiceId, defaultM: string) => {
+    const map = serviceMethodsMap[sId];
+    if (map.size === 0) {
+      const defaultSchema = getMethodSchema(sId, defaultM, sId === 'provisioning' ? 'flora' : 'none');
+      const defaultName = defaultSchema.methodName || defaultM;
+      const defaultNominal = sId === 'provisioning' ? provTotal : sId === 'regulating' ? regTotal : sId === 'supporting' ? suppTotal : cultTotal;
+      return {
+        methods: [{ methodId: defaultM, methodName: defaultName, nominal: defaultNominal }],
+        methodNamesLabel: defaultName,
+        methodNamesBullet: `• ${defaultName}`
+      };
+    }
+    const methods: ActiveMethodItem[] = Array.from(map.entries()).map(([mId, meta]) => ({
+      methodId: mId,
+      methodName: meta.methodName,
+      nominal: meta.nominal
+    }));
+    const methodNamesLabel = methods.map(m => m.methodName).join(', ');
+    const methodNamesBullet = methods.map(m => `• ${m.methodName}`).join('\n');
+    return { methods, methodNamesLabel, methodNamesBullet };
+  };
+
+  const provMeta = buildMethodMeta('provisioning', 'market-price');
+  const regMeta  = buildMethodMeta('regulating', 'replacement-cost');
+  const suppMeta = buildMethodMeta('supporting', 'nursery-ground');
+  const cultMeta = buildMethodMeta('cultural', 'tcm');
+
   const allContributions: ServiceContributionItem[] = [
     {
       id: 'provisioning',
@@ -229,6 +309,7 @@ export function aggregateProjectValuation(
       nominal: provTotal,
       percentage: grandTEV > 0 ? (provTotal / grandTEV) * 100 : 0,
       color: '#0e7490',
+      ...provMeta
     },
     {
       id: 'regulating',
@@ -238,6 +319,7 @@ export function aggregateProjectValuation(
       nominal: regTotal,
       percentage: grandTEV > 0 ? (regTotal / grandTEV) * 100 : 0,
       color: '#2563eb',
+      ...regMeta
     },
     {
       id: 'supporting',
@@ -247,6 +329,7 @@ export function aggregateProjectValuation(
       nominal: suppTotal,
       percentage: grandTEV > 0 ? (suppTotal / grandTEV) * 100 : 0,
       color: '#7c3aed',
+      ...suppMeta
     },
     {
       id: 'cultural',
@@ -256,6 +339,7 @@ export function aggregateProjectValuation(
       nominal: cultTotal,
       percentage: grandTEV > 0 ? (cultTotal / grandTEV) * 100 : 0,
       color: '#d97706',
+      ...cultMeta
     },
   ];
 

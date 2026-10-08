@@ -17,7 +17,7 @@ class ReviewReopened
     public function __construct(
         public readonly Review $review,
         public readonly Proyek $proyek,
-        public readonly User $actor
+        public readonly ?User $actor = null
     ) {
     }
 }

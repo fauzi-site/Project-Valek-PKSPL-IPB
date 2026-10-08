@@ -16,7 +16,7 @@ class CommentReplied
     public function __construct(
         public readonly ReviewComment $reply,
         public readonly ReviewComment $parent,
-        public readonly Review $review
+        public readonly ?Review $review = null
     ) {
     }
 }

@@ -117,7 +117,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function (): void {
 // ============================================================
 // 7.8 NOTIFIKASI REVIEW & EMAIL STATUS (Mendukung sesi aktif & fallback direct)
 // ============================================================
-Route::prefix('v1')->group(function (): void {
+Route::prefix('v1')->middleware('auth:sanctum')->group(function (): void {
     // 7.8.1 Mengirim email notifikasi review offline secara langsung
     Route::post('review/send-offline-email', [ReviewStatusNotificationController::class, 'sendOfflineEmail'])
         ->name('review.send-offline-email');

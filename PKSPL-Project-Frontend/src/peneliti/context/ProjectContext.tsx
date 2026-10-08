@@ -797,7 +797,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
               apiConfigs.forEach(cfg => {
                 const sId = cfg.service_id as keyof AreaServiceConfig['activeServices'];
                 if (sId) {
-                  nextServices[sId] = cfg.is_active;
+                  if (cfg.is_active) {
+                    nextServices[sId] = true;
+                  }
                   if (cfg.is_active && !serviceMethodsMap[sId].includes(cfg.method_id)) {
                     serviceMethodsMap[sId].push(cfg.method_id);
                   }
@@ -808,7 +810,11 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
               });
 
               (Object.keys(serviceMethodsMap) as (keyof AreaServiceConfig['activeServices'])[]).forEach(sId => {
-                nextMethods[sId] = serviceMethodsMap[sId];
+                if (serviceMethodsMap[sId].length > 0) {
+                  const existing = normalizeMethods(current.selectedMethods?.[sId], '');
+                  const combined = Array.from(new Set([...serviceMethodsMap[sId], ...existing])).filter(Boolean);
+                  nextMethods[sId] = combined.length > 0 ? combined : serviceMethodsMap[sId];
+                }
               });
               
               return {

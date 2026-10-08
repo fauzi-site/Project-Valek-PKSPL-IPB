@@ -4,7 +4,7 @@ namespace App\Policies\Review;
 
 use App\Models\Role;
 use App\Models\User;
-use App\Models\Review\Review;
+use App\Models\Review;
 
 class ReviewPolicy
 {

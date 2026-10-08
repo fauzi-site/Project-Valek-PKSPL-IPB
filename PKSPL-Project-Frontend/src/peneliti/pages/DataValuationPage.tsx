@@ -207,23 +207,10 @@ const DataValuationPageContent: React.FC = () => {
     updateAreaConfig(selectedAreaId, { biota: newBiota });
   };
 
-  // Active method sub-tab state per service (for multi-method configurations)
-  const [activeSubMethods, setActiveSubMethods] = useState<Record<EcosystemServiceId, string>>({
-    provisioning: 'market-price',
-    regulating: 'replacement-cost',
-    supporting: 'nursery-ground',
-    cultural: 'tcm',
-  });
-
   const provMethods = normalizeMethods(areaConfig.selectedMethods?.provisioning, 'market-price');
   const regMethods = normalizeMethods(areaConfig.selectedMethods?.regulating, 'replacement-cost');
   const suppMethods = normalizeMethods(areaConfig.selectedMethods?.supporting, 'nursery-ground');
   const cultMethods = normalizeMethods(areaConfig.selectedMethods?.cultural, 'tcm');
-
-  const curProvMethod = provMethods.includes(activeSubMethods.provisioning) ? activeSubMethods.provisioning : provMethods[0];
-  const curRegMethod = regMethods.includes(activeSubMethods.regulating) ? activeSubMethods.regulating : regMethods[0];
-  const curSuppMethod = suppMethods.includes(activeSubMethods.supporting) ? activeSubMethods.supporting : suppMethods[0];
-  const curCultMethod = cultMethods.includes(activeSubMethods.cultural) ? activeSubMethods.cultural : cultMethods[0];
 
   const handleOpenImport = (serviceIdOrName: string, methodIdOrName: string, category: string) => {
     const sId: EcosystemServiceId = serviceIdOrName.toLowerCase().includes('provisioning') ? 'provisioning' :
@@ -241,7 +228,7 @@ const DataValuationPageContent: React.FC = () => {
     );
     const mId = (methodIdOrName && activeMethodList.includes(methodIdOrName))
       ? methodIdOrName
-      : (activeSubMethods[sId] && activeMethodList.includes(activeSubMethods[sId]) ? activeSubMethods[sId] : activeMethodList[0]);
+      : activeMethodList[0];
 
     const schema = getMethodSchema(sId, mId, category?.toLowerCase());
 
@@ -519,10 +506,10 @@ const DataValuationPageContent: React.FC = () => {
           </div>
           <div className="space-y-1 text-slate-700 leading-relaxed">
             <p>
-              Peneliti dapat menggunakan <strong className="text-slate-900 font-bold">lebih dari satu metode valuasi</strong> pada jasa ekosistem yang sama (misalnya: TCM & CVM pada Jasa Budaya). Gunakan sub-tab metode di setiap jasa untuk beralih lembar input data.
+              Peneliti dapat menggunakan <strong className="text-slate-900 font-bold">lebih dari satu metode valuasi</strong> pada setiap jasa ekosistem (Provisioning, Regulating, Supporting, Cultural). Seluruh metode aktif ditampilkan langsung secara <strong className="text-blue-900 font-bold">vertikal (Multi-Card)</strong> di bawah masing-masing kategori jasa.
             </p>
             <p className="text-[11px] text-blue-900/90 bg-blue-100/60 rounded px-2 py-1 border border-blue-200/60">
-              <strong className="font-semibold text-blue-950">Catatan Data:</strong> Setiap metode menyimpan data baris dan formula secara independen. Seluruh metode yang aktif akan dihitung dan diagregasikan otomatis pada tahap <strong>Perhitungan</strong>.
+              <strong className="font-semibold text-blue-950">Catatan Data:</strong> Setiap Card Metode menyimpan data baris, kolom custom, dan formula secara independen. Seluruh hasil metode dihitung dan diagregasikan otomatis pada tahap <strong>Perhitungan</strong> dan <strong>TEV</strong>.
             </p>
           </div>
         </div>
@@ -547,7 +534,6 @@ const DataValuationPageContent: React.FC = () => {
             prefixLetter="A"
             serviceId="provisioning"
             serviceName="Provisioning Services"
-            methodId={curProvMethod}
             activeMethodIds={provMethods}
             biota={areaConfig.biota || 'flora'}
             areaId={selectedAreaId}
@@ -555,7 +541,6 @@ const DataValuationPageContent: React.FC = () => {
             areaHa={currentArea?.areaHa || 79.86}
             isOpen={openSections.provisioning}
             onToggleOpen={() => toggleSection('provisioning')}
-            onMethodChange={(m) => setActiveSubMethods(prev => ({ ...prev, provisioning: m }))}
             onBiotaChange={handleBiotaChange}
             onOpenImportModal={handleOpenImport}
             highlightedRowId={highlightParam}
@@ -569,14 +554,12 @@ const DataValuationPageContent: React.FC = () => {
             prefixLetter="B"
             serviceId="regulating"
             serviceName="Regulating Services"
-            methodId={curRegMethod}
             activeMethodIds={regMethods}
             areaId={selectedAreaId}
             areaName={currentArea?.name || 'Area'}
             areaHa={currentArea?.areaHa || 79.86}
             isOpen={openSections.regulating}
             onToggleOpen={() => toggleSection('regulating')}
-            onMethodChange={(m) => setActiveSubMethods(prev => ({ ...prev, regulating: m }))}
             onOpenImportModal={handleOpenImport}
           />
         )}
@@ -588,14 +571,12 @@ const DataValuationPageContent: React.FC = () => {
             prefixLetter="C"
             serviceId="supporting"
             serviceName="Supporting Services"
-            methodId={curSuppMethod}
             activeMethodIds={suppMethods}
             areaId={selectedAreaId}
             areaName={currentArea?.name || 'Area'}
             areaHa={currentArea?.areaHa || 79.86}
             isOpen={openSections.supporting}
             onToggleOpen={() => toggleSection('supporting')}
-            onMethodChange={(m) => setActiveSubMethods(prev => ({ ...prev, supporting: m }))}
             onOpenImportModal={handleOpenImport}
           />
         )}
@@ -607,14 +588,12 @@ const DataValuationPageContent: React.FC = () => {
             prefixLetter="D"
             serviceId="cultural"
             serviceName="Cultural Services"
-            methodId={curCultMethod}
             activeMethodIds={cultMethods}
             areaId={selectedAreaId}
             areaName={currentArea?.name || 'Area'}
             areaHa={currentArea?.areaHa || 79.86}
             isOpen={openSections.cultural}
             onToggleOpen={() => toggleSection('cultural')}
-            onMethodChange={(m) => setActiveSubMethods(prev => ({ ...prev, cultural: m }))}
             onOpenImportModal={handleOpenImport}
           />
         )}

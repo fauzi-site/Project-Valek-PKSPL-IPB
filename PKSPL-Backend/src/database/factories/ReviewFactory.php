@@ -15,17 +15,13 @@ class ReviewFactory extends Factory
 
     public function definition(): array
     {
-        $status = $this->faker->randomElement(['Open', 'Resolved', 'Closed']);
-        
         return [
-            'id_proyek' => Proyek::inRandomOrder()->first()->id_proyek ?? 1,
-            'id_reviewer' => User::whereHas('role', function($q) {
-                $q->where('nama_role', 'Analyst');
-            })->inRandomOrder()->first()->id_user ?? User::factory()->create()->id_user,
-            'status' => $status,
+            'id_proyek' => fn () => Proyek::factory()->create()->id_proyek,
+            'id_reviewer' => fn () => User::where('id_role', 1)->value('id_user') ?? User::factory()->superAdmin()->create()->id_user,
+            'status' => 'Open',
             'decision' => $this->faker->randomElement(['Approved', 'Rejected', 'Need Revision', null]),
             'notes' => $this->faker->optional()->paragraph(),
-            'reviewed_at' => $status !== 'Open' ? now() : null,
+            'reviewed_at' => null,
         ];
     }
 }

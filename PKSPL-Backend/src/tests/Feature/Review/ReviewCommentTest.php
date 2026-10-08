@@ -17,7 +17,7 @@ class ReviewCommentTest extends TestCase
     use RefreshDatabase;
 
     protected User $peneliti;
-    protected User $analyst;
+    protected User $admin;
     protected User $guest;
     protected Review $review;
 
@@ -25,34 +25,35 @@ class ReviewCommentTest extends TestCase
     {
         parent::setUp();
 
-        Role::create(['id_role' => 1, 'nama_role' => 'Peneliti']);
-        Role::create(['id_role' => 2, 'nama_role' => 'Analyst']);
-        Role::create(['id_role' => 3, 'nama_role' => 'Guest']);
+        Role::firstOrCreate(['id_role' => 1], ['nama_role' => Role::SUPER_ADMIN, 'deskripsi' => 'Super Admin']);
+        Role::firstOrCreate(['id_role' => 2], ['nama_role' => Role::PENELITI, 'deskripsi' => 'Peneliti']);
+        Role::firstOrCreate(['id_role' => 3], ['nama_role' => Role::GUEST, 'deskripsi' => 'Guest']);
 
-        $this->peneliti = User::factory()->create(['id_role' => 1]);
-        $this->analyst = User::factory()->create(['id_role' => 2]);
+        $this->peneliti = User::factory()->create(['id_role' => 2]);
+        $this->admin = User::factory()->create(['id_role' => 1]);
         $this->guest = User::factory()->create(['id_role' => 3]);
 
         $proyek = Proyek::factory()->create(['id_user' => $this->peneliti->id_user]);
         $this->review = Review::factory()->create([
             'id_proyek' => $proyek->id_proyek,
-            'id_reviewer' => $this->analyst->id_user
+            'id_reviewer' => $this->admin->id_user,
+            'status' => 'Open',
         ]);
     }
 
     public function test_peneliti_can_create_comment(): void
     {
         $response = $this->actingAs($this->peneliti)->postJson("/api/v1/reviews/{$this->review->id_review}/comments", [
-            'body' => 'Test comment from peneliti'
+            'body' => 'Test comment from peneliti',
         ]);
         $response->assertStatus(201);
         $this->assertDatabaseHas('review_comments', ['body' => 'Test comment from peneliti']);
     }
 
-    public function test_analyst_can_create_comment(): void
+    public function test_admin_can_create_comment(): void
     {
-        $response = $this->actingAs($this->analyst)->postJson("/api/v1/reviews/{$this->review->id_review}/comments", [
-            'body' => 'Test comment from analyst'
+        $response = $this->actingAs($this->admin)->postJson("/api/v1/reviews/{$this->review->id_review}/comments", [
+            'body' => 'Test comment from admin',
         ]);
         $response->assertStatus(201);
     }
@@ -60,7 +61,7 @@ class ReviewCommentTest extends TestCase
     public function test_guest_cannot_create_comment(): void
     {
         $response = $this->actingAs($this->guest)->postJson("/api/v1/reviews/{$this->review->id_review}/comments", [
-            'body' => 'Test comment from guest'
+            'body' => 'Test comment from guest',
         ]);
         $response->assertStatus(403);
     }
@@ -68,7 +69,7 @@ class ReviewCommentTest extends TestCase
     public function test_can_list_comments(): void
     {
         ReviewComment::factory()->count(3)->create(['id_review' => $this->review->id_review]);
-        $response = $this->actingAs($this->analyst)->getJson("/api/v1/reviews/{$this->review->id_review}/comments");
+        $response = $this->actingAs($this->admin)->getJson("/api/v1/reviews/{$this->review->id_review}/comments");
         $response->assertStatus(200)->assertJsonCount(3, 'data');
     }
 
@@ -76,11 +77,11 @@ class ReviewCommentTest extends TestCase
     {
         $comment = ReviewComment::factory()->create([
             'id_review' => $this->review->id_review,
-            'id_user' => $this->peneliti->id_user
+            'id_user' => $this->peneliti->id_user,
         ]);
 
-        $response = $this->actingAs($this->peneliti)->patchJson("/api/v1/comments/{$comment->id_comment}", [
-            'body' => 'Edited body'
+        $response = $this->actingAs($this->peneliti)->patchJson("/api/v1/reviews/{$this->review->id_review}/comments/{$comment->id_comment}", [
+            'body' => 'Edited body',
         ]);
         $response->assertStatus(200);
         $this->assertDatabaseHas('review_comments', ['id_comment' => $comment->id_comment, 'body' => 'Edited body', 'is_edited' => true]);
@@ -90,11 +91,13 @@ class ReviewCommentTest extends TestCase
     {
         $comment = ReviewComment::factory()->create([
             'id_review' => $this->review->id_review,
-            'id_user' => $this->peneliti->id_user
+            'id_user' => $this->peneliti->id_user,
         ]);
 
-        $response = $this->actingAs($this->analyst)->patchJson("/api/v1/comments/{$comment->id_comment}", [
-            'body' => 'Hacked body'
+        $otherPeneliti = User::factory()->create(['id_role' => 2]);
+
+        $response = $this->actingAs($otherPeneliti)->patchJson("/api/v1/reviews/{$this->review->id_review}/comments/{$comment->id_comment}", [
+            'body' => 'Hacked body',
         ]);
         $response->assertStatus(403);
     }
@@ -103,10 +106,10 @@ class ReviewCommentTest extends TestCase
     {
         $comment = ReviewComment::factory()->create([
             'id_review' => $this->review->id_review,
-            'id_user' => $this->peneliti->id_user
+            'id_user' => $this->peneliti->id_user,
         ]);
 
-        $response = $this->actingAs($this->peneliti)->deleteJson("/api/v1/comments/{$comment->id_comment}");
+        $response = $this->actingAs($this->peneliti)->deleteJson("/api/v1/reviews/{$this->review->id_review}/comments/{$comment->id_comment}");
         $response->assertStatus(200);
         
         $this->assertSoftDeleted('review_comments', ['id_comment' => $comment->id_comment]);
@@ -117,13 +120,11 @@ class ReviewCommentTest extends TestCase
         $comment = ReviewComment::factory()->create([
             'id_review' => $this->review->id_review,
             'id_user' => $this->peneliti->id_user,
-            'deleted_at' => now()
+            'deleted_at' => now(),
         ]);
 
-        $response = $this->actingAs($this->analyst)->getJson("/api/v1/reviews/{$this->review->id_review}/comments");
+        $response = $this->actingAs($this->admin)->getJson("/api/v1/reviews/{$this->review->id_review}/comments/{$comment->id_comment}");
         
-        // Assert that the body is masked or we check how resource handles it
-        // Depending on Resource implementation. Assuming Resource does: $this->deleted_at ? '[deleted]' : $this->body
         $response->assertStatus(200);
         $this->assertStringContainsString('[deleted]', $response->getContent());
     }

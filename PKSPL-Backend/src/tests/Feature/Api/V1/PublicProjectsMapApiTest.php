@@ -7,13 +7,18 @@ use Tests\TestCase;
 
 class PublicProjectsMapApiTest extends TestCase
 {
-    use DatabaseTransactions;
+    protected function setUp(): void
+    {
+        parent::setUp();
+        \App\Models\Role::firstOrCreate(['id_role' => 2], ['nama_role' => \App\Models\Role::PENELITI, 'deskripsi' => 'Peneliti']);
+    }
 
     /**
      * Memverifikasi bahwa endpoint peta proyek publik dapat diakses tanpa token autentikasi.
      */
     public function test_public_projects_map_is_accessible_without_authentication(): void
     {
+        \App\Models\Proyek::factory()->create();
         $response = $this->getJson('/api/v1/public/projects/map');
 
         $response->assertStatus(200)

@@ -24,55 +24,33 @@ class ReviewServiceTest extends TestCase
         $this->service = app(ReviewService::class);
     }
 
-    public function test_submit_changes_proyek_status_to_submitted(): void
+    public function test_submit_creates_open_review(): void
     {
-        $proyek = Proyek::factory()->create(['status' => 'Draft']);
+        $proyek = Proyek::factory()->create();
         $user = User::factory()->create();
 
-        $this->service->submitDataset($proyek, $user);
+        $result = $this->service->submit($proyek, $user->id_user);
 
-        $this->assertEquals('Submitted', $proyek->fresh()->status);
+        $this->assertInstanceOf(Proyek::class, $result);
+        $this->assertDatabaseHas('reviews', [
+            'id_proyek' => $proyek->id_proyek,
+            'status' => 'Open',
+        ]);
     }
 
-    public function test_submit_throws_when_already_submitted(): void
+    public function test_create_review_creates_review_record(): void
     {
-        $this->expectException(\DomainException::class);
-        $proyek = Proyek::factory()->create(['status' => 'Submitted']);
-        $user = User::factory()->create();
-
-        $this->service->submitDataset($proyek, $user);
-    }
-
-    public function test_create_review_with_need_revision_changes_proyek_status(): void
-    {
-        $proyek = Proyek::factory()->create(['status' => 'Submitted']);
+        $proyek = Proyek::factory()->create();
         $reviewer = User::factory()->create();
 
-        $review = Review::factory()->create([
-            'id_proyek' => $proyek->id_proyek,
-            'id_reviewer' => $reviewer->id_user,
-            'status' => 'Open'
+        $review = $this->service->createReview($proyek, $reviewer, [
+            'decision' => 'Need Revision',
+            'notes' => 'Please fix issues',
         ]);
 
-        $this->service->closeReview($review, 'Need Revision', 'Please fix', $reviewer);
-
-        $this->assertEquals('Revision Required', $proyek->fresh()->status);
-    }
-
-    public function test_create_review_with_approved_changes_proyek_status(): void
-    {
-        $proyek = Proyek::factory()->create(['status' => 'Submitted']);
-        $reviewer = User::factory()->create();
-
-        $review = Review::factory()->create([
-            'id_proyek' => $proyek->id_proyek,
-            'id_reviewer' => $reviewer->id_user,
-            'status' => 'Open'
-        ]);
-
-        $this->service->closeReview($review, 'Approved', 'Looks good', $reviewer);
-
-        $this->assertEquals('Approved', $proyek->fresh()->status);
+        $this->assertEquals('Open', $review->status);
+        $this->assertEquals('Need Revision', $review->decision);
+        $this->assertEquals('Please fix issues', $review->notes);
     }
 
     public function test_resolve_changes_status_to_resolved(): void
@@ -80,7 +58,7 @@ class ReviewServiceTest extends TestCase
         $review = Review::factory()->create(['status' => 'Open']);
         $user = User::factory()->create();
 
-        $this->service->resolveReview($review, $user);
+        $this->service->resolve($review, $user);
 
         $this->assertEquals('Resolved', $review->fresh()->status);
     }
@@ -91,7 +69,7 @@ class ReviewServiceTest extends TestCase
         $review = Review::factory()->create(['status' => 'Closed']);
         $user = User::factory()->create();
 
-        $this->service->resolveReview($review, $user);
+        $this->service->resolve($review, $user);
     }
 
     public function test_cannot_reopen_open_review(): void
@@ -100,6 +78,6 @@ class ReviewServiceTest extends TestCase
         $review = Review::factory()->create(['status' => 'Open']);
         $user = User::factory()->create();
 
-        $this->service->reopenReview($review, $user);
+        $this->service->reopen($review, $user);
     }
 }

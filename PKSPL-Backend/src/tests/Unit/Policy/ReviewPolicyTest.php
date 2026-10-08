@@ -23,24 +23,22 @@ class ReviewPolicyTest extends TestCase
         parent::setUp();
         $this->policy = new ReviewPolicy();
         
-        Role::create(['id_role' => 1, 'nama_role' => 'Super Admin']);
-        Role::create(['id_role' => 3, 'nama_role' => 'Peneliti']);
+        Role::firstOrCreate(['id_role' => 1], ['nama_role' => Role::SUPER_ADMIN, 'deskripsi' => 'Super Admin']);
+        Role::firstOrCreate(['id_role' => 2], ['nama_role' => Role::PENELITI, 'deskripsi' => 'Peneliti']);
     }
 
     public function test_super_admin_can_create_review(): void
     {
         $admin = User::factory()->create(['id_role' => 1]);
-        $proyek = Proyek::factory()->create();
 
-        $this->assertTrue($this->policy->create($admin, $proyek));
+        $this->assertTrue($this->policy->create($admin));
     }
 
     public function test_peneliti_cannot_create_review(): void
     {
-        $peneliti = User::factory()->create(['id_role' => 3]);
-        $proyek = Proyek::factory()->create();
+        $peneliti = User::factory()->create(['id_role' => 2]);
 
-        $this->assertFalse($this->policy->create($peneliti, $proyek));
+        $this->assertFalse($this->policy->create($peneliti));
     }
 
     public function test_super_admin_can_resolve_own_review(): void
@@ -61,7 +59,7 @@ class ReviewPolicyTest extends TestCase
 
     public function test_researcher_can_view_own_review(): void
     {
-        $peneliti = User::factory()->create(['id_role' => 1]);
+        $peneliti = User::factory()->create(['id_role' => 2]);
         $proyek = Proyek::factory()->create(['id_user' => $peneliti->id_user]);
         $review = Review::factory()->create(['id_proyek' => $proyek->id_proyek]);
 

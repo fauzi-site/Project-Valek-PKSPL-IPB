@@ -20,7 +20,7 @@ class ChatApiTest extends TestCase
 {
     use DatabaseTransactions;
 
-    protected User $analyst;
+    protected User $admin;
     protected User $peneliti;
     protected User $thirdParty;
 
@@ -28,18 +28,18 @@ class ChatApiTest extends TestCase
     {
         parent::setUp();
 
-        $roleAnalyst = Role::firstOrCreate(['nama_role' => 'Analyst'], ['deskripsi' => 'Analyst']);
-        $rolePeneliti = Role::firstOrCreate(['nama_role' => 'Peneliti'], ['deskripsi' => 'Peneliti']);
-        $roleGuest = Role::firstOrCreate(['nama_role' => 'Guest'], ['deskripsi' => 'Guest']);
+        $roleAdmin = Role::firstOrCreate(['nama_role' => Role::SUPER_ADMIN], ['deskripsi' => 'Super Admin']);
+        $rolePeneliti = Role::firstOrCreate(['nama_role' => Role::PENELITI], ['deskripsi' => 'Peneliti']);
+        $roleGuest = Role::firstOrCreate(['nama_role' => Role::GUEST], ['deskripsi' => 'Guest']);
 
-        $this->analyst = User::factory()->create(['id_role' => $roleAnalyst->id_role]);
+        $this->admin = User::factory()->create(['id_role' => $roleAdmin->id_role]);
         $this->peneliti = User::factory()->create(['id_role' => $rolePeneliti->id_role]);
         $this->thirdParty = User::factory()->create(['id_role' => $roleGuest->id_role]);
     }
 
-    public function test_analyst_can_access_chat_directory(): void
+    public function test_admin_can_access_chat_directory(): void
     {
-        $response = $this->actingAs($this->analyst)->getJson('/api/v1/chat/directory');
+        $response = $this->actingAs($this->admin)->getJson('/api/v1/chat/directory');
 
         $response->assertStatus(200);
         $response->assertJsonStructure([
@@ -49,31 +49,31 @@ class ChatApiTest extends TestCase
         ]);
     }
 
-    public function test_analyst_can_create_conversation_with_peneliti(): void
+    public function test_admin_can_create_conversation_with_peneliti(): void
     {
-        $response = $this->actingAs($this->analyst)->postJson('/api/v1/conversations', [
+        $response = $this->actingAs($this->admin)->postJson('/api/v1/conversations', [
             'recipient_id' => $this->peneliti->id_user,
         ]);
 
         $response->assertStatus(201);
         $response->assertJsonPath('data.type', 'direct');
         $this->assertDatabaseHas('conversations', [
-            'created_by' => $this->analyst->id_user,
+            'created_by' => $this->admin->id_user,
         ]);
     }
 
-    public function test_analyst_can_send_message_in_conversation(): void
+    public function test_admin_can_send_message_in_conversation(): void
     {
         Notification::fake();
 
         // 1. Create conversation
-        $convResponse = $this->actingAs($this->analyst)->postJson('/api/v1/conversations', [
+        $convResponse = $this->actingAs($this->admin)->postJson('/api/v1/conversations', [
             'recipient_id' => $this->peneliti->id_user,
         ]);
         $convId = $convResponse->json('data.id');
 
         // 2. Send message
-        $response = $this->actingAs($this->analyst)->postJson("/api/v1/conversations/{$convId}/messages", [
+        $response = $this->actingAs($this->admin)->postJson("/api/v1/conversations/{$convId}/messages", [
             'message' => 'Halo Peneliti, mohon klarifikasi data mangrove.',
         ]);
 
@@ -82,7 +82,7 @@ class ChatApiTest extends TestCase
         $msgId = (int) $response->json('data.id');
         $this->assertDatabaseHas('messages', [
             'id_conversation' => $convId,
-            'id_sender' => $this->analyst->id_user,
+            'id_sender' => $this->admin->id_user,
         ]);
         $rawDb = \Illuminate\Support\Facades\DB::table('messages')->where('id_message', $msgId)->value('message');
         $this->assertNotEquals('Halo Peneliti, mohon klarifikasi data mangrove.', $rawDb);
@@ -91,18 +91,18 @@ class ChatApiTest extends TestCase
         Notification::assertSentTo($this->peneliti, \App\Notifications\Chat\NewChatMessageNotification::class);
     }
 
-    public function test_analyst_can_send_message_with_attachment(): void
+    public function test_admin_can_send_message_with_attachment(): void
     {
         Storage::fake('public');
 
-        $convResponse = $this->actingAs($this->analyst)->postJson('/api/v1/conversations', [
+        $convResponse = $this->actingAs($this->admin)->postJson('/api/v1/conversations', [
             'recipient_id' => $this->peneliti->id_user,
         ]);
         $convId = $convResponse->json('data.id');
 
         $fakePdf = UploadedFile::fake()->create('Catatan_Telaah.pdf', 1500, 'application/pdf');
 
-        $response = $this->actingAs($this->analyst)->postJson("/api/v1/conversations/{$convId}/messages", [
+        $response = $this->actingAs($this->admin)->postJson("/api/v1/conversations/{$convId}/messages", [
             'message' => 'Berikut berkas telaah:',
             'file' => $fakePdf,
         ]);
@@ -118,13 +118,13 @@ class ChatApiTest extends TestCase
 
     public function test_peneliti_can_read_messages(): void
     {
-        $convResponse = $this->actingAs($this->analyst)->postJson('/api/v1/conversations', [
+        $convResponse = $this->actingAs($this->admin)->postJson('/api/v1/conversations', [
             'recipient_id' => $this->peneliti->id_user,
         ]);
         $convId = $convResponse->json('data.id');
 
-        $this->actingAs($this->analyst)->postJson("/api/v1/conversations/{$convId}/messages", [
-            'message' => 'Pesan dari analyst',
+        $this->actingAs($this->admin)->postJson("/api/v1/conversations/{$convId}/messages", [
+            'message' => 'Pesan dari admin',
         ]);
 
         $response = $this->actingAs($this->peneliti)->getJson("/api/v1/conversations/{$convId}/messages");
@@ -135,7 +135,7 @@ class ChatApiTest extends TestCase
 
     public function test_unauthorized_user_cannot_access_conversation_anti_idor(): void
     {
-        $convResponse = $this->actingAs($this->analyst)->postJson('/api/v1/conversations', [
+        $convResponse = $this->actingAs($this->admin)->postJson('/api/v1/conversations', [
             'recipient_id' => $this->peneliti->id_user,
         ]);
         $convId = $convResponse->json('data.id');
@@ -157,12 +157,12 @@ class ChatApiTest extends TestCase
 
     public function test_user_can_mark_conversation_as_read(): void
     {
-        $convResponse = $this->actingAs($this->analyst)->postJson('/api/v1/conversations', [
+        $convResponse = $this->actingAs($this->admin)->postJson('/api/v1/conversations', [
             'recipient_id' => $this->peneliti->id_user,
         ]);
         $convId = $convResponse->json('data.id');
 
-        $this->actingAs($this->analyst)->postJson("/api/v1/conversations/{$convId}/messages", [
+        $this->actingAs($this->admin)->postJson("/api/v1/conversations/{$convId}/messages", [
             'message' => 'Pesan belum dibaca',
         ]);
 
@@ -178,10 +178,10 @@ class ChatApiTest extends TestCase
 
     public function test_user_can_manage_notification_preferences(): void
     {
-        $getResponse = $this->actingAs($this->analyst)->getJson('/api/v1/notification-preferences');
+        $getResponse = $this->actingAs($this->admin)->getJson('/api/v1/notification-preferences');
         $getResponse->assertStatus(200);
 
-        $updateResponse = $this->actingAs($this->analyst)->putJson('/api/v1/notification-preferences', [
+        $updateResponse = $this->actingAs($this->admin)->putJson('/api/v1/notification-preferences', [
             'email_chat' => false,
             'email_revision' => true,
         ]);
@@ -192,12 +192,12 @@ class ChatApiTest extends TestCase
 
     public function test_user_can_send_typing_indicator(): void
     {
-        $convResponse = $this->actingAs($this->analyst)->postJson('/api/v1/conversations', [
+        $convResponse = $this->actingAs($this->admin)->postJson('/api/v1/conversations', [
             'recipient_id' => $this->peneliti->id_user,
         ]);
         $convId = $convResponse->json('data.id');
 
-        $typingResponse = $this->actingAs($this->analyst)->postJson("/api/v1/conversations/{$convId}/typing", [
+        $typingResponse = $this->actingAs($this->admin)->postJson("/api/v1/conversations/{$convId}/typing", [
             'is_typing' => true,
         ]);
         $typingResponse->assertStatus(200);
@@ -274,8 +274,8 @@ class ChatApiTest extends TestCase
                 && (int) $event->readerId === (int) $peneliti->id_user;
         });
 
-        // Fetch messages as Analyst and verify status is 'read'
-        $fetchResponse = $this->actingAs($analyst)->getJson("/api/v1/conversations/{$conversation->id_conversation}/messages");
+        // Fetch messages as Admin and verify status is 'read'
+        $fetchResponse = $this->actingAs($admin)->getJson("/api/v1/conversations/{$conversation->id_conversation}/messages");
         $fetchResponse->assertStatus(200);
         $fetchResponse->assertJsonPath('data.0.status', 'read');
         $fetchResponse->assertJsonPath('data.0.isRead', true);
@@ -287,11 +287,11 @@ class ChatApiTest extends TestCase
 
         $conversation = Conversation::create([
             'type' => 'direct',
-            'created_by' => $this->analyst->id_user,
+            'created_by' => $this->admin->id_user,
         ]);
         ConversationParticipant::create([
             'id_conversation' => $conversation->id_conversation,
-            'id_user' => $this->analyst->id_user,
+            'id_user' => $this->admin->id_user,
         ]);
         ConversationParticipant::create([
             'id_conversation' => $conversation->id_conversation,
@@ -300,12 +300,12 @@ class ChatApiTest extends TestCase
 
         $message = ChatMessage::create([
             'id_conversation' => $conversation->id_conversation,
-            'id_sender' => $this->analyst->id_user,
+            'id_sender' => $this->admin->id_user,
             'message' => 'Teks awal sebelum diedit',
             'message_type' => 'text',
         ]);
 
-        $response = $this->actingAs($this->analyst)->putJson(
+        $response = $this->actingAs($this->admin)->putJson(
             "/api/v1/conversations/{$conversation->id_conversation}/messages/{$message->id_message}",
             ['message' => 'Teks sudah direvisi']
         );
@@ -328,11 +328,11 @@ class ChatApiTest extends TestCase
     {
         $conversation = Conversation::create([
             'type' => 'direct',
-            'created_by' => $this->analyst->id_user,
+            'created_by' => $this->admin->id_user,
         ]);
         ConversationParticipant::create([
             'id_conversation' => $conversation->id_conversation,
-            'id_user' => $this->analyst->id_user,
+            'id_user' => $this->admin->id_user,
         ]);
         ConversationParticipant::create([
             'id_conversation' => $conversation->id_conversation,
@@ -341,12 +341,12 @@ class ChatApiTest extends TestCase
 
         $message = ChatMessage::create([
             'id_conversation' => $conversation->id_conversation,
-            'id_sender' => $this->analyst->id_user,
-            'message' => 'Pesan asli analis',
+            'id_sender' => $this->admin->id_user,
+            'message' => 'Pesan asli admin',
             'message_type' => 'text',
         ]);
 
-        // Peneliti attempts to edit analyst's message
+        // Peneliti attempts to edit admin's message
         $response = $this->actingAs($this->peneliti)->putJson(
             "/api/v1/conversations/{$conversation->id_conversation}/messages/{$message->id_message}",
             ['message' => 'Pembajakan pesan']
@@ -361,11 +361,11 @@ class ChatApiTest extends TestCase
 
         $conversation = Conversation::create([
             'type' => 'direct',
-            'created_by' => $this->analyst->id_user,
+            'created_by' => $this->admin->id_user,
         ]);
         ConversationParticipant::create([
             'id_conversation' => $conversation->id_conversation,
-            'id_user' => $this->analyst->id_user,
+            'id_user' => $this->admin->id_user,
         ]);
         ConversationParticipant::create([
             'id_conversation' => $conversation->id_conversation,
@@ -374,12 +374,12 @@ class ChatApiTest extends TestCase
 
         $message = ChatMessage::create([
             'id_conversation' => $conversation->id_conversation,
-            'id_sender' => $this->analyst->id_user,
+            'id_sender' => $this->admin->id_user,
             'message' => 'Pesan yang akan dihapus',
             'message_type' => 'text',
         ]);
 
-        $response = $this->actingAs($this->analyst)->deleteJson(
+        $response = $this->actingAs($this->admin)->deleteJson(
             "/api/v1/conversations/{$conversation->id_conversation}/messages/{$message->id_message}"
         );
 
@@ -403,11 +403,11 @@ class ChatApiTest extends TestCase
     {
         $conversation = Conversation::create([
             'type' => 'direct',
-            'created_by' => $this->analyst->id_user,
+            'created_by' => $this->admin->id_user,
         ]);
         ConversationParticipant::create([
             'id_conversation' => $conversation->id_conversation,
-            'id_user' => $this->analyst->id_user,
+            'id_user' => $this->admin->id_user,
         ]);
         ConversationParticipant::create([
             'id_conversation' => $conversation->id_conversation,
@@ -416,12 +416,12 @@ class ChatApiTest extends TestCase
 
         $message = ChatMessage::create([
             'id_conversation' => $conversation->id_conversation,
-            'id_sender' => $this->analyst->id_user,
+            'id_sender' => $this->admin->id_user,
             'message' => 'Pesan penting',
             'message_type' => 'text',
         ]);
 
-        // Peneliti attempts to delete analyst's message
+        // Peneliti attempts to delete admin's message
         $response = $this->actingAs($this->peneliti)->deleteJson(
             "/api/v1/conversations/{$conversation->id_conversation}/messages/{$message->id_message}"
         );
@@ -443,7 +443,7 @@ class ChatApiTest extends TestCase
         ]);
         ConversationParticipant::create([
             'id_conversation' => $conversation->id_conversation,
-            'id_user' => $this->analyst->id_user,
+            'id_user' => $this->admin->id_user,
         ]);
 
         $message = ChatMessage::create([
@@ -486,7 +486,7 @@ class ChatApiTest extends TestCase
         ]);
         ConversationParticipant::create([
             'id_conversation' => $conversation->id_conversation,
-            'id_user' => $this->analyst->id_user,
+            'id_user' => $this->admin->id_user,
         ]);
 
         $message = ChatMessage::create([
@@ -522,7 +522,7 @@ class ChatApiTest extends TestCase
         ]);
         ConversationParticipant::create([
             'id_conversation' => $conversation->id_conversation,
-            'id_user' => $this->analyst->id_user,
+            'id_user' => $this->admin->id_user,
         ]);
 
         $message = ChatMessage::create([
@@ -541,7 +541,7 @@ class ChatApiTest extends TestCase
             'file_type' => 'pdf',
         ]);
 
-        $response = $this->actingAs($this->analyst)->get(
+        $response = $this->actingAs($this->admin)->get(
             "/api/v1/conversations/{$conversation->id_conversation}/messages/{$message->id_message}/attachments/{$attachment->id_attachment}/download"
         );
 
@@ -580,7 +580,7 @@ class ChatApiTest extends TestCase
             'file_type' => 'pdf',
         ]);
 
-        $response = $this->actingAs($this->analyst)->get(
+        $response = $this->actingAs($this->admin)->get(
             "/api/v1/conversations/{$conversation->id_conversation}/messages/{$message->id_message}/attachments/{$attachment->id_attachment}/download"
         );
 

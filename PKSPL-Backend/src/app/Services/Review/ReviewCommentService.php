@@ -65,7 +65,7 @@ class ReviewCommentService
                 $this->notificationService->notifyMentions($comment, $mentionedUsers);
             }
 
-            event(new CommentCreated($comment, $review));
+            event(new CommentCreated($comment, $review, $review->proyek));
             $this->notificationService->notifyNewComment($comment, $review, $review->proyek);
 
             return $this->repository->findOrFail($comment->id_comment);
@@ -106,7 +106,7 @@ class ReviewCommentService
                 $this->notificationService->notifyMentions($reply, $mentionedUsers);
             }
 
-            event(new CommentReplied($reply, $parent));
+            event(new CommentReplied($reply, $parent, $parent->review));
             if ($parent->review) {
                 $this->notificationService->notifyReply($reply, $parent, $parent->review);
             }

@@ -26,7 +26,7 @@ class ReviewResource extends JsonResource
             'proyek' => $this->whenLoaded('proyek', fn() => [
                 'id' => $this->proyek->id_proyek,
                 'nama_proyek' => $this->proyek->nama_proyek,
-                'status' => $this->proyek->status,
+                'status' => $this->status,
             ]),
             'comments_count' => $this->whenCounted('comments'),
         ];

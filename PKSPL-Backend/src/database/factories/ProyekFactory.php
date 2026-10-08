@@ -26,7 +26,6 @@ class ProyekFactory extends Factory
             'satuan_luas' => 'ha',
             'tahun' => (int) date('Y'),
             'deskripsi' => fake()->paragraph(),
-            'status' => 'Draft',
         ];
     }
 }

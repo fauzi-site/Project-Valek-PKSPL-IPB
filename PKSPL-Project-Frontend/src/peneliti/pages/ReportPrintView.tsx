@@ -288,24 +288,7 @@ export const ReportPrintView: React.FC = () => {
     ];
   }, [spatialReportData.allGrouped, grandTEV]);
 
-  // Schema for Section III (Metodologi)
-  const refAreaId = currentLandCovers[0]?.id || 'lc-01';
-  const refConfig = getAreaConfig ? getAreaConfig(refAreaId) : {
-    activeServices: { provisioning: true, regulating: true, supporting: true, cultural: true },
-    selectedMethods: { provisioning: 'market-price', regulating: 'replacement-cost', supporting: 'nursery-ground', cultural: 'tcm' },
-    biota: 'flora' as const
-  };
-
-  const provMethod = normalizeMethods(refConfig.selectedMethods?.provisioning, 'market-price')[0];
-  const regMethod = normalizeMethods(refConfig.selectedMethods?.regulating, 'replacement-cost')[0];
-  const suppMethod = normalizeMethods(refConfig.selectedMethods?.supporting, 'nursery-ground')[0];
-  const cultMethod = normalizeMethods(refConfig.selectedMethods?.cultural, 'tcm')[0];
-
-  const provSchema = getMethodSchema('provisioning', provMethod, 'flora');
-  const regSchema = getMethodSchema('regulating', regMethod);
-  const suppSchema = getMethodSchema('supporting', suppMethod);
-  const cultSchema = getMethodSchema('cultural', cultMethod);
-
+  // Schema for Section III (Metodologi) and active services meta
   const isServiceActiveInProject = (sId: EcosystemServiceId): boolean => {
     if (!currentLandCovers || currentLandCovers.length === 0) return true;
     return currentLandCovers.some(lc => {
@@ -315,34 +298,23 @@ export const ReportPrintView: React.FC = () => {
   };
 
   const activeServicesMeta = useMemo(() => {
-    const list = [
-      {
-        id: 'provisioning' as EcosystemServiceId,
-        name: 'Provisioning Services',
-        methodName: provSchema.methodName,
-        desc: 'Pendekatan harga pasar aktual komoditas flora (tegakan kayu/biomassa) dan fauna (hasil tangkapan perikanan) berdasarkan survei lapangan dan data TPI daerah.'
-      },
-      {
-        id: 'regulating' as EcosystemServiceId,
-        name: 'Regulating Services',
-        methodName: regSchema.methodName,
-        desc: 'Metode biaya pengganti struktur pelindung pantai (seawall/breakwater) dan potensi cadangan sekuestrasi karbon biru pesisir menurut pedoman IPCC Wetlands.'
-      },
-      {
-        id: 'supporting' as EcosystemServiceId,
-        name: 'Supporting Services',
-        methodName: suppSchema.methodName,
-        desc: 'Penilaian fungsi ekologis sebagai daerah asuhan dan pemijahan benih biota laut (nursery ground) serta penyangga keanekaragaman hayati pesisir.'
-      },
-      {
-        id: 'cultural' as EcosystemServiceId,
-        name: 'Cultural Services',
-        methodName: cultSchema.methodName,
-        desc: 'Pendekatan Travel Cost Method (TCM) dan Contingent Valuation guna mengestimasi surplus konsumen pengunjung ekowisata dan jasa rekreasi budaya pesisir.'
-      }
-    ];
-    return list.filter(s => isServiceActiveInProject(s.id));
-  }, [provSchema.methodName, regSchema.methodName, suppSchema.methodName, cultSchema.methodName, currentLandCovers, getAreaConfig]);
+    const descMap: Record<EcosystemServiceId, string> = {
+      provisioning: 'Pendekatan harga pasar aktual komoditas flora (tegakan kayu/biomassa) dan fauna (hasil tangkapan perikanan) berdasarkan survei lapangan dan data TPI daerah.',
+      regulating: 'Metode biaya pengganti struktur pelindung pantai (seawall/breakwater) dan potensi cadangan sekuestrasi karbon biru pesisir menurut pedoman IPCC Wetlands.',
+      supporting: 'Penilaian fungsi ekologis sebagai daerah asuhan dan pemijahan benih biota laut (nursery ground) serta penyangga keanekaragaman hayati pesisir.',
+      cultural: 'Pendekatan Travel Cost Method (TCM) dan Contingent Valuation (CVM) guna mengestimasi surplus konsumen pengunjung ekowisata dan jasa rekreasi budaya pesisir.',
+    };
+
+    return serviceContributions
+      .filter(s => isServiceActiveInProject(s.id))
+      .map(s => ({
+        id: s.id,
+        name: s.name,
+        methodName: s.methodNamesLabel,
+        methodNamesBullet: s.methodNamesBullet,
+        desc: descMap[s.id] || s.name
+      }));
+  }, [serviceContributions, currentLandCovers, getAreaConfig]);
 
   // Historical studies (only if available)
   const targetArea = currentLandCovers.find(l => l.id === 'poly-1') || currentLandCovers[0] || null;
@@ -476,7 +448,7 @@ export const ReportPrintView: React.FC = () => {
         areaHa: groupArea.areaHa
       };
 
-      const cfg = getAreaConfig ? getAreaConfig(virtualArea.id) : refConfig;
+      const cfg = getAreaConfig ? getAreaConfig(virtualArea.id) : null;
       const isProv = cfg?.activeServices ? (cfg.activeServices.provisioning ?? true) : true;
       const isReg = cfg?.activeServices ? (cfg.activeServices.regulating ?? true) : true;
       const isSupp = cfg?.activeServices ? (cfg.activeServices.supporting ?? true) : true;
@@ -491,29 +463,34 @@ export const ReportPrintView: React.FC = () => {
       const pFaunaRaw: any[] = [];
       if (isProv) {
         provMethods.forEach(mId => {
-          pFloraRaw.push(...getRows(effectiveProjId, virtualArea.id, 'provisioning', mId, 'flora'));
-          pFaunaRaw.push(...getRows(effectiveProjId, virtualArea.id, 'provisioning', mId, 'fauna'));
+          const rawF = getRows(effectiveProjId, virtualArea.id, 'provisioning', mId, 'flora');
+          pFloraRaw.push(...rawF.map((r: any) => ({ ...r, _serviceId: 'provisioning', _methodId: r._methodId || r.method_id || r.methodId || mId, _biota: 'flora' })));
+          const rawFa = getRows(effectiveProjId, virtualArea.id, 'provisioning', mId, 'fauna');
+          pFaunaRaw.push(...rawFa.map((r: any) => ({ ...r, _serviceId: 'provisioning', _methodId: r._methodId || r.method_id || r.methodId || mId, _biota: 'fauna' })));
         });
       }
 
       const rRowsRaw: any[] = [];
       if (isReg) {
         regMethods.forEach(mId => {
-          rRowsRaw.push(...getRows(effectiveProjId, virtualArea.id, 'regulating', mId));
+          const raw = getRows(effectiveProjId, virtualArea.id, 'regulating', mId);
+          rRowsRaw.push(...raw.map((r: any) => ({ ...r, _serviceId: 'regulating', _methodId: r._methodId || r.method_id || r.methodId || mId })));
         });
       }
 
       const sRowsRaw: any[] = [];
       if (isSupp) {
         suppMethods.forEach(mId => {
-          sRowsRaw.push(...getRows(effectiveProjId, virtualArea.id, 'supporting', mId));
+          const raw = getRows(effectiveProjId, virtualArea.id, 'supporting', mId);
+          sRowsRaw.push(...raw.map((r: any) => ({ ...r, _serviceId: 'supporting', _methodId: r._methodId || r.method_id || r.methodId || mId })));
         });
       }
 
       const cRowsRaw: any[] = [];
       if (isCult) {
         cultMethods.forEach(mId => {
-          cRowsRaw.push(...getRows(effectiveProjId, virtualArea.id, 'cultural', mId));
+          const raw = getRows(effectiveProjId, virtualArea.id, 'cultural', mId);
+          cRowsRaw.push(...raw.map((r: any) => ({ ...r, _serviceId: 'cultural', _methodId: r._methodId || r.method_id || r.methodId || mId })));
         });
       }
 
@@ -550,7 +527,7 @@ export const ReportPrintView: React.FC = () => {
       grandDataRowsCount,
       topArea
     };
-  }, [spatialReportData.allGrouped, currentLandCovers, getAreaConfig, refConfig, getRows, effectiveProjId]);
+  }, [spatialReportData.allGrouped, currentLandCovers, getAreaConfig, getRows, effectiveProjId]);
 
   const isSuperAdmin =
     user?.role?.nama_role === 'Super Admin' ||
@@ -944,50 +921,21 @@ export const ReportPrintView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              <tr>
-                <td className="py-2 px-3 text-center border-r border-slate-300 font-mono text-slate-500">1</td>
-                <td className="py-2 px-3 border-r border-slate-300 font-semibold text-slate-900">
-                  Provisioning Services (Jasa Penyediaan)
-                </td>
-                <td className="py-2 px-3 border-r border-slate-300 text-slate-600">{provSchema.methodName}</td>
-                <td className="py-2 px-3 border-r border-slate-300 text-right font-mono font-medium text-slate-800">
-                  {grandTEV > 0 ? ((provTotal / grandTEV) * 100).toFixed(1) : 0}%
-                </td>
-                <td className="py-2 px-3 text-right font-mono font-bold text-slate-900 whitespace-nowrap">{formatIDR(provTotal)}</td>
-              </tr>
-              <tr>
-                <td className="py-2 px-3 text-center border-r border-slate-300 font-mono text-slate-500">2</td>
-                <td className="py-2 px-3 border-r border-slate-300 font-semibold text-slate-900">
-                  Regulating Services (Jasa Pengaturan)
-                </td>
-                <td className="py-2 px-3 border-r border-slate-300 text-slate-600">{regSchema.methodName}</td>
-                <td className="py-2 px-3 border-r border-slate-300 text-right font-mono font-medium text-slate-800">
-                  {grandTEV > 0 ? ((regTotal / grandTEV) * 100).toFixed(1) : 0}%
-                </td>
-                <td className="py-2 px-3 text-right font-mono font-bold text-slate-900 whitespace-nowrap">{formatIDR(regTotal)}</td>
-              </tr>
-              <tr>
-                <td className="py-2 px-3 text-center border-r border-slate-300 font-mono text-slate-500">3</td>
-                <td className="py-2 px-3 border-r border-slate-300 font-semibold text-slate-900">
-                  Supporting Services (Jasa Pendukung)
-                </td>
-                <td className="py-2 px-3 border-r border-slate-300 text-slate-600">{suppSchema.methodName}</td>
-                <td className="py-2 px-3 border-r border-slate-300 text-right font-mono font-medium text-slate-800">
-                  {grandTEV > 0 ? ((suppTotal / grandTEV) * 100).toFixed(1) : 0}%
-                </td>
-                <td className="py-2 px-3 text-right font-mono font-bold text-slate-900 whitespace-nowrap">{formatIDR(suppTotal)}</td>
-              </tr>
-              <tr>
-                <td className="py-2 px-3 text-center border-r border-slate-300 font-mono text-slate-500">4</td>
-                <td className="py-2 px-3 border-r border-slate-300 font-semibold text-slate-900">
-                  Cultural Services (Jasa Budaya &amp; Rekreasi)
-                </td>
-                <td className="py-2 px-3 border-r border-slate-300 text-slate-600">{cultSchema.methodName}</td>
-                <td className="py-2 px-3 border-r border-slate-300 text-right font-mono font-medium text-slate-800">
-                  {grandTEV > 0 ? ((cultTotal / grandTEV) * 100).toFixed(1) : 0}%
-                </td>
-                <td className="py-2 px-3 text-right font-mono font-bold text-slate-900 whitespace-nowrap">{formatIDR(cultTotal)}</td>
-              </tr>
+              {serviceContributions.map((s, idx) => (
+                <tr key={s.id}>
+                  <td className="py-2 px-3 text-center border-r border-slate-300 font-mono text-slate-500">{idx + 1}</td>
+                  <td className="py-2 px-3 border-r border-slate-300 font-semibold text-slate-900 font-medium">
+                    {s.name}
+                  </td>
+                  <td className="py-2 px-3 border-r border-slate-300 text-slate-700 whitespace-pre-line leading-snug">
+                    {s.methodNamesBullet}
+                  </td>
+                  <td className="py-2 px-3 border-r border-slate-300 text-right font-mono font-medium text-slate-800">
+                    {grandTEV > 0 ? formatNumber(s.percentage, 1) : '0,0'}%
+                  </td>
+                  <td className="py-2 px-3 text-right font-mono font-bold text-slate-900 whitespace-nowrap">{formatIDR(s.nominal)}</td>
+                </tr>
+              ))}
             </tbody>
             <tfoot>
               <tr className="bg-slate-100 font-bold border-t-2 border-slate-400">
@@ -1155,10 +1103,11 @@ export const ReportPrintView: React.FC = () => {
                       <tr>
                         <th className="py-1.5 px-2.5 border-r border-slate-300 w-8 text-center">No</th>
                         <th className="py-1.5 px-2.5 border-r border-slate-300">Komponen / Variabel Valuasi</th>
-                        <th className="py-1.5 px-2.5 border-r border-slate-300 w-28">Kategori Jasa</th>
-                        <th className="py-1.5 px-2.5 border-r border-slate-300 text-right w-28">Satuan / Volume</th>
-                        <th className="py-1.5 px-2.5 border-r border-slate-300 text-right font-mono w-36 whitespace-nowrap">Total Nilai (Rp)</th>
-                        <th className="py-1.5 px-2.5 w-36">Sumber Data</th>
+                        <th className="py-1.5 px-2.5 border-r border-slate-300 w-24">Kategori Jasa</th>
+                        <th className="py-1.5 px-2.5 border-r border-slate-300 w-36">Metode Valuasi</th>
+                        <th className="py-1.5 px-2.5 border-r border-slate-300 text-right w-24">Satuan / Volume</th>
+                        <th className="py-1.5 px-2.5 border-r border-slate-300 text-right font-mono w-32 whitespace-nowrap">Total Nilai (Rp)</th>
+                        <th className="py-1.5 px-2.5 w-28">Sumber Data</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200">
@@ -1168,6 +1117,15 @@ export const ReportPrintView: React.FC = () => {
                             <td className="py-1 px-2.5 text-center border-r border-slate-300 font-mono text-slate-400">{rowIdx + 1}</td>
                             <td className="py-1 px-2.5 border-r border-slate-300 font-medium text-slate-900">{r.item || r.namaKomoditas || r.fungsi || '-'}</td>
                             <td className="py-1 px-2.5 border-r border-slate-300 text-slate-700 text-[10px]">{r.category}</td>
+                            <td className="py-1 px-2.5 border-r border-slate-300 text-slate-700 text-[10px] font-medium">
+                              {(() => {
+                                const sId = (r._serviceId || (r.category || 'cultural').toLowerCase()) as EcosystemServiceId;
+                                const defaultM = sId === 'provisioning' ? 'market-price' : sId === 'regulating' ? 'replacement-cost' : sId === 'supporting' ? 'nursery-ground' : 'tcm';
+                                const mId = r._methodId || r.method_id || r.methodId || defaultM;
+                                const schema = getMethodSchema(sId, mId, r._biota || (sId === 'provisioning' ? 'flora' : 'none'));
+                                return schema.methodName || mId;
+                              })()}
+                            </td>
                             <td className="py-1 px-2.5 border-r border-slate-300 text-right font-mono text-slate-600 whitespace-nowrap">{r.satuan || '-'}</td>
                             <td className="py-1 px-2.5 border-r border-slate-300 text-right font-mono font-semibold text-slate-900 whitespace-nowrap">{formatIDR(r.totalNilai || 0)}</td>
                             <td className="py-1 px-2.5 text-slate-500 italic text-[10px]">{r.source || 'Survei Lapangan'}</td>
@@ -1175,7 +1133,7 @@ export const ReportPrintView: React.FC = () => {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={6} className="py-2.5 px-2.5 text-center text-slate-400 italic">
+                          <td colSpan={7} className="py-2.5 px-2.5 text-center text-slate-400 italic">
                             Tidak ada variabel atau jasa ekosistem aktif untuk area ini.
                           </td>
                         </tr>
@@ -1183,7 +1141,7 @@ export const ReportPrintView: React.FC = () => {
                     </tbody>
                     <tfoot>
                       <tr className="bg-slate-50 font-bold border-t border-slate-300 text-[11px]">
-                        <td colSpan={4} className="py-1.5 px-2.5 text-right border-r border-slate-300">
+                        <td colSpan={5} className="py-1.5 px-2.5 text-right border-r border-slate-300">
                           Subtotal Nilai Ekonomi ({areaData.area.name}):
                         </td>
                         <td colSpan={2} className="py-1.5 px-2.5 text-right font-mono text-slate-900 whitespace-nowrap">

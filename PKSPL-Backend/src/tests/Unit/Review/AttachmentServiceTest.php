@@ -22,7 +22,7 @@ class AttachmentServiceTest extends TestCase
     public function test_valid_file_passes_validation(): void
     {
         $file = UploadedFile::fake()->create('document.pdf', 1000, 'application/pdf');
-        $this->service->validateAttachment($file);
+        $this->service->validateFile($file);
         $this->assertTrue(true); // Should not throw exception
     }
 
@@ -30,23 +30,32 @@ class AttachmentServiceTest extends TestCase
     {
         $this->expectException(ValidationException::class);
         $file = UploadedFile::fake()->create('large.pdf', 25000, 'application/pdf');
-        $this->service->validateAttachment($file);
+        $this->service->validateFile($file);
     }
 
     public function test_invalid_extension_fails_validation(): void
     {
         $this->expectException(ValidationException::class);
         $file = UploadedFile::fake()->create('script.exe', 1000, 'application/x-msdownload');
-        $this->service->validateAttachment($file);
+        $this->service->validateFile($file);
     }
 
     public function test_valid_extensions_pass(): void
     {
-        $extensions = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt', 'zip', 'rar'];
-        foreach ($extensions as $ext) {
-            $mime = $ext === 'pdf' ? 'application/pdf' : 'text/plain';
+        $extensionMimes = [
+            'pdf' => 'application/pdf',
+            'doc' => 'application/msword',
+            'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'csv' => 'text/csv',
+            'png' => 'image/png',
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'zip' => 'application/zip',
+        ];
+        foreach ($extensionMimes as $ext => $mime) {
             $file = UploadedFile::fake()->create("file.{$ext}", 100, $mime);
-            $this->service->validateAttachment($file);
+            $this->service->validateFile($file);
         }
         $this->assertTrue(true);
     }

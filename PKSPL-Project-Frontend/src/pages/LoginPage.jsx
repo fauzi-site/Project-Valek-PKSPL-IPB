@@ -48,24 +48,35 @@ function LoginPage() {
     e.preventDefault()
     setError('')
     setIsLoading(true)
+    const cleanIdentity = identity.trim()
     try {
       if (rememberMe) {
-        localStorage.setItem('pkspl_remembered_email', identity.trim())
+        localStorage.setItem('pkspl_remembered_email', cleanIdentity)
       } else {
         localStorage.removeItem('pkspl_remembered_email')
       }
 
-      const user = await login(identity, password, rememberMe)
+      const user = await login(cleanIdentity, password, rememberMe)
       toast.success(`${t('messages.success', { ns: 'common' })}. ${user.nama || 'User'}!`)
       
+      const role = user?.role?.nama_role || (typeof user?.role === 'string' ? user?.role : '');
+      const normalizedRole = role.toLowerCase();
+      
       let redirectPath = from
+      const isAdminRole = ['super admin', 'admin', 'administrator'].includes(normalizedRole)
+      const isPenelitiRole = normalizedRole === 'peneliti'
+
       if (from === '/' || from === '/login') {
-        const role = user?.role?.nama_role || (typeof user?.role === 'string' ? user?.role : '');
-        const normalizedRole = role.toLowerCase();
-        if (normalizedRole === 'super admin' || normalizedRole === 'admin' || normalizedRole === 'administrator') {
+        if (isAdminRole) {
           redirectPath = '/admin/dashboard'
-        } else if (normalizedRole === 'peneliti') {
+        } else if (isPenelitiRole) {
           redirectPath = '/peneliti/projects'
+        }
+      } else {
+        if (from.startsWith('/admin') && !isAdminRole) {
+          redirectPath = isPenelitiRole ? '/peneliti/projects' : '/'
+        } else if (from.startsWith('/peneliti') && !isPenelitiRole && !isAdminRole) {
+          redirectPath = '/'
         }
       }
       
