@@ -786,19 +786,35 @@ export const METHOD_SCHEMAS: Record<string, MethodSchema> = {
 /**
  * Helper untuk mengambil schema yang tepat berdasarkan serviceId, methodId, dan biota
  */
-export const getMethodSchema = (serviceId?: string, methodId?: string, biota?: string): MethodSchema => {
-  const normServiceRaw = (serviceId || 'provisioning').toLowerCase();
+export const getMethodSchema = (serviceId?: any, methodId?: any, biota?: any): MethodSchema => {
+  const safeString = (val: any): string => {
+    if (val === null || val === undefined) return '';
+    if (typeof val === 'string') return val;
+    if (Array.isArray(val)) {
+      return safeString(val[0]);
+    }
+    if (typeof val === 'object') {
+      return String(val.id || val.methodId || val.serviceId || val.code || val.value || val.name || val.key || '').trim();
+    }
+    return String(val).trim();
+  };
+
+  const strService = safeString(serviceId) || 'provisioning';
+  const strMethod = safeString(methodId);
+  const strBiota = safeString(biota);
+
+  const normServiceRaw = strService.toLowerCase();
   const normService = normServiceRaw.includes('provisioning') ? 'provisioning' :
                       normServiceRaw.includes('regulating') ? 'regulating' :
                       normServiceRaw.includes('supporting') ? 'supporting' :
                       normServiceRaw.includes('cultural') ? 'cultural' : 'provisioning';
 
-  const normMethodRaw = (methodId || '').toLowerCase();
+  const normMethodRaw = strMethod.toLowerCase();
   const cleanMeth = normMethodRaw.replace(/[^a-z0-9]/g, '');
 
   // 1. Try direct keys in METHOD_SCHEMAS
   if (normMethodRaw) {
-    const key1 = `${normService}_${normMethodRaw}_${biota || 'flora'}`;
+    const key1 = `${normService}_${normMethodRaw}_${strBiota || 'flora'}`;
     if (METHOD_SCHEMAS[key1]) return METHOD_SCHEMAS[key1];
 
     const key2 = `${normService}_${normMethodRaw}`;
@@ -807,15 +823,15 @@ export const getMethodSchema = (serviceId?: string, methodId?: string, biota?: s
     // 2. Search METHOD_SCHEMAS by comparing methodId or methodName
     const found = Object.values(METHOD_SCHEMAS).find(s => {
       if (s.serviceId !== normService) return false;
-      const sMethId = s.methodId.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const sMethName = s.methodName.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const sMethId = (s.methodId || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const sMethName = (s.methodName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       const matchMeth = cleanMeth === sMethId || cleanMeth === sMethName ||
-                        sMethId.includes(cleanMeth) || cleanMeth.includes(sMethId) ||
-                        sMethName.includes(cleanMeth) || cleanMeth.includes(sMethName);
+                        (cleanMeth && sMethId.includes(cleanMeth)) || (sMethId && cleanMeth.includes(sMethId)) ||
+                        (cleanMeth && sMethName.includes(cleanMeth)) || (sMethName && cleanMeth.includes(sMethName));
       if (!matchMeth) return false;
 
       if (normService === 'provisioning') {
-        const targetBiota = (biota || 'flora').toLowerCase();
+        const targetBiota = (strBiota || 'flora').toLowerCase();
         return s.methodName.toLowerCase().includes(targetBiota);
       }
       return true;
@@ -826,7 +842,7 @@ export const getMethodSchema = (serviceId?: string, methodId?: string, biota?: s
 
   // Default fallbacks per service
   if (normService === 'provisioning') {
-    return (biota === 'fauna' && METHOD_SCHEMAS['provisioning_market-price_fauna'])
+    return (strBiota === 'fauna' && METHOD_SCHEMAS['provisioning_market-price_fauna'])
       ? METHOD_SCHEMAS['provisioning_market-price_fauna']
       : METHOD_SCHEMAS['provisioning_market-price_flora'];
   }

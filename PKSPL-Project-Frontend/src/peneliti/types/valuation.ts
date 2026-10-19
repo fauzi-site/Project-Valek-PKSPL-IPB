@@ -31,12 +31,21 @@ export interface AreaServiceConfig {
 /**
  * Normalizes selected methods for a service to always return an array of method IDs.
  */
-export const normalizeMethods = (methods: string | string[] | undefined, defaultMethod: string): string[] => {
+export const normalizeMethods = (methods: any, defaultMethod: string): string[] => {
+  const toStr = (val: any): string => {
+    if (!val) return '';
+    if (typeof val === 'string') return val.trim();
+    if (typeof val === 'object') return String(val.id || val.methodId || val.code || val.value || '').trim();
+    return String(val).trim();
+  };
+
   if (Array.isArray(methods)) {
-    return methods.filter(m => typeof m === 'string' && m.trim().length > 0);
+    const list = methods.map(toStr).filter(m => m.length > 0);
+    return list.length > 0 ? list : [defaultMethod];
   }
-  if (typeof methods === 'string' && methods.trim().length > 0) {
-    return [methods];
+  const single = toStr(methods);
+  if (single.length > 0) {
+    return [single];
   }
   return [defaultMethod];
 };

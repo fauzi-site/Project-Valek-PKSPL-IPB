@@ -1447,31 +1447,106 @@ export const ReportPrintView: React.FC = () => {
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* IX. TOTAL ECONOMIC VALUE (TEV) KAWASAN PENELITIAN                   */}
-        {/* (Kesimpulan Numerik Utama — Solid Dark Navy Sesuai Desain Resmi)    */}
+        {/* (Kesimpulan Numerik Utama — Desain Dipecah & Hemat Tinta / Print-Friendly) */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <section className="report-final-box pt-2 report-section">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1 mb-3 report-heading">
-            IX. Total Economic Value
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1 mb-3 report-heading flex items-center justify-between">
+            <span>IX. Total Economic Value (TEV)</span>
+            <span className="text-[10px] font-normal text-slate-500 normal-case font-mono">
+              Sintesis Nilai Akhir Valuasi Kawasan
+            </span>
           </h2>
 
-          <div className="p-6 bg-slate-900 text-white rounded-md text-center space-y-3 print:bg-slate-900">
-            <div className="text-[11px] font-bold uppercase tracking-widest text-slate-300">
-              TOTAL ECONOMIC VALUE (TEV)<br />KAWASAN PENELITIAN
+          {/* Wrapper Dipecah: Hemat Tinta, Latar Terang, Border Elegan */}
+          <div className="space-y-3">
+            {/* 1. KOTAK UTAMA: Total Economic Value (TEV) */}
+            <div className="p-4 sm:p-5 bg-white border-2 border-slate-800 rounded-lg text-center space-y-1.5 shadow-2xs print:border-2 print:border-slate-800 print:bg-white print:p-4">
+              <div className="inline-block px-2.5 py-0.5 bg-slate-100 border border-slate-300 rounded text-[10px] font-bold uppercase tracking-widest text-slate-700 print:bg-slate-100">
+                TOTAL ECONOMIC VALUE (TEV) • KAWASAN PENELITIAN
+              </div>
+              <div className="text-3xl sm:text-4xl font-black font-mono tracking-tight text-slate-900 whitespace-nowrap">
+                {formatIDR(grandTEV)}
+              </div>
+              <p className="text-[11px] text-slate-500 max-w-xl mx-auto leading-relaxed">
+                Akumulasi nilai ekonomi menyeluruh berdasarkan sintesis seluruh jasa ekosistem dan agregasi zona tutupan lahan penelitian.
+              </p>
             </div>
-            <div className="text-3xl sm:text-4xl font-black font-mono tracking-tight text-white whitespace-nowrap">
-              {formatIDR(grandTEV)}
+
+            {/* 2. PARAMETER KUNCI DIPANEL/DIPECAH (3 KOTAK TERPISAH) */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              {/* Kotak A: Rata-rata per Hektar */}
+              <div className="p-3 bg-slate-50/70 border border-slate-300 rounded-lg text-center space-y-0.5 print:bg-white print:border-slate-300">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                  Rata-Rata Nilai / Ha
+                </span>
+                <div className="text-base sm:text-lg font-black font-mono text-slate-900">
+                  {formatIDR(tevPerHa)}
+                </div>
+                <div className="text-[10px] text-slate-500 font-medium">
+                  Rupiah / Hektar / Tahun
+                </div>
+              </div>
+
+              {/* Kotak B: Total Cakupan Luas */}
+              <div className="p-3 bg-slate-50/70 border border-slate-300 rounded-lg text-center space-y-0.5 print:bg-white print:border-slate-300">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                  Total Cakupan Luas
+                </span>
+                <div className="text-base sm:text-lg font-black font-mono text-slate-900">
+                  {formatNumber(totalAreaHa, 2)} <span className="text-xs font-semibold text-slate-600">Ha</span>
+                </div>
+                <div className="text-[10px] text-slate-500 font-medium">
+                  Total Area Tutupan Lahan
+                </div>
+              </div>
+
+              {/* Kotak C: Agregasi Tutupan Lahan */}
+              <div className="p-3 bg-slate-50/70 border border-slate-300 rounded-lg text-center space-y-0.5 print:bg-white print:border-slate-300">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                  Agregasi Kawasan
+                </span>
+                <div className="text-base sm:text-lg font-black font-mono text-slate-900">
+                  {formatNumber(currentLandCovers.length, 0)} <span className="text-xs font-semibold text-slate-600">Area</span>
+                </div>
+                <div className="text-[10px] text-slate-500 font-medium">
+                  Zona Tutupan Teranalisis
+                </div>
+              </div>
             </div>
-            <div className="pt-3 border-t border-slate-700 flex flex-wrap items-center justify-center gap-x-6 gap-y-1 text-xs text-slate-300">
-              <div>Rata-rata: <strong className="font-mono text-white">{formatIDR(tevPerHa)}</strong> /ha/tahun</div>
-              <div>•</div>
-              <div>Cakupan: <strong className="font-mono text-white">{formatNumber(totalAreaHa, 2)}</strong> Hektar</div>
-              <div>•</div>
-              <div>Agregasi: <strong className="font-mono text-white">{formatNumber(currentLandCovers.length, 0)}</strong> Area Tutupan Lahan</div>
+
+            {/* 3. RINCIAN DIPANEL/DIPECAH BERDASARKAN 4 JASA EKOSISTEM */}
+            <div className="border border-slate-300 rounded-lg p-3 bg-white space-y-2 print:border-slate-300 print:p-2.5">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-800">
+                  Rincian Kontribusi Berdasarkan Jasa Ekosistem
+                </span>
+                <span className="text-[10px] font-mono text-slate-500">
+                  4 Kategori Jasa
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {serviceContributions.map((s) => (
+                  <div
+                    key={s.id}
+                    className="p-2 border border-slate-200 rounded bg-slate-50/50 print:bg-white print:border-slate-300 text-center space-y-0.5"
+                  >
+                    <div className="text-[10px] font-semibold text-slate-700 truncate" title={s.name}>
+                      {s.shortName || s.name}
+                    </div>
+                    <div className="text-xs sm:text-sm font-bold font-mono text-slate-900 whitespace-nowrap">
+                      {formatIDR(s.nominal)}
+                    </div>
+                    <div className="text-[10px] font-mono text-slate-500">
+                      {grandTEV > 0 ? formatNumber(s.percentage, 1) : '0,0'}%
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* Footer Publikasi Dokumen Resmi (Bebas dari signature validator usang) */}
-          <div className="pt-4 border-t border-slate-300 flex flex-col sm:flex-row items-center justify-between text-[10px] text-slate-500 font-mono gap-1 mt-4">
+          {/* Footer Publikasi Dokumen Resmi */}
+          <div className="pt-3 border-t border-slate-300 flex flex-col sm:flex-row items-center justify-between text-[10px] text-slate-500 font-mono gap-1 mt-3">
             <div>PUSAT KAJIAN SUMBERDAYA PESISIR DAN LAUT (PKSPL) — IPB UNIVERSITY</div>
             <div>Dokumen Laporan Ilmiah Valuasi Ekonomi | Kode Proyek: {currentProject?.code || '-'}</div>
           </div>

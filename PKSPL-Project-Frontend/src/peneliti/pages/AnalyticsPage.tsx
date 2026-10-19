@@ -312,8 +312,10 @@ const AnalyticsPageContent: React.FC = () => {
         }
 
         return rowGroups.map(grp => {
-          const method = grp.methodId || configuredMethod || 'standard';
-          const biota  = grp.biota || configuredBiota;
+          const rawMethod = grp.methodId || configuredMethod || 'standard';
+          const method = typeof rawMethod === 'string' ? rawMethod : (rawMethod?.id || rawMethod?.methodId || String(rawMethod));
+          const rawBiota = grp.biota || configuredBiota || 'none';
+          const biota  = typeof rawBiota === 'string' ? rawBiota : String(rawBiota);
           const schema = getMethodSchema(sId, method, biota);
 
           const items = (grp.rows || []).map((r, idx) => {
@@ -558,11 +560,13 @@ const AnalyticsPageContent: React.FC = () => {
       if (filterService !== 'ALL' && filterService !== entry.serviceId) return;
 
       const sId = entry.serviceId;
-      const m = entry.method || 'standard';
-      const biota = entry.biota || 'none';
+      const rawM = entry.method || 'standard';
+      const m = typeof rawM === 'string' ? rawM : (rawM?.id || rawM?.methodId || rawM?.name || String(rawM));
+      const rawB = entry.biota || 'none';
+      const biota = typeof rawB === 'string' ? rawB : String(rawB);
 
       // Format method display label
-      let displayMethod = m
+      let displayMethod = String(m)
         .split('-')
         .map(w => w.charAt(0).toUpperCase() + w.slice(1))
         .join(' ');
