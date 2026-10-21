@@ -120,3 +120,16 @@ mysql-data/
 **/mysql-data/
 postgres-data/
 **/postgres-data/
+
+# ============================================================
+# Manual Book & Publication Artifacts (Local only)
+# ============================================================
+Manual_Book_PKSPL.*
+Manual_Book_PKSPL_*
+Booklet_PKSPL.*
+cover_bg.jpg
+Halaman_Canva/
+create_canva_*.py
+create_image_pptx.py
+export_pages_to_images.py
+
