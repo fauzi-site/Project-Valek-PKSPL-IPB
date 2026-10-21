@@ -156,7 +156,7 @@ export const AdminDashboardPage = () => {
               userName: act.user?.nama || act.user_name || act.userName || 'Administrator',
               userRole: act.user?.role?.nama_role || act.user_role || act.userRole || 'Admin',
               action: act.aktivitas || act.action || 'Memperbarui data',
-              target: act.modul || act.target || 'Proyek Valuasi',
+              target: act.modul || act.target || 'Program Valuasi',
               timestamp: act.created_at
                 ? new Date(act.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })
                 : 'Hari ini',
@@ -176,7 +176,7 @@ export const AdminDashboardPage = () => {
             return {
               id: p.id_proyek || p.id,
               code: p.kode_proyek || p.code || 'PKS-000',
-              name: p.nama_proyek || p.name || 'Proyek Valuasi',
+              name: p.nama_proyek || p.name || 'Program Valuasi',
               location: p.location || p.alamat_lengkap || p.lokasi || '-',
               ecosystem: p.ecosystem || p.ekosistem || 'Ekosistem Pesisir',
               lead: p.lead || p.user?.nama || 'Peneliti Utama',
@@ -519,7 +519,7 @@ export const AdminDashboardPage = () => {
         ]],
         body: [[
           `Rp ${totalTevMiliar} Miliar\n(Estimasi Nominal: Rp ${formatNumber(totalTevNominal, 0)})\n${ADMIN_SYSTEM_STATS.totalTevGrowth} dari tahun lalu`,
-          `${totalProjects} Proyek Riset\n${projectsList.length} Terdaftar di Sistem\nRata-rata: Rp ${(avgTevPerProject / 1e9).toFixed(1)} M/proyek`,
+          `${totalProjects} Program Riset\n${projectsList.length} Terdaftar di Sistem\nRata-rata: Rp ${(avgTevPerProject / 1e9).toFixed(1)} M/program`,
           `${formatNumber(totalAreaHa, 1)} Hektare\n${ADMIN_SYSTEM_STATS.areaGrowth} cakupan spasial\n142 Poligon GIS Pesisir`,
           `${totalUsers} Pengguna Terdaftar\n${usersPeneliti} Peneliti Riset\n${usersAdmin} Super Administrator`
         ]],
@@ -653,7 +653,7 @@ export const AdminDashboardPage = () => {
       doc.setFontSize(8);
       doc.setTextColor(100, 116, 139);
       doc.text(
-        `Visualisasi tren akumulasi TEV, proyek baru, dan luas spasial berdasarkan data aktif (${trendTimeframe === 'monthly' ? `Bulanan Tahun ${selectedYear}` : 'Tahunan'}).`,
+        `Visualisasi tren akumulasi TEV, program baru, dan luas spasial berdasarkan data aktif (${trendTimeframe === 'monthly' ? `Bulanan Tahun ${selectedYear}` : 'Tahunan'}).`,
         14,
         18
       );
@@ -668,7 +668,7 @@ export const AdminDashboardPage = () => {
         doc.setFontSize(8);
         doc.setTextColor(15, 23, 42);
         doc.text(
-          `GRAFIK 3: DINAMIKA AKUMULASI TEV (MILIAR RP) DAN AKTIVITAS PROYEK (${trendTimeframe === 'monthly' ? `BULANAN ${selectedYear}` : 'TAHUNAN'})`,
+          `GRAFIK 3: DINAMIKA AKUMULASI TEV (MILIAR RP) DAN AKTIVITAS PROGRAM (${trendTimeframe === 'monthly' ? `BULANAN ${selectedYear}` : 'TAHUNAN'})`,
           14,
           page2Y
         );
@@ -688,13 +688,13 @@ export const AdminDashboardPage = () => {
       const serviceRows = (workflowData || []).map((item, idx) => [
         idx + 1,
         item.name || '-',
-        `${item.count || 0} Proyek`,
+        `${item.count || 0} Program`,
         `${item.percentage || 0}%`,
       ]);
 
       autoTable(doc, {
         startY: page2Y + 2.5,
-        head: [['No', 'Pilar Jasa Ekosistem', 'Jumlah Proyek Riset', 'Persentase Adopsi (%)']],
+        head: [['No', 'Pilar Jasa Ekosistem', 'Jumlah Program Riset', 'Persentase Adopsi (%)']],
         body: serviceRows,
         theme: 'striped',
         headStyles: {
@@ -729,7 +729,7 @@ export const AdminDashboardPage = () => {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
       doc.setTextColor(15, 23, 42);
-      doc.text(`3. DAFTAR PORTOFOLIO PROYEK PENELITIAN SISTEM (${projectsList.length} PROYEK)`, 14, 14);
+      doc.text(`3. DAFTAR PORTOFOLIO PROGRAM PENELITIAN SISTEM (${projectsList.length} PROGRAM)`, 14, 14);
 
       const projectRows = (projectsList || []).map((proj, idx) => [
         idx + 1,
@@ -744,7 +744,7 @@ export const AdminDashboardPage = () => {
 
       autoTable(doc, {
         startY: 16.5,
-        head: [['No', 'Kode', 'Nama Proyek Penelitian', 'Ekosistem', 'Lokasi / Wilayah', 'Peneliti Utama', 'Luas (Ha)', 'Nilai TEV (Rp)']],
+        head: [['No', 'Kode', 'Nama Program Penelitian', 'Ekosistem', 'Lokasi / Wilayah', 'Peneliti Utama', 'Luas (Ha)', 'Nilai TEV (Rp)']],
         body: projectRows,
         theme: 'striped',
         headStyles: {
@@ -939,8 +939,8 @@ export const AdminDashboardPage = () => {
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-slate-100 text-[11px] text-slate-500 flex justify-between">
-            <span>Dari {totalProjects} Proyek Pesisir</span>
-            <span className="font-semibold text-slate-700">Rata-rata: Rp {(avgTevPerProject / 1e9).toFixed(1)} M/proyek</span>
+            <span>Dari {totalProjects} Program Pesisir</span>
+            <span className="font-semibold text-slate-700">Rata-rata: Rp {(avgTevPerProject / 1e9).toFixed(1)} M/program</span>
           </div>
         </div>
 
@@ -948,7 +948,7 @@ export const AdminDashboardPage = () => {
         <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs relative overflow-hidden group hover:border-blue-300 transition-colors">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Proyek Penelitian
+              Program Penelitian
             </span>
             <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
               <FolderKanban className="w-5 h-5" />
@@ -957,7 +957,7 @@ export const AdminDashboardPage = () => {
           <div className="mt-2">
             <div className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
               {totalProjects}{' '}
-              <span className="text-sm font-semibold text-slate-500">Proyek Riset</span>
+              <span className="text-sm font-semibold text-slate-500">Program Riset</span>
             </div>
             <div className="flex items-center gap-2 text-[11px] text-slate-600 mt-1">
               <span className="font-semibold text-indigo-600">{projectsList.length} Terdaftar</span>
@@ -1181,7 +1181,7 @@ export const AdminDashboardPage = () => {
                                 <span className="font-semibold text-slate-100">{data.name}</span>
                               </div>
                               <div className="flex items-center justify-between gap-4 font-mono">
-                                <span className="text-sm font-bold text-white">{data.count} Proyek</span>
+                                <span className="text-sm font-bold text-white">{data.count} Program</span>
                                 <span className="text-xs font-semibold text-blue-300">({data.percentage}%)</span>
                               </div>
                             </div>
@@ -1196,7 +1196,7 @@ export const AdminDashboardPage = () => {
                 {/* Centered label inside donut */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                   <span className="text-xl font-bold text-slate-900">{totalProjects}</span>
-                  <span className="text-[10px] font-medium text-slate-400 uppercase">Total Proyek</span>
+                  <span className="text-[10px] font-medium text-slate-400 uppercase">Total Program</span>
                 </div>
               </>
             )}
@@ -1242,7 +1242,7 @@ export const AdminDashboardPage = () => {
             <p className="text-xs text-slate-500 mt-0.5">
               {trendTimeframe === 'monthly'
                 ? `Eksplorasi data bulanan ${selectedYear} dan komparasi antar periode penelitian.`
-                : `Analisis tren multi-tahun perkembangan nilai valuasi (TEV) dan rekapitulasi proyek periode ${availableYears[availableYears.length - 1] || 2025} - ${availableYears[0] || 2026}.`}
+                : `Analisis tren multi-tahun perkembangan nilai valuasi (TEV) dan rekapitulasi program periode ${availableYears[availableYears.length - 1] || 2025} - ${availableYears[0] || 2026}.`}
             </p>
           </div>
 
@@ -1277,7 +1277,7 @@ export const AdminDashboardPage = () => {
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Aktivitas Proyek
+                Aktivitas Program
               </button>
             </div>
 
@@ -1474,9 +1474,9 @@ export const AdminDashboardPage = () => {
 
                 {/* Project New Delta */}
                 <div className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 shadow-2xs flex items-center gap-2">
-                  <span className="text-[11px] text-slate-500 font-medium">Proyek Riset:</span>
+                  <span className="text-[11px] text-slate-500 font-medium">Program Riset:</span>
                   <span className="font-mono font-bold text-blue-600">
-                    {comparisonSummary.diffNew >= 0 ? `+${comparisonSummary.diffNew}` : comparisonSummary.diffNew} Proyek
+                    {comparisonSummary.diffNew >= 0 ? `+${comparisonSummary.diffNew}` : comparisonSummary.diffNew} Program
                   </span>
                 </div>
 
@@ -1585,10 +1585,10 @@ export const AdminDashboardPage = () => {
                           <div className="flex items-center justify-between">
                             <span className="text-slate-400 flex items-center gap-1.5">
                               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                              <span>Proyek Riset:</span>
+                              <span>Program Riset:</span>
                             </span>
                             <span className="font-bold text-emerald-400 font-mono">
-                              +{item.proyekBaru} Proyek
+                              +{item.proyekBaru} Program
                             </span>
                           </div>
                           {item.luasHa && (
@@ -1623,7 +1623,7 @@ export const AdminDashboardPage = () => {
                 <Bar
                   yAxisId="right"
                   dataKey="proyekBaru"
-                  name="Proyek Riset"
+                  name="Program Riset"
                   fill="url(#barNewGrad)"
                   radius={[4, 4, 0, 0]}
                   maxBarSize={activeTrendData.length <= 4 ? 40 : 28}
@@ -1669,11 +1669,11 @@ export const AdminDashboardPage = () => {
           <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-100 flex flex-col justify-between">
             <div className="flex items-center gap-1.5 text-emerald-700 font-semibold text-[11px]">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-              <span>Total Proyek Riset</span>
+              <span>Total Program Riset</span>
             </div>
             <div className="text-base sm:text-lg font-black text-slate-900 mt-1">
               {activeTrendData.reduce((acc, curr) => acc + (curr.proyekBaru || 0), 0)}{' '}
-              <span className="text-xs font-semibold text-slate-500">Proyek Terdaftar</span>
+              <span className="text-xs font-semibold text-slate-500">Program Terdaftar</span>
             </div>
             <div className="text-[10px] text-emerald-600 font-medium mt-0.5">
               Dalam Rentang Terpilih
@@ -1706,7 +1706,7 @@ export const AdminDashboardPage = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <h2 className="text-sm md:text-base font-bold text-slate-900">
-                  Daftar Proyek Penelitian Sistem
+                  Daftar Program Penelitian Sistem
                 </h2>
                 <p className="text-xs text-slate-500">
                   Pengawasan portofolio valuasi seluruh peneliti di PKSPL IPB
@@ -1717,7 +1717,7 @@ export const AdminDashboardPage = () => {
                 onClick={() => navigate('/admin/projects')}
                 className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 self-start sm:self-auto cursor-pointer"
               >
-                <span>Lihat Semua Proyek ({projectsList.length})</span>
+                <span>Lihat Semua Program ({projectsList.length})</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -1745,7 +1745,7 @@ export const AdminDashboardPage = () => {
               </div>
               {projectSearch && (
                 <div className="text-[11px] text-slate-500 self-start sm:self-auto">
-                  Ditemukan <strong className="text-slate-700">{filteredProjects.length}</strong> proyek
+                  Ditemukan <strong className="text-slate-700">{filteredProjects.length}</strong> program
                 </div>
               )}
             </div>
@@ -1759,7 +1759,7 @@ export const AdminDashboardPage = () => {
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200 text-[11px] uppercase tracking-wider">
-                    <th className="py-3 px-4">Proyek & Kode</th>
+                    <th className="py-3 px-4">Program & Kode</th>
                     <th className="py-3 px-4">Ekosistem & Lokasi</th>
                     <th className="py-3 px-4">Peneliti Utama</th>
                     <th className="py-3 px-4 text-right">Nilai TEV (Rp)</th>
@@ -1770,7 +1770,7 @@ export const AdminDashboardPage = () => {
                   {filteredProjects.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="py-8 text-center text-slate-400">
-                        Tidak ada proyek yang sesuai dengan kriteria pencarian.
+                        Tidak ada program yang sesuai dengan kriteria pencarian.
                       </td>
                     </tr>
                   ) : (
@@ -1796,7 +1796,7 @@ export const AdminDashboardPage = () => {
                               setSelectedProjectForModal(proj.rawProject || proj);
                               setIsModulesModalOpen(true);
                             }}
-                            title="Buka seluruh modul proyek ini"
+                            title="Buka seluruh modul program ini"
                             className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded border border-blue-200 text-[11px] font-semibold transition-colors inline-flex items-center gap-1 cursor-pointer shadow-2xs"
                           >
                             <Eye className="w-3.5 h-3.5" />
@@ -1812,7 +1812,7 @@ export const AdminDashboardPage = () => {
           </div>
 
           <div className="p-3 bg-slate-50 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between mt-auto">
-            <span>Menampilkan {filteredProjects.length} dari {projectsList.length} proyek penelitian</span>
+            <span>Menampilkan {filteredProjects.length} dari {projectsList.length} program penelitian</span>
             <span className="font-medium text-slate-600">Terakhir diperbarui: Hari ini</span>
           </div>
         </div>

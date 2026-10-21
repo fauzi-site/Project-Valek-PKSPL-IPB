@@ -262,7 +262,7 @@ export const AdminActivityPage = () => {
       { header: 'Peran', dataKey: 'peran' },
       { header: 'Aktivitas', dataKey: 'aktivitas' },
       { header: 'Judul Aksi & Rincian', dataKey: 'detail' },
-      { header: 'Proyek / Modul', dataKey: 'modul' },
+      { header: 'Program / Modul', dataKey: 'modul' },
       { header: 'Status', dataKey: 'status' },
     ];
 
@@ -448,7 +448,7 @@ export const AdminActivityPage = () => {
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Cari aktor, aksi, peran, proyek, modul, ID log..."
+                placeholder="Cari aktor, aksi, peran, program, modul, ID log..."
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
@@ -513,7 +513,7 @@ export const AdminActivityPage = () => {
                 className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 cursor-pointer"
               >
                 <option value="ALL">Semua Tipe</option>
-                <option value="Create">Create (Tambah Proyek/Data)</option>
+                <option value="Create">Create (Tambah Program/Data)</option>
                 <option value="Update">Update (Ubah/Kalkulasi)</option>
                 <option value="Delete">Delete (Hapus Data)</option>
                 <option value="Import">Import (Impor Data/Spasial)</option>
@@ -526,7 +526,7 @@ export const AdminActivityPage = () => {
             {/* Project Filter */}
             <div>
               <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                Filter Proyek
+                Filter Program
               </label>
               <select
                 value={projectFilter}
@@ -536,7 +536,7 @@ export const AdminActivityPage = () => {
                 }}
                 className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 cursor-pointer truncate"
               >
-                <option value="ALL">Semua Proyek</option>
+                <option value="ALL">Semua Program</option>
                 {projectOptions.map((p) => (
                   <option key={p} value={p}>
                     {p}
@@ -578,7 +578,7 @@ export const AdminActivityPage = () => {
                 <th className="py-3 px-4 whitespace-nowrap">Peran</th>
                 <th className="py-3 px-4 whitespace-nowrap">Tipe Aksi</th>
                 <th className="py-3 px-4 min-w-[240px]">Rincian Aktivitas</th>
-                <th className="py-3 px-4 min-w-[150px]">Modul / Proyek</th>
+                <th className="py-3 px-4 min-w-[150px]">Modul / Program</th>
                 <th className="py-3 px-4 text-center whitespace-nowrap w-20">Aksi</th>
               </tr>
             </thead>

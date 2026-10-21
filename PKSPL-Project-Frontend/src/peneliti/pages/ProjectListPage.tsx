@@ -100,7 +100,7 @@ export const ProjectListPage: React.FC = () => {
       setIsCreateModalOpen(false);
       navigate(`/peneliti/projects/${created.id}/maps`);
     } catch {
-      setFormError('Proyek gagal dibuat. Periksa koneksi ke server.');
+      setFormError('Program gagal dibuat. Periksa koneksi ke server.');
     } finally {
       setIsSubmitting(false);
     }
@@ -142,7 +142,7 @@ export const ProjectListPage: React.FC = () => {
       });
       setEditingProject(null);
     } catch {
-      setEditFormError('Gagal memperbarui informasi proyek.');
+      setEditFormError('Gagal memperbarui informasi program.');
     } finally {
       setIsEditSubmitting(false);
     }
@@ -154,14 +154,14 @@ export const ProjectListPage: React.FC = () => {
   };
 
   const handleDeleteProject = async (project: Project) => {
-    if (!window.confirm(`Hapus proyek "${project.name}"? Tindakan ini tidak dapat dibatalkan.`)) return;
+    if (!window.confirm(`Hapus program "${project.name}"? Tindakan ini tidak dapat dibatalkan.`)) return;
 
     setActiveMenuId(null);
     setDeleteError('');
     try {
       await deleteProject(project.id);
     } catch (err: any) {
-      const msg = err?.response?.data?.message || 'Proyek gagal dihapus. Periksa koneksi atau hak akses Anda.';
+      const msg = err?.response?.data?.message || 'Program gagal dihapus. Periksa koneksi atau hak akses Anda.';
       setDeleteError(msg);
     }
   };
@@ -201,10 +201,10 @@ export const ProjectListPage: React.FC = () => {
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5">
             <FolderKanban className="w-6 h-6 text-blue-600" />
-            <span>Proyek Penelitian</span>
+            <span>Program Penelitian</span>
           </h1>
           <p className="text-xs md:text-sm text-slate-500 mt-1">
-            Kelola proyek valuasi ekonomi dan lanjutkan pekerjaan penelitian.
+            Kelola program valuasi ekonomi dan lanjutkan pekerjaan penelitian.
           </p>
         </div>
 
@@ -213,7 +213,7 @@ export const ProjectListPage: React.FC = () => {
           className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs md:text-sm font-semibold transition-colors shadow-xs"
         >
           <Plus className="w-4 h-4" />
-          <span>Proyek Baru</span>
+          <span>Program Baru</span>
         </button>
       </div>
 
@@ -223,18 +223,18 @@ export const ProjectListPage: React.FC = () => {
           <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
           <input
             type="text"
-            placeholder="Cari proyek berdasarkan nama atau kode..."
+            placeholder="Cari program berdasarkan nama atau kode..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-md text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none placeholder:text-slate-400"
           />
         </div>
-        <RefreshIndicator isRefreshing={projectsLoading && projects.length > 0} label="Menyinkronkan proyek..." />
+        <RefreshIndicator isRefreshing={projectsLoading && projects.length > 0} label="Menyinkronkan program..." />
       </div>
 
       {projectsError && projects.length === 0 && (
         <ErrorState
-          title="Gagal Memuat Proyek"
+          title="Gagal Memuat Program"
           message={projectsError}
           onRetry={() => window.location.reload()}
         />
@@ -248,7 +248,7 @@ export const ProjectListPage: React.FC = () => {
             <thead>
               <tr className="bg-slate-100/80 text-slate-700 font-semibold border-b border-slate-200 text-[11px] uppercase tracking-wider">
                 <th className="py-3 px-4 w-12 text-center">No</th>
-                <th className="py-3 px-4 w-32">Kode Proyek</th>
+                <th className="py-3 px-4 w-32">Kode Program</th>
                 <th className="py-3 px-4 min-w-[240px]">Nama Penelitian</th>
                 <th className="py-3 px-4 min-w-[200px]">Lokasi</th>
                 <th className="py-3 px-4 min-w-[280px]">Deskripsi</th>
@@ -263,9 +263,9 @@ export const ProjectListPage: React.FC = () => {
                 <tr>
                   <td colSpan={7} className="py-12 text-center">
                     <EmptyState
-                      title="Proyek Tidak Ditemukan"
-                      description={searchTerm ? `Tidak ditemukan proyek yang cocok dengan "${searchTerm}".` : "Belum ada proyek penelitian yang terdaftar."}
-                      actionText={searchTerm ? "Reset Pencarian" : "Buat Proyek Baru"}
+                      title="Program Tidak Ditemukan"
+                      description={searchTerm ? `Tidak ditemukan program yang cocok dengan "${searchTerm}".` : "Belum ada program penelitian yang terdaftar."}
+                      actionText={searchTerm ? "Reset Pencarian" : "Buat Program Baru"}
                       onAction={searchTerm ? () => setSearchTerm('') : handleOpenCreateModal}
                     />
                   </td>
@@ -376,14 +376,14 @@ export const ProjectListPage: React.FC = () => {
                             className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700 flex items-center gap-2 border-t border-slate-100"
                           >
                             <Edit3 className="w-3.5 h-3.5 text-blue-600" />
-                            <span>Edit Info Proyek</span>
+                            <span>Edit Info Program</span>
                           </button>
                           <button
                             onClick={() => handleDeleteProject(proj)}
                             className="w-full text-left px-3 py-2 hover:bg-rose-50 text-rose-700 flex items-center gap-2 border-t border-slate-100"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
-                            <span>Hapus Proyek</span>
+                            <span>Hapus Program</span>
                           </button>
                         </div>
                       )}
@@ -396,12 +396,12 @@ export const ProjectListPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Sederhana: Modal Buat Proyek Baru (Tanpa SHP) */}
+      {/* Sederhana: Modal Buat Program Baru (Tanpa SHP) */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-2xs z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-lg border border-slate-200 shadow-xl max-w-md w-full overflow-hidden text-sm max-h-[90vh] flex flex-col">
             <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
-              <h3 className="font-bold text-slate-800 text-sm">Buat Proyek Baru</h3>
+              <h3 className="font-bold text-slate-800 text-sm">Buat Program Baru</h3>
               <button
                 onClick={() => setIsCreateModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 p-1 rounded cursor-pointer"
@@ -419,7 +419,7 @@ export const ProjectListPage: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Kode Proyek
+                  Kode Program
                 </label>
                 <input
                   type="text"
@@ -428,7 +428,7 @@ export const ProjectListPage: React.FC = () => {
                   className="w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded text-xs font-mono font-bold text-slate-600 cursor-not-allowed"
                 />
                 <p className="text-[11px] text-slate-400 mt-1">
-                  Kode proyek dibuat otomatis oleh sistem.
+                  Kode program dibuat otomatis oleh sistem.
                 </p>
               </div>
 
@@ -497,7 +497,7 @@ export const ProjectListPage: React.FC = () => {
                   loadingText="Menyimpan..."
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold shadow-xs"
                 >
-                  Buat Proyek
+                  Buat Program
                 </LoadingButton>
               </div>
             </form>
@@ -505,14 +505,14 @@ export const ProjectListPage: React.FC = () => {
         </div>
       )}
 
-      {/* Modal Edit Informasi Proyek */}
+      {/* Modal Edit Informasi Program */}
       {editingProject && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-2xs z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-lg border border-slate-200 shadow-xl max-w-md w-full overflow-hidden text-sm max-h-[90vh] flex flex-col">
             <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
               <div className="flex items-center gap-2">
                 <Edit3 className="w-4 h-4 text-blue-600" />
-                <h3 className="font-bold text-slate-800 text-sm">Edit Informasi Proyek</h3>
+                <h3 className="font-bold text-slate-800 text-sm">Edit Informasi Program</h3>
               </div>
               <button
                 onClick={() => setEditingProject(null)}
@@ -531,7 +531,7 @@ export const ProjectListPage: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Kode Proyek
+                  Kode Program
                 </label>
                 <input
                   type="text"

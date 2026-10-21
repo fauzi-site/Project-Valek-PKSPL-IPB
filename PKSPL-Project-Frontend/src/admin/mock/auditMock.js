@@ -276,11 +276,11 @@ export const AUDIT_LOGS_DATA = [
     userAvatarBg: 'from-blue-600 to-indigo-600',
     userInitials: 'PR',
     activityType: 'Create',
-    actionTitle: 'Membuat proyek valuasi baru kawasan reklamasi',
-    actionDetail: 'Inisiasi proyek valuasi jasa ekosistem kawasan reklamasi dan revegetasi pesisir PT Antam.',
+    actionTitle: 'Membuat program valuasi baru kawasan reklamasi',
+    actionDetail: 'Inisiasi program valuasi jasa ekosistem kawasan reklamasi dan revegetasi pesisir PT Antam.',
     projectCode: 'PRJ-ANTAM',
     projectName: 'Valuasi Jasa Ekosistem Kawasan Reklamasi PT Antam',
-    moduleName: 'Tahap 01 Informasi Proyek',
+    moduleName: 'Tahap 01 Informasi Program',
     ipAddress: '103.28.12.55',
     userAgent: 'Chrome 128 (Windows 11)',
     status: 'Berhasil',
@@ -385,7 +385,7 @@ export const AUDIT_LOGS_DATA = [
     errorMessage: null,
     durationMs: 65,
     changes: [
-      { field: 'roleAkses', oldValue: 'Terbatas', newValue: 'Peneliti Proyek PRJ-002' }
+      { field: 'roleAkses', oldValue: 'Terbatas', newValue: 'Peneliti Program PRJ-002' }
     ]
   },
   {

@@ -149,8 +149,8 @@ export const MapsPage: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col p-4 md:p-6 space-y-4">
-      {/* Header & Proyek Aktif */}
+    <div className="p-4 md:p-6 space-y-4 max-w-7xl mx-auto">
+      {/* Header & Program Aktif */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
         <div>
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400">
@@ -163,7 +163,7 @@ export const MapsPage: React.FC = () => {
             <span>Maps &amp; Tutupan Lahan</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Proyek Aktif: <strong className="text-slate-800">{currentProject?.name}</strong>{' '}
+            Program Aktif: <strong className="text-slate-800">{currentProject?.name}</strong>{' '}
             <span className="font-mono text-blue-600 font-semibold">({currentProject?.code})</span>
           </p>
         </div>
@@ -182,7 +182,7 @@ export const MapsPage: React.FC = () => {
               type="button"
               onClick={() => setIsDeleteModalOpen(true)}
               className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
-              title="Hapus data Shapefile dan batas spasial proyek ini"
+              title="Hapus data Shapefile dan batas spasial program ini"
             >
               <Trash2 className="w-3.5 h-3.5 text-rose-600" />
               <span>Hapus Batas Spasial</span>
@@ -233,7 +233,6 @@ export const MapsPage: React.FC = () => {
             <Upload className="w-4 h-4" />
             <span>Peta SHP (Otomatis)</span>
           </button>
-
           <button
             type="button"
             onClick={() => handleSelectMode('manual')}

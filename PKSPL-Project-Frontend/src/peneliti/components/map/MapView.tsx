@@ -328,7 +328,7 @@ export const MapView: React.FC<MapViewProps> = ({
         {isTutupanVisible && landCovers.length > 0 && validLandCovers.length === 0 && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 bg-white/95 text-slate-700 text-xs px-3.5 py-1.5 rounded-full shadow-md border border-slate-200 backdrop-blur-xs flex items-center gap-1.5 pointer-events-none">
             <Info className="w-3.5 h-3.5 text-blue-600" />
-            <span>Data batas spasial polygon belum tersedia untuk proyek ini.</span>
+            <span>Data batas spasial polygon belum tersedia untuk program ini.</span>
           </div>
         )}
 

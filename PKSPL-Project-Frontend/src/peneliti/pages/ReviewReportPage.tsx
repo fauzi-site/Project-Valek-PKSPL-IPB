@@ -635,9 +635,9 @@ const ReviewReportPageContent: React.FC = () => {
       // 2. Ambil atau inisialisasi percakapan dengan Super Admin di database (tanpa duplikasi)
       const convId = await chatService.getOrCreateConversation(superAdmin.id);
 
-      // 3. Susun pesan draft dengan konteks proyek saat ini (tidak langsung terkirim otomatis)
+      // 3. Susun pesan draft dengan konteks program saat ini (tidak langsung terkirim otomatis)
       const projectName = currentProject?.name || 'Kawasan Penelitian';
-      const draft = `Halo Super Admin, saya membutuhkan bantuan terkait proyek ${projectName}, khususnya pada halaman Review & Laporan.`;
+      const draft = `Halo Super Admin, saya membutuhkan bantuan terkait program ${projectName}, khususnya pada halaman Review & Laporan.`;
 
       // 4. Arahkan peneliti ke modul chat pesan dengan percakapan terpilih dan pesan ter-prefill
       navigate(`/peneliti/projects/${effectiveProjId}/messages`, {
@@ -678,9 +678,9 @@ const ReviewReportPageContent: React.FC = () => {
     return (
       <div className="p-8 max-w-2xl mx-auto my-12 bg-white border border-slate-200 rounded-lg shadow-sm text-center">
         <EmptyState
-          title="Project Tidak Ditemukan"
-          description={`Project dengan kode atau ID "${routeProjId}" tidak ditemukan di sistem.`}
-          actionText="Kembali ke Daftar Proyek"
+          title="Program Tidak Ditemukan"
+          description={`Program dengan kode atau ID "${routeProjId}" tidak ditemukan di sistem.`}
+          actionText="Kembali ke Daftar Program"
           onAction={() => navigate('/peneliti/projects')}
         />
       </div>
@@ -702,7 +702,7 @@ const ReviewReportPageContent: React.FC = () => {
             <span>Review & Laporan</span>
           </h1>
           <p className="text-xs md:text-sm text-slate-500 mt-1">
-            Periksa kembali seluruh ringkasan data dan hasil valuasi ekonomi proyek penelitian.
+            Periksa kembali seluruh ringkasan data dan hasil valuasi ekonomi program penelitian.
           </p>
 
           <div className="flex flex-wrap items-center gap-2 mt-2">
@@ -742,13 +742,13 @@ const ReviewReportPageContent: React.FC = () => {
 
       {/* Tabulasi Komprehensif Riset (11 Bagian Proyek) */}
       <div className="space-y-6">
-          {/* 2. SECTION INFORMASI PROYEK (Read-Only) */}
+          {/* 2. SECTION INFORMASI PROGRAM (Read-Only) */}
           <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-2xs space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
             <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900">
-              Informasi Proyek
+              Informasi Program
             </h2>
           </div>
           <span className="text-[11px] text-slate-400 font-medium">Read-Only</span>
@@ -756,7 +756,7 @@ const ReviewReportPageContent: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 text-xs">
           <div>
-            <span className="text-slate-400 font-bold uppercase text-[10px]">Kode Proyek</span>
+            <span className="text-slate-400 font-bold uppercase text-[10px]">Kode Program</span>
             <div className="text-sm font-mono font-bold text-blue-700 mt-0.5">{currentProject?.code}</div>
           </div>
           <div>
@@ -2344,7 +2344,7 @@ const ReviewReportPageContent: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-slate-600 mt-1 max-w-2xl leading-relaxed">
-                Memerlukan konsultasi atau mengalami kendala terkait hasil valuasi, proses review, atau sinkronisasi data penelitian? Hubungi Super Admin langsung dengan konteks dokumen proyek ini.
+                Memerlukan konsultasi atau mengalami kendala terkait hasil valuasi, proses review, atau sinkronisasi data penelitian? Hubungi Super Admin langsung dengan konteks dokumen program ini.
               </p>
             </div>
           </div>

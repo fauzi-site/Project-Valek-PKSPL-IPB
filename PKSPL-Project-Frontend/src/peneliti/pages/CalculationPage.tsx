@@ -728,9 +728,9 @@ const CalculationPageContent: React.FC = () => {
     return (
       <div className="p-8 max-w-2xl mx-auto my-12 bg-white border border-slate-200 rounded-lg shadow-sm text-center">
         <EmptyState
-          title="Project Tidak Ditemukan"
-          description={`Project dengan kode atau ID "${routeProjId}" tidak ditemukan di sistem.`}
-          actionText="Kembali ke Daftar Proyek"
+          title="Program Tidak Ditemukan"
+          description={`Program dengan kode atau ID "${routeProjId}" tidak ditemukan di sistem.`}
+          actionText="Kembali ke Daftar Program"
           onAction={() => navigate('/peneliti/projects')}
         />
       </div>
@@ -974,7 +974,7 @@ const CalculationPageContent: React.FC = () => {
               })}
               {availableIndices.length === 0 && (
                 <div className="text-center py-4 text-xs text-slate-400">
-                  Tidak ada indeks terdaftar pada proyek ini.
+                  Tidak ada indeks terdaftar pada program ini.
                 </div>
               )}
             </div>
@@ -1146,7 +1146,7 @@ const CalculationPageContent: React.FC = () => {
 
               {landCovers.length === 0 && (
                 <div className="text-center py-4 text-xs text-slate-400">
-                  Tidak ada tutupan lahan terdaftar pada proyek ini.
+                  Tidak ada tutupan lahan terdaftar pada program ini.
                 </div>
               )}
             </div>
@@ -1164,7 +1164,7 @@ const CalculationPageContent: React.FC = () => {
             <span className="font-mono font-bold text-emerald-700">{formatNumber(totalLuasScope)}</span> ha
             <span className="text-slate-300">•</span>
             <span className="text-slate-500">
-              ({projectTotalLuas > 0 ? ((totalLuasScope / projectTotalLuas) * 100).toFixed(1) : 0}% dari Luas Proyek)
+              ({projectTotalLuas > 0 ? ((totalLuasScope / projectTotalLuas) * 100).toFixed(1) : 0}% dari Luas Program)
             </span>
           </div>
           <div className="flex items-center gap-2 font-mono text-xs">
@@ -1206,7 +1206,7 @@ const CalculationPageContent: React.FC = () => {
             <div className="text-xs font-bold uppercase tracking-wider text-blue-300 flex items-center gap-2">
               <span>
                 {isAllSelected
-                  ? 'Grand Total Economic Value (TEV) — Seluruh Kawasan Proyek'
+                  ? 'Grand Total Economic Value (TEV) — Seluruh Kawasan Program'
                   : targetLandCovers.length === 0
                   ? 'Total Economic Value (TEV) — Belum Ada Area Terpilih'
                   : targetLandCovers.length === 1
@@ -1380,7 +1380,7 @@ const CalculationPageContent: React.FC = () => {
               Distribusi Nilai Valuasi Berdasarkan Area Tutupan Lahan
             </h3>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              Tabel rekapitulasi nilai valuasi ekonomi per area tutupan lahan pada seluruh kawasan proyek.
+              Tabel rekapitulasi nilai valuasi ekonomi per area tutupan lahan pada seluruh kawasan program.
             </p>
           </div>
 
@@ -1556,7 +1556,7 @@ const CalculationPageContent: React.FC = () => {
               {paginatedTableLandCovers.length === 0 && (
                 <tr>
                   <td colSpan={7} className="py-8 text-center text-slate-400">
-                    {tableSearchQuery ? `Tidak ada area yang cocok dengan pencarian "${tableSearchQuery}".` : 'Tidak ada area tutupan lahan terdaftar pada proyek ini.'}
+                    {tableSearchQuery ? `Tidak ada area yang cocok dengan pencarian "${tableSearchQuery}".` : 'Tidak ada area tutupan lahan terdaftar pada program ini.'}
                   </td>
                 </tr>
               )}
@@ -1565,7 +1565,7 @@ const CalculationPageContent: React.FC = () => {
               <tr className="bg-slate-900 text-white font-bold text-xs">
                 <td className="py-3.5 px-3 text-center font-mono text-slate-400">#</td>
                 <td className="py-3.5 px-4" colSpan={2}>
-                  Total Nilai Kawasan Proyek ({landCovers.length} Tutupan Lahan)
+                  Total Nilai Kawasan Program ({landCovers.length} Tutupan Lahan)
                 </td>
                 <td className="py-3.5 px-4 text-right font-mono">
                   {formatNumber(projectTotalLuas)}
@@ -1772,7 +1772,7 @@ const CalculationPageContent: React.FC = () => {
                     <span>
                       Cakupan:{' '}
                       <strong>
-                        {isAllSelected ? 'Semua Area Proyek' : `${targetLandCovers.length} Tutupan Lahan Terpilih`}
+                        {isAllSelected ? 'Semua Area Program' : `${targetLandCovers.length} Tutupan Lahan Terpilih`}
                       </strong>
                     </span>
                     <span className="text-slate-300">•</span>

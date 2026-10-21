@@ -44,11 +44,11 @@ export const StatsSection = () => {
           }
         }
       } else {
-        setError('Data aktivitas proyek tidak dapat dimuat.');
+        setError('Data aktivitas program tidak dapat dimuat.');
       }
     } catch (err) {
       console.error('Failed to load landing statistics:', err);
-      setError('Data aktivitas proyek tidak dapat dimuat.');
+      setError('Data aktivitas program tidak dapat dimuat.');
       setStats(null);
     } finally {
       setLoading(false);
@@ -168,9 +168,9 @@ export const StatsSection = () => {
           <div className="flex items-center justify-between text-slate-300 pt-0.5">
             <span className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-blue-400" />
-              <span>Proyek Baru:</span>
+              <span>Program Baru:</span>
             </span>
-            <span className="font-bold text-white font-mono">{data.projects} Proyek</span>
+            <span className="font-bold text-white font-mono">{data.projects} Program</span>
           </div>
           {data.completed > 0 && (
             <div className="flex items-center justify-between text-slate-300">
@@ -178,7 +178,7 @@ export const StatsSection = () => {
                 <span className="w-2 h-2 rounded-full bg-emerald-400" />
                 <span>Disetujui:</span>
               </span>
-              <span className="font-bold text-emerald-300 font-mono">{data.completed} Proyek</span>
+              <span className="font-bold text-emerald-300 font-mono">{data.completed} Program</span>
             </div>
           )}
           {data.tev > 0 && (
@@ -268,14 +268,14 @@ export const StatsSection = () => {
                     <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse" />
                     <h4 className="text-sm sm:text-base font-bold text-slate-900">
                       {timeframe === 'monthly'
-                        ? `Grafik Pembuatan Proyek Per Bulan (${selectedYear})`
-                        : 'Tren Pertumbuhan Proyek Multi-Tahun'}
+                        ? `Grafik Pembuatan Program Per Bulan (${selectedYear})`
+                        : 'Tren Pertumbuhan Program Multi-Tahun'}
                     </h4>
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
                     {timeframe === 'monthly'
                       ? `Distribusi aktivitas pembuatan form valuasi per bulan di tahun ${selectedYear}`
-                      : `Rekapitulasi pertumbuhan proyek riset periode ${availableYears[availableYears.length - 1] || 2025} - ${availableYears[0] || 2026}`}
+                      : `Rekapitulasi pertumbuhan program riset periode ${availableYears[availableYears.length - 1] || 2025} - ${availableYears[0] || 2026}`}
                   </p>
                 </div>
 
@@ -386,7 +386,7 @@ export const StatsSection = () => {
                 <div className="p-2 sm:p-2.5 rounded-xl bg-slate-50/90 border border-slate-100">
                   <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total Periode Ini</div>
                   <div className="text-sm sm:text-base font-bold text-slate-900 mt-0.5">
-                    {loading ? '...' : error ? '-' : summary.total} <span className="text-[11px] font-normal text-slate-500">Proyek</span>
+                    {loading ? '...' : error ? '-' : summary.total} <span className="text-[11px] font-normal text-slate-500">Program</span>
                   </div>
                 </div>
 

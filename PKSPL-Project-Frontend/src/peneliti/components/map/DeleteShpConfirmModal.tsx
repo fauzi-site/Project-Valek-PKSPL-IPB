@@ -14,7 +14,7 @@ export const DeleteShpConfirmModal: React.FC<DeleteShpConfirmModalProps> = ({
   isOpen,
   onClose,
   onConfirm,
-  projectName = 'Proyek Aktif',
+  projectName = 'Program Aktif',
   projectCode = '',
   indicesCount = 0,
 }) => {
@@ -49,7 +49,7 @@ export const DeleteShpConfirmModal: React.FC<DeleteShpConfirmModalProps> = ({
                 Hapus Data Shapefile (SHP)
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Proyek: <strong className="text-slate-700">{projectName}</strong>{' '}
+                Program: <strong className="text-slate-700">{projectName}</strong>{' '}
                 {projectCode && <span className="font-mono text-blue-600">({projectCode})</span>}
               </p>
             </div>
@@ -72,7 +72,7 @@ export const DeleteShpConfirmModal: React.FC<DeleteShpConfirmModalProps> = ({
             <div>
               <strong className="font-semibold text-amber-900">Konfirmasi Penghapusan Spasial</strong>
               <p className="mt-0.5 leading-relaxed text-amber-700">
-                Tindakan ini akan menghapus seluruh layer batas wilayah dan poligon tutupan lahan (GeoJSON/SHP) dari proyek ini.
+                Tindakan ini akan menghapus seluruh layer batas wilayah dan poligon tutupan lahan (GeoJSON/SHP) dari program ini.
               </p>
             </div>
           </div>
@@ -151,7 +151,7 @@ export const DeleteShpConfirmModal: React.FC<DeleteShpConfirmModalProps> = ({
                     </span>
                   </div>
                   <p className="text-slate-600 mt-1 leading-relaxed">
-                    Hapus file SHP <strong className="text-rose-700">DAN hapus seluruh {indicesCount} data index</strong> tutupan lahan yang terkait dengan proyek ini secara permanen.
+                    Hapus file SHP <strong className="text-rose-700">DAN hapus seluruh {indicesCount} data index</strong> tutupan lahan yang terkait dengan program ini secara permanen.
                   </p>
                 </div>
               </label>

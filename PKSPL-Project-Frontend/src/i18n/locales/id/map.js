@@ -14,7 +14,7 @@ export default {
   failedBoundary: "Gagal memuat batas wilayah.",
   sectionTitle: "Sebaran Wilayah Valuasi & Pemetaan Jasa Ekosistem",
   sectionSubtitle: "Eksplorasi lokasi valuasi ekonomi sumber daya pesisir dan laut di seluruh Indonesia melalui peta interaktif.",
-  viewProjectDetail: "Lihat Detail Proyek",
+  viewProjectDetail: "Lihat Detail Program",
   resetZoom: "Reset Zoom",
   resetTooltip: "Reset ke posisi semula",
   locationList: "Daftar Lokasi",

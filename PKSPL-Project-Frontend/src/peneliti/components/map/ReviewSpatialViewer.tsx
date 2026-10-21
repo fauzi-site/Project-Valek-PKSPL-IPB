@@ -353,10 +353,10 @@ export const ReviewSpatialViewer: React.FC<ReviewSpatialViewerProps> = ({
                 <Popup autoPan={true}>
                   <div className="p-1.5 text-xs space-y-1.5 min-w-[220px]">
                     <div className="font-bold text-slate-900 text-sm border-b pb-1">
-                      {project.name || 'Lokasi Proyek Penelitian'}
+                      {project.name || 'Lokasi Program Penelitian'}
                     </div>
                     <div className="text-slate-600 space-y-0.5">
-                      <div>Kode Proyek: <span className="font-mono font-bold text-blue-700">{project.code}</span></div>
+                      <div>Kode Program: <span className="font-mono font-bold text-blue-700">{project.code}</span></div>
                       <div>Lokasi: <span className="font-semibold text-slate-800">{project.location || 'Wilayah Pesisir'}</span></div>
                       <div>Koordinat: <span className="font-mono text-slate-700">[{projectCoords[0].toFixed(5)}, {projectCoords[1].toFixed(5)}]</span></div>
                       {indices.length > 0 && (
@@ -441,8 +441,8 @@ export const ReviewSpatialViewer: React.FC<ReviewSpatialViewerProps> = ({
             {hasPolygons
               ? `Terdapat ${validLandCovers.length} batas tutupan lahan terverifikasi pada peta. Klik pada poligon untuk melihat ringkasan audit.`
               : projectCoords
-              ? `Pusat kawasan terdaftar di ${project.location || 'koordinat proyek'}. Nilai valuasi dihitung berbasis ${indices.length} Indeks Kawasan.`
-              : 'Proyek ini menggunakan perhitungan valuasi berbasis tabulasi luas tanpa geometri poligon.'}
+              ? `Pusat kawasan terdaftar di ${project.location || 'koordinat program'}. Nilai valuasi dihitung berbasis ${indices.length} Indeks Kawasan.`
+              : 'Program ini menggunakan perhitungan valuasi berbasis tabulasi luas tanpa geometri poligon.'}
           </p>
         </div>
       )}
@@ -471,7 +471,7 @@ export const ReviewSpatialViewer: React.FC<ReviewSpatialViewerProps> = ({
                 </div>
                 <div>
                   <h3 className="text-sm md:text-base font-bold text-slate-900 flex items-center gap-2">
-                    <span>Audit Peta Spasial Proyek: {project?.name}</span>
+                    <span>Audit Peta Spasial Program: {project?.name}</span>
                     <span className="font-mono text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
                       {project?.code}
                     </span>
@@ -512,7 +512,7 @@ export const ReviewSpatialViewer: React.FC<ReviewSpatialViewerProps> = ({
               {/* Sidebar Detail Audit di Samping Peta Popout */}
               <div className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-slate-200 bg-slate-50/60 p-4 overflow-y-auto space-y-4 text-xs">
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Ringkasan Spasial Proyek</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Ringkasan Spasial Program</span>
                   <div className="mt-1 space-y-2">
                     <div className="p-2.5 bg-white rounded-lg border border-slate-200">
                       <div className="text-slate-500 text-[11px]">Lokasi Penelitian:</div>

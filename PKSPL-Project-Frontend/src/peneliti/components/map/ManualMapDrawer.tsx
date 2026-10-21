@@ -217,7 +217,7 @@ interface ManualMapDrawerProps {
 
 export const ManualMapDrawer: React.FC<ManualMapDrawerProps> = ({
   projectId,
-  projectName = 'Proyek Valuasi',
+  projectName = 'Program Valuasi',
   projectCode = 'PRJ',
   onSaveSuccess,
   onSwitchToShp,
@@ -320,10 +320,10 @@ export const ManualMapDrawer: React.FC<ManualMapDrawerProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Modal 1: Informasi Kawasan Proyek (Boundary)
+  // Modal 1: Informasi Kawasan Program (Boundary)
   const [isBoundaryModalOpen, setIsBoundaryModalOpen] = useState(false);
   const [tempBoundaryPoints, setTempBoundaryPoints] = useState<[number, number][]>([]);
-  const [boundaryFormName, setBoundaryFormName] = useState(projectName || 'Kawasan Proyek');
+  const [boundaryFormName, setBoundaryFormName] = useState(projectName || 'Kawasan Program');
   const [boundaryFormNotes, setBoundaryFormNotes] = useState('');
 
   // Modal 2: Informasi Index
@@ -383,7 +383,7 @@ export const ManualMapDrawer: React.FC<ManualMapDrawerProps> = ({
 
     if (drawingTarget === 'boundary') {
       setTempBoundaryPoints([...currentPoints]);
-      setBoundaryFormName(boundary?.name || projectName || 'Kawasan Penelitian Proyek');
+      setBoundaryFormName(boundary?.name || projectName || 'Kawasan Penelitian Program');
       setBoundaryFormNotes(boundary?.notes || '');
       setIsBoundaryModalOpen(true);
     } else if (drawingTarget === 'index') {
@@ -424,7 +424,7 @@ export const ManualMapDrawer: React.FC<ManualMapDrawerProps> = ({
   // Save Project Boundary from Modal
   const handleSaveBoundaryModal = async () => {
     if (!boundaryFormName.trim()) {
-      setErrorMessage('Nama proyek/kawasan wajib diisi.');
+      setErrorMessage('Nama program/kawasan wajib diisi.');
       return;
     }
 
@@ -453,10 +453,10 @@ export const ManualMapDrawer: React.FC<ManualMapDrawerProps> = ({
       setBoundary(newBoundary);
       setIsBoundaryModalOpen(false);
       setTempBoundaryPoints([]);
-      setSuccessMessage('Batas kawasan proyek berhasil disimpan sebagai polygon induk.');
+      setSuccessMessage('Batas kawasan program berhasil disimpan sebagai polygon induk.');
       if (onSaveSuccess) onSaveSuccess();
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Gagal menyimpan batas kawasan proyek ke server.');
+      setErrorMessage(err?.message || 'Gagal menyimpan batas kawasan program ke server.');
     } finally {
       setIsSubmitting(false);
     }
@@ -540,9 +540,9 @@ export const ManualMapDrawer: React.FC<ManualMapDrawerProps> = ({
       setCurrentPoints([]);
       setDrawingTarget(null);
       setEditingTarget(null);
-      setSuccessMessage('Batas kawasan proyek dan seluruh Index di dalamnya berhasil dihapus.');
+      setSuccessMessage('Batas kawasan program dan seluruh Index di dalamnya berhasil dihapus.');
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Gagal menghapus batas proyek.');
+      setErrorMessage(err?.message || 'Gagal menghapus batas program.');
     } finally {
       setIsSubmitting(false);
     }
@@ -598,7 +598,7 @@ export const ManualMapDrawer: React.FC<ManualMapDrawerProps> = ({
           areaHa: boundary.areaHa,
           center: boundary.center,
         });
-        setSuccessMessage('Titik sudut batas kawasan proyek berhasil diperbarui.');
+        setSuccessMessage('Titik sudut batas kawasan program berhasil diperbarui.');
       } else if (editingTarget.type === 'index') {
         const item = indices.find(i => i.id === editingTarget.id);
         if (item) {
@@ -648,10 +648,10 @@ export const ManualMapDrawer: React.FC<ManualMapDrawerProps> = ({
           </div>
           <div>
             <div className="font-bold text-slate-800 flex items-center gap-2">
-              <span>Mode Peta Manual: Batas Kawasan Proyek &amp; Pembagian Index</span>
+              <span>Mode Peta Manual: Batas Kawasan Program &amp; Pembagian Index</span>
               {boundary && (
                 <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold text-[10px]">
-                  Batas Proyek Aktif
+                  Batas Program Aktif
                 </span>
               )}
             </div>
@@ -729,7 +729,7 @@ export const ManualMapDrawer: React.FC<ManualMapDrawerProps> = ({
                       className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
                     >
                       <Pencil className="w-3.5 h-3.5" />
-                      <span>Tahap A: Gambar Batas Kawasan Proyek</span>
+                      <span>Tahap A: Gambar Batas Kawasan Program</span>
                     </button>
                   ) : (
                     /* Step B: Add Index Polygon inside project */
@@ -768,7 +768,7 @@ export const ManualMapDrawer: React.FC<ManualMapDrawerProps> = ({
                       : 'bg-emerald-50 text-emerald-800 border-emerald-200'
                   }`}>
                     {drawingTarget === 'boundary'
-                      ? 'Menggambar Batas Kawasan Proyek'
+                      ? 'Menggambar Batas Kawasan Program'
                       : `Menggambar Polygon Index ${nextIndexNumber}`}
                   </span>
 
@@ -881,7 +881,7 @@ export const ManualMapDrawer: React.FC<ManualMapDrawerProps> = ({
                     <Tooltip sticky>
                       <div className="text-xs font-sans">
                         <span className="px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded text-[9px] font-bold block w-fit mb-0.5">
-                          Batas Kawasan Proyek
+                          Batas Kawasan Program
                         </span>
                         <strong className="text-slate-900 block">{boundary.name}</strong>
                         <span className="text-slate-600 block font-mono">Luas Total: {formatNumber(boundary.areaHa, 2)} Ha</span>
@@ -1048,10 +1048,10 @@ export const ManualMapDrawer: React.FC<ManualMapDrawerProps> = ({
               </span>
             </div>
 
-            {/* SECTION 1: BATAS KAWASAN PROYEK (INDUK) */}
+            {/* SECTION 1: BATAS KAWASAN PROGRAM (INDUK) */}
             <div className="space-y-2">
               <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between">
-                <span>1. Batas Kawasan Proyek (Induk)</span>
+                <span>1. Batas Kawasan Program (Induk)</span>
                 {boundary && (
                   <span className="text-blue-600 font-mono font-semibold">{formatNumber(boundary.areaHa, 2)} Ha</span>
                 )}
@@ -1121,7 +1121,7 @@ export const ManualMapDrawer: React.FC<ManualMapDrawerProps> = ({
                       type="button"
                       onClick={() => setShowDeleteBoundaryModal(true)}
                       className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded font-medium flex items-center gap-1 cursor-pointer transition-colors"
-                      title="Hapus batas kawasan proyek beserta seluruh Index di dalamnya"
+                      title="Hapus batas kawasan program beserta seluruh Index di dalamnya"
                     >
                       <Trash2 className="w-3 h-3 text-rose-600" />
                       <span>Hapus Batas</span>
@@ -1131,7 +1131,7 @@ export const ManualMapDrawer: React.FC<ManualMapDrawerProps> = ({
               ) : (
                 <div className="p-4 bg-slate-50 border border-dashed border-slate-300 rounded-lg text-center space-y-2">
                   <p className="text-slate-600 text-xs">
-                    Batas kawasan proyek belum dibuat. Tentukan batas kawasan terlebih dahulu sebelum membagi area Index penelitian.
+                    Batas kawasan program belum dibuat. Tentukan batas kawasan terlebih dahulu sebelum membagi area Index penelitian.
                   </p>
                   <button
                     type="button"
@@ -1165,7 +1165,7 @@ export const ManualMapDrawer: React.FC<ManualMapDrawerProps> = ({
                     setCurrentPoints([]);
                   }}
                   className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                  title={!boundary ? 'Buat batas kawasan proyek terlebih dahulu' : 'Tambah polygon Index baru'}
+                  title={!boundary ? 'Buat batas kawasan program terlebih dahulu' : 'Tambah polygon Index baru'}
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Tambah Index</span>
@@ -1175,9 +1175,9 @@ export const ManualMapDrawer: React.FC<ManualMapDrawerProps> = ({
               {indices.length === 0 ? (
                 <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg text-center text-xs text-slate-500">
                   {boundary ? (
-                    <span>Belum ada area Index. Klik tombol <strong>"+ Tambah Index"</strong> untuk menggambar area penelitian di dalam batas proyek.</span>
+                    <span>Belum ada area Index. Klik tombol <strong>"+ Tambah Index"</strong> untuk menggambar area penelitian di dalam batas program.</span>
                   ) : (
-                    <span>Area Index dapat digambar setelah batas kawasan proyek selesai dibuat.</span>
+                    <span>Area Index dapat digambar setelah batas kawasan program selesai dibuat.</span>
                   )}
                 </div>
               ) : (
@@ -1299,14 +1299,14 @@ export const ManualMapDrawer: React.FC<ManualMapDrawerProps> = ({
         </div>
       </div>
 
-      {/* MODAL 1: INFORMASI KAWASAN PROYEK (Batas Induk) */}
+      {/* MODAL 1: INFORMASI KAWASAN PROGRAM (Batas Induk) */}
       {isBoundaryModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-2xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl border border-slate-200 shadow-2xl max-w-md w-full p-5 space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <div className="flex items-center gap-2 text-slate-800">
                 <MapPin className="w-4 h-4 text-blue-600" />
-                <h4 className="font-bold text-sm">Informasi Kawasan Proyek</h4>
+                <h4 className="font-bold text-sm">Informasi Kawasan Program</h4>
               </div>
               <button
                 type="button"
@@ -1346,7 +1346,7 @@ export const ManualMapDrawer: React.FC<ManualMapDrawerProps> = ({
             <div className="space-y-3 text-xs">
               <div className="space-y-1">
                 <label className="font-semibold text-slate-700 block">
-                  Nama Proyek / Kawasan <span className="text-rose-500">*</span>
+                  Nama Program / Kawasan <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -1391,7 +1391,7 @@ export const ManualMapDrawer: React.FC<ManualMapDrawerProps> = ({
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1.5 cursor-pointer"
               >
                 <Check className="w-3.5 h-3.5" />
-                <span>Simpan Batas Proyek</span>
+                <span>Simpan Batas Program</span>
               </LoadingButton>
             </div>
           </div>
@@ -1459,7 +1459,7 @@ export const ManualMapDrawer: React.FC<ManualMapDrawerProps> = ({
               <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-900 flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <div>
-                  <strong>Peringatan Spasial:</strong> Sebagian titik polygon Index berada di luar batas kawasan proyek. Pastikan Index berada di dalam kawasan penelitian agar pembagian wilayah valid.
+                  <strong>Peringatan Spasial:</strong> Sebagian titik polygon Index berada di luar batas kawasan program. Pastikan Index berada di dalam kawasan penelitian agar pembagian wilayah valid.
                 </div>
               </div>
             )}
@@ -1550,7 +1550,7 @@ export const ManualMapDrawer: React.FC<ManualMapDrawerProps> = ({
             </div>
 
             <p className="text-[11px] text-slate-600 leading-relaxed">
-              Index ini akan dihapus dari peta manual dan daftar Index proyek. <strong>Batas kawasan proyek dan Index lainnya tidak akan terpengaruh.</strong>
+              Index ini akan dihapus dari peta manual dan daftar Index program. <strong>Batas kawasan program dan Index lainnya tidak akan terpengaruh.</strong>
             </p>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
@@ -1582,7 +1582,7 @@ export const ManualMapDrawer: React.FC<ManualMapDrawerProps> = ({
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="font-bold text-slate-800 text-sm">Hapus Batas Kawasan Proyek?</h4>
+                <h4 className="font-bold text-slate-800 text-sm">Hapus Batas Kawasan Program?</h4>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Tindakan penting terhadap struktur spasial.
                 </p>
@@ -1592,12 +1592,12 @@ export const ManualMapDrawer: React.FC<ManualMapDrawerProps> = ({
             <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-900 space-y-1">
               <strong>Peringatan Konsekuensi:</strong>
               <p className="text-[11px] leading-relaxed">
-                Menghapus batas kawasan proyek akan sekaligus menghapus <strong>seluruh {indices.length} Index penelitian</strong> di dalamnya.
+                Menghapus batas kawasan program akan sekaligus menghapus <strong>seluruh {indices.length} Index penelitian</strong> di dalamnya.
               </p>
             </div>
 
             <p className="text-[11px] text-slate-500">
-              Data berkas SHP (jika ada) dan data proyek utama tidak akan terpengaruh.
+              Data berkas SHP (jika ada) dan data program utama tidak akan terpengaruh.
             </p>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">

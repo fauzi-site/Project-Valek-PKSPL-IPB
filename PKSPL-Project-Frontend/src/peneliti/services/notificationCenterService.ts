@@ -56,7 +56,7 @@ const INITIAL_NOTIFICATIONS: ResearcherNotification[] = [
   {
     id: 'notif-init-3',
     type: 'DALAM_REVIEW',
-    title: 'Proyek Masuk Tahap Review oleh Validator',
+    title: 'Program Masuk Tahap Review oleh Validator',
     message: 'Kajian Valuasi Ekonomi Mangrove sedang dalam proses validasi mutu oleh tim penelaah PKSPL.',
     projectId: 'PKS-994KY1',
     projectCode: 'PKS-994KY1',

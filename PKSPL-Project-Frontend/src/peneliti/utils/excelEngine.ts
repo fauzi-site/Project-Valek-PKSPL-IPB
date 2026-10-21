@@ -480,7 +480,7 @@ export const exportFullProjectWorkbook = (
   // 01 Ringkasan
   const summaryAoa = [
     ['SISTEM VALUASI EKONOMI PKSPL - RINGKASAN PENELITIAN'],
-    ['Kode Proyek', project.code],
+    ['Kode Program', project.code],
     ['Nama Penelitian', project.name],
     ['Peneliti Penanggung Jawab', project.lead],
     ['Lokasi', project.location],
@@ -518,11 +518,11 @@ export const exportFullProjectWorkbook = (
   summaryAoa.push(['TOTAL TEV KAWASAN', '', '', '', '', '', '', '', grandTEV > 0 ? grandTEV : sumAreas]);
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryAoa), '01 Ringkasan');
 
-  // 02 Informasi Proyek
+  // 02 Informasi Program
   const infoAoa = [
     ['PARAMETER', 'NILAI'],
     ['ID Internal', project.id],
-    ['Kode Proyek', project.code],
+    ['Kode Program', project.code],
     ['Nama Lengkap', project.name],
     ['Deskripsi', project.description],
     ['Lead Researcher', project.lead],
@@ -531,7 +531,7 @@ export const exportFullProjectWorkbook = (
     ['Tahun Evaluasi', project.year],
     ['Tanggal Dibuat', project.createdAt]
   ];
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(infoAoa), '02 Informasi Proyek');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(infoAoa), '02 Informasi Program');
 
   // 03 Index
   const indexList = options?.indices && options.indices.length > 0 ? options.indices : [
@@ -555,7 +555,7 @@ export const exportFullProjectWorkbook = (
   // 04 Data Spasial
   const shpAoa = [
     ['Nama Layer', 'Tipe Feature', 'Jumlah Polygon', 'Sistem Proyeksi CRS', 'Status'],
-    ['Batas Kawasan Proyek', 'Polygon', 1, 'WGS 1984 / UTM Zone 50S', 'Tervalidasi'],
+    ['Batas Kawasan Program', 'Polygon', 1, 'WGS 1984 / UTM Zone 50S', 'Tervalidasi'],
     ['Area Tutupan Lahan', 'Polygon Multi-Feature', landCovers.length, 'WGS 1984 / UTM Zone 50S', 'Tervalidasi'],
     ['Zonasi Konservasi', 'Polygon', 3, 'WGS 1984 / UTM Zone 50S', 'Tervalidasi'],
     ['Jaringan Aliran Sungai & Muara', 'LineString', 8, 'WGS 1984 / UTM Zone 50S', 'Tervalidasi']

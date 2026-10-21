@@ -19,7 +19,7 @@ export const ResearcherEmptyChatState: React.FC = () => {
       <div className="mt-6 flex flex-wrap items-center justify-center gap-2 max-w-lg">
         <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-slate-200 text-[11px] font-medium text-slate-600 shadow-2xs">
           <FolderCheck className="w-3.5 h-3.5 text-blue-600" />
-          <span>Terkoneksi Kode Proyek</span>
+          <span>Terkoneksi Kode Program</span>
         </div>
         <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-slate-200 text-[11px] font-medium text-slate-600 shadow-2xs">
           <span>Quick Reply Kontekstual</span>

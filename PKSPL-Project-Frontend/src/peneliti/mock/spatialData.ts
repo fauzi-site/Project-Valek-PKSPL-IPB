@@ -193,7 +193,7 @@ export const INITIAL_MAP_LAYERS: MapLayer[] = [
   {
     id: 'layer-1',
     projectId: 'PKS-994KY1',
-    name: 'Batas Proyek',
+    name: 'Batas Program',
     type: 'polygon',
     featureCount: 1,
     crs: 'EPSG:4326 (WGS 84)',

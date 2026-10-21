@@ -76,7 +76,7 @@ export const ResearcherConversationListPanel: React.FC<ResearcherConversationLis
         chosen?.nama || 'Pengguna',
         role,
         newProjectCode.trim() || 'PKS-994KY1',
-        newInitialMsg.trim() || 'Halo, saya ingin mendiskusikan validasi data valuasi ekonomi pada proyek ini.',
+        newInitialMsg.trim() || 'Halo, saya ingin mendiskusikan validasi data valuasi ekonomi pada program ini.',
         selectedUserId
       );
     }
@@ -401,7 +401,7 @@ export const ResearcherConversationListPanel: React.FC<ResearcherConversationLis
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Kode Proyek:</label>
+                <label className="block font-semibold text-slate-700 mb-1">Kode Program:</label>
                 <input
                   type="text"
                   placeholder="Contoh: PKS-994KY1"

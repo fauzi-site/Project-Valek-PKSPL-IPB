@@ -413,7 +413,7 @@ export const AdminMasterDataPage = () => {
               </span>
             </div>
             <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
-              Super Admin memiliki kewenangan melihat dan mengelola seluruh master data nasional dari seluruh provinsi dan kabupaten/kota tanpa dikunci pada satu proyek tertentu.
+              Super Admin memiliki kewenangan melihat dan mengelola seluruh master data nasional dari seluruh provinsi dan kabupaten/kota tanpa dikunci pada satu program tertentu.
             </p>
           </div>
         </div>

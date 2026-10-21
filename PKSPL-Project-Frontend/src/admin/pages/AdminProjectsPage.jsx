@@ -75,10 +75,10 @@ export const AdminProjectsPage = () => {
           </div>
           <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2.5 mt-0.5">
             <FolderKanban className="w-6 h-6 text-blue-600" />
-            <span>Manajemen Seluruh Proyek</span>
+            <span>Manajemen Seluruh Program</span>
           </h1>
           <p className="text-xs md:text-sm text-slate-500 mt-1">
-            Pantau dan kelola seluruh proyek penelitian valuasi ekonomi pesisir & laut di seluruh Indonesia.
+            Pantau dan kelola seluruh program penelitian valuasi ekonomi pesisir & laut di seluruh Indonesia.
           </p>
         </div>
 
@@ -87,7 +87,7 @@ export const AdminProjectsPage = () => {
           className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors self-start sm:self-auto cursor-pointer"
         >
           <Plus className="w-4 h-4" />
-          <span>Buat Proyek Baru</span>
+          <span>Buat Program Baru</span>
         </button>
       </div>
 
@@ -99,7 +99,7 @@ export const AdminProjectsPage = () => {
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Cari kode, nama proyek, peneliti..."
+              placeholder="Cari kode, nama program, peneliti..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -113,7 +113,7 @@ export const AdminProjectsPage = () => {
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200 text-[11px] uppercase tracking-wider">
-                <th className="py-3 px-4">Kode & Nama Proyek</th>
+                <th className="py-3 px-4">Kode & Nama Program</th>
                 <th className="py-3 px-4">Lokasi & Ekosistem</th>
                 <th className="py-3 px-4">Peneliti Utama</th>
                 <th className="py-3 px-4 text-right">Luas (Ha)</th>
@@ -128,8 +128,8 @@ export const AdminProjectsPage = () => {
                 <tr>
                   <td colSpan={6} className="py-10 text-center">
                     <EmptyState
-                      title="Proyek Tidak Ditemukan"
-                      description={searchTerm ? `Tidak ada proyek yang cocok dengan kata kunci "${searchTerm}".` : "Belum ada proyek valuasi yang terdata di sistem."}
+                      title="Program Tidak Ditemukan"
+                      description={searchTerm ? `Tidak ada program yang cocok dengan kata kunci "${searchTerm}".` : "Belum ada program valuasi yang terdata di sistem."}
                       actionText={searchTerm ? "Reset Pencarian" : undefined}
                       onAction={searchTerm ? () => setSearchTerm('') : undefined}
                     />
@@ -175,7 +175,7 @@ export const AdminProjectsPage = () => {
         </div>
 
         <div className="p-3 bg-slate-50 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between">
-          <span>Menampilkan {filteredProjects.length} dari {projectsList.length} proyek penelitian</span>
+          <span>Menampilkan {filteredProjects.length} dari {projectsList.length} program penelitian</span>
           <span className="font-medium text-slate-600">Sistem Valuasi Ekonomi PKSPL</span>
         </div>
       </div>

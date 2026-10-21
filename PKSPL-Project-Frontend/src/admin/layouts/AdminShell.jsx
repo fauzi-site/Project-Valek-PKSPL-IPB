@@ -25,8 +25,8 @@ export const AdminShell = () => {
     }
     if (path.includes('/projects')) {
       return {
-        title: 'Manajemen Proyek',
-        subtitle: 'Monitoring seluruh portofolio penelitian valuasi ekonomi pesisir & laut',
+        title: 'Manajemen Program',
+        subtitle: 'Monitoring seluruh portofolio program valuasi ekonomi pesisir & laut',
       };
     }
     if (path.includes('/activity') || path.includes('/riwayat-aktivitas')) {

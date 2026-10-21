@@ -46,7 +46,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const allWorkflowItems = [
     {
       num: '01',
-      title: 'Proyek',
+      title: 'Program',
       path: '/peneliti/projects',
       icon: FolderKanban,
       match: (p: string) => p === '/peneliti/projects' || p === '/peneliti/projects/new' || p === '/peneliti' || p === '/projects',
@@ -171,7 +171,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {!collapsed && activeProject && (
         <div className="px-4 py-3 bg-slate-800/40 border-b border-slate-800/70">
           <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
-            Proyek Aktif
+            Program Aktif
           </div>
           <div className="text-xs font-semibold text-white truncate" title={activeProject.name}>
             {activeProject.name}

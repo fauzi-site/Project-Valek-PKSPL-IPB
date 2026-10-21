@@ -196,10 +196,10 @@ export const AdminActivityDetailModal = ({ activity, onClose }) => {
             )}
           </div>
 
-          {/* Section 3: Objek & Proyek Terkait */}
+          {/* Section 3: Objek & Program Terkait */}
           <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200 space-y-2">
             <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Modul & Proyek Terkait
+              Modul & Program Terkait
             </div>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="space-y-0.5">
@@ -208,7 +208,7 @@ export const AdminActivityDetailModal = ({ activity, onClose }) => {
                 </div>
                 {activity.projectCode && (
                   <div className="font-mono text-blue-600 font-semibold text-[11px]">
-                    Kode Proyek: {activity.projectCode}
+                    Kode Program: {activity.projectCode}
                   </div>
                 )}
                 <div className="text-slate-500 text-[11px]">
@@ -220,7 +220,7 @@ export const AdminActivityDetailModal = ({ activity, onClose }) => {
                 <button
                   onClick={handlePreviewReport}
                   className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors self-start sm:self-auto cursor-pointer shadow-2xs"
-                  title="Lihat preview laporan proyek ini"
+                  title="Lihat preview laporan program ini"
                 >
                   <FileText className="w-3.5 h-3.5" />
                   <span>Preview Laporan</span>

@@ -350,7 +350,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         console.error('[ProjectContext] Gagal memuat daftar proyek dari backend:', err);
         if (mounted) {
           setProjects([]);
-          const message = err?.response?.data?.message || err?.message || 'Daftar proyek gagal dimuat dari server.';
+          const message = err?.response?.data?.message || err?.message || 'Daftar program gagal dimuat dari server.';
           setProjectsError(message);
         }
       })

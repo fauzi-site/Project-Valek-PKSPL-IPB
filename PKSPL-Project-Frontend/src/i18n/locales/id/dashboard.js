@@ -1,10 +1,10 @@
 export default {
   dashboardTitle: "Dashboard Statistik & Analisis",
-  totalProjects: "Total Proyek",
+  totalProjects: "Total Program",
   totalResearchers: "Total Peneliti",
   totalAdmins: "Total Super Admin",
   projectStatusOverview: "Ringkasan Jasa Ekosistem",
   ecosystemDistribution: "Distribusi Ekosistem Pesisir",
-  monthlyActivity: "Aktivitas Proyek Bulanan",
+  monthlyActivity: "Aktivitas Program Bulanan",
   recentActivities: "Riwayat Aktivitas Terbaru"
 };

@@ -1,6 +1,6 @@
 export default {
   hero: {
-    title: "Sistem Valuasi Ekonomi Sumber Daya Pesisir dan Laut",
+    title: "Sistem Valuasi Ekonomi Sumber Daya Alam",
     description: "Platform digital untuk mendukung pendataan, analisis, dan valuasi ekonomi ekosistem pesisir dan laut Indonesia.",
     exploreMap: "Jelajahi Peta",
     learnPlatform: "Pelajari Platform"
@@ -23,8 +23,8 @@ export default {
     tag: "ALUR KERJA RISET",
     title: "Panduan Alur Pengisian Form Valuasi",
     subtitle: "Ikuti langkah-langkah berikut untuk mengisi form valuasi ekosistem pesisir dan laut secara lengkap dan akurat.",
-    step1Title: "Membuat atau Memilih Proyek",
-    step1Desc: "Inisiasi proyek penelitian dengan mengisi data identitas kawasan, koordinator riset, serta cakupan studi.",
+    step1Title: "Membuat atau Memilih Program",
+    step1Desc: "Inisiasi program penelitian dengan mengisi data identitas kawasan, koordinator riset, serta cakupan studi.",
     step2Title: "Menentukan Lokasi & Spasial",
     step2Desc: "Memetakan batas wilayah kajian, memproses data Shapefile (SHP), dan mendefinisikan zonasi tutupan area.",
     step3Title: "Mengisi Indeks & Parameter",
@@ -36,24 +36,24 @@ export default {
     step6Title: "Meninjau Analisis & Laporan",
     step6Desc: "Memvalidasi hasil estimasi, menelaah grafik sensitivitas, dan menyusun laporan saintifik komprehensif.",
     ctaTitle: "Siap Melakukan Analisis Valuasi?",
-    ctaDesc: "Akses modul peneliti PKSPL IPB untuk memulai pencatatan proyek dan perhitungan TEV.",
+    ctaDesc: "Akses modul peneliti PKSPL IPB untuk memulai pencatatan program dan perhitungan TEV.",
     startWorkflow: "Mulai ke Ruang Riset",
     viewWorkflowInfo: "Pelajari Metodologi"
   },
   stats: {
-    totalProjects: "TOTAL PROYEK / ANALISIS",
+    totalProjects: "TOTAL PROGRAM / ANALISIS",
     totalResearchers: "TOTAL PENELITI",
     accumulatedTev: "AKUMULASI TEV",
     totalYearly: "TOTAL",
-    chartTitle: "Grafik Pembuatan Proyek Per Bulan",
+    chartTitle: "Grafik Pembuatan Program Per Bulan",
     chartLoading: "Memuat data...",
-    projectsUnit: "Jumlah Proyek",
+    projectsUnit: "Jumlah Program",
     title: "Statistik Partisipasi & Sebaran Ekosistem",
     description: "Sistem ini mencatat pertumbuhan pengisian form valuasi secara real-time sekaligus memetakan sebaran objek ekosistem pesisir (Mangrove, Terumbu Karang, dan Lamun) yang paling banyak dianalisis oleh para peneliti dan pengambil kebijakan."
   },
   map: {
     title: "Peta Sebaran Lokasi Valuasi Ekosistem",
-    subtitle: "Jelajahi titik lokasi proyek dan batas administratif wilayah kajian valuasi ekonomi pesisir di seluruh Indonesia."
+    subtitle: "Jelajahi titik lokasi program dan batas administratif wilayah kajian valuasi ekonomi pesisir di seluruh Indonesia."
   },
   footer: {
     navTitle: "Navigasi",

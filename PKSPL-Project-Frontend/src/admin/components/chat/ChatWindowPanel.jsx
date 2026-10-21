@@ -311,11 +311,11 @@ export const ChatWindowPanel = ({
           {conversation.projectCode && (
             <button
               onClick={() => navigate('/peneliti/projects')}
-              title={`Buka proyek ${conversation.projectCode} di modul peneliti`}
+              title={`Buka program ${conversation.projectCode} di modul peneliti`}
               className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
             >
               <FolderKanban className="w-3.5 h-3.5 text-blue-600" />
-              <span>Lihat Proyek</span>
+              <span>Lihat Program</span>
               <ExternalLink className="w-3 h-3 text-slate-400" />
             </button>
           )}
@@ -396,7 +396,7 @@ export const ChatWindowPanel = ({
         {/* Project Context Banner in Chat */}
         {conversation.projectName && (
           <div className="max-w-md mx-auto my-2 p-2.5 rounded-xl bg-blue-50/80 border border-blue-200/70 text-center text-xs text-blue-900 shadow-2xs">
-            <span className="font-semibold text-blue-950">Topik Proyek: </span>
+            <span className="font-semibold text-blue-950">Topik Program: </span>
             <span className="font-bold">{conversation.projectName}</span>{' '}
             <span className="font-mono text-[11px] text-blue-600">({conversation.projectCode})</span>
           </div>

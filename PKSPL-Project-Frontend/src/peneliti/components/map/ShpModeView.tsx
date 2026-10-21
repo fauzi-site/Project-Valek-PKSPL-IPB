@@ -36,7 +36,7 @@ interface ShpModeViewProps {
 
 export const ShpModeView: React.FC<ShpModeViewProps> = ({
   projectId,
-  projectName = 'Proyek Valuasi',
+  projectName = 'Program Valuasi',
   projectCode = 'PRJ',
   hasShp,
   landCovers,
@@ -194,7 +194,7 @@ export const ShpModeView: React.FC<ShpModeViewProps> = ({
                   type="button"
                   onClick={onOpenDeleteModal}
                   className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded text-xs font-semibold flex items-center gap-1 transition-colors shadow-2xs cursor-pointer"
-                  title="Hapus data Shapefile dan batas spasial proyek ini"
+                  title="Hapus data Shapefile dan batas spasial program ini"
                 >
                   <Trash2 className="w-3.5 h-3.5 text-rose-600" />
                   <span>Hapus SHP</span>

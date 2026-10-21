@@ -301,9 +301,9 @@ const DataValuationPageContent: React.FC = () => {
     return (
       <div className="p-8 max-w-2xl mx-auto my-12 bg-white border border-slate-200 rounded-lg shadow-sm text-center">
         <EmptyState
-          title="Project Tidak Ditemukan"
-          description={`Project dengan kode atau ID "${routeProjId}" tidak ditemukan di dalam sistem.`}
-          actionText="Kembali ke Daftar Proyek"
+          title="Program Tidak Ditemukan"
+          description={`Program dengan kode atau ID "${routeProjId}" tidak ditemukan di dalam sistem.`}
+          actionText="Kembali ke Daftar Program"
           onAction={() => navigate('/peneliti/projects')}
         />
       </div>
@@ -321,7 +321,7 @@ const DataValuationPageContent: React.FC = () => {
         </div>
         <h2 className="text-lg font-bold text-slate-900">Belum Ada Area Tutupan Lahan (SHP / Index)</h2>
         <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
-          Project <strong>{currentProject.name}</strong> belum memiliki polygon tutupan lahan atau indeks kawasan.
+          Program <strong>{currentProject.name}</strong> belum memiliki polygon tutupan lahan atau indeks kawasan.
           Silakan tentukan kawasan spasial terlebih dahulu pada tahap Maps & Index.
         </p>
         <div className="flex items-center justify-center gap-2 pt-2">

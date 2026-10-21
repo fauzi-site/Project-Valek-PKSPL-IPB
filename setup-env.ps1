@@ -21,14 +21,14 @@ if (-not (Test-Path $SrcEnv)) {
     $envContent = $envContent -replace "APP_URL=http://localhost", "APP_URL=http://localhost:8000"
     [System.IO.File]::WriteAllText($SrcEnv, $envContent, [System.Text.UTF8Encoding]::new($false))
     $NeedAppKey = $true
-    Write-Host "      ✔ Backend src/.env berhasil disiapkan." -ForegroundColor Green
+    Write-Host "      [OK] Backend src/.env berhasil disiapkan." -ForegroundColor Green
 } else {
     Write-Host "[1/5] Backend src/.env sudah ada. Dilewati." -ForegroundColor DarkGray
 }
 
 if (-not (Test-Path $DockerEnv)) {
     Copy-Item $SrcEnv $DockerEnv -Force
-    Write-Host "      ✔ File .env.docker berhasil dibuat." -ForegroundColor Green
+    Write-Host "      [OK] File .env.docker berhasil dibuat." -ForegroundColor Green
 }
 
 # 2. Setup Frontend .env
@@ -37,7 +37,7 @@ $FeEnvExample = Join-Path $FrontendDir ".env.example"
 if (-not (Test-Path $FeEnv)) {
     Write-Host "[2/5] Setup Frontend .env..." -ForegroundColor Yellow
     Copy-Item $FeEnvExample $FeEnv -Force
-    Write-Host "      ✔ Frontend .env berhasil disiapkan." -ForegroundColor Green
+    Write-Host "      [OK] Frontend .env berhasil disiapkan." -ForegroundColor Green
 } else {
     Write-Host "[2/5] Frontend .env sudah ada. Dilewati." -ForegroundColor DarkGray
 }
@@ -49,7 +49,7 @@ if (-not (Test-Path $FeNodeModules)) {
     Push-Location $FrontendDir
     npm install
     Pop-Location
-    Write-Host "      ✔ Node modules frontend berhasil dipasang." -ForegroundColor Green
+    Write-Host "      [OK] Node modules frontend berhasil dipasang." -ForegroundColor Green
 } else {
     Write-Host "[3/5] Frontend node_modules sudah terpasang. Dilewati." -ForegroundColor DarkGray
 }
@@ -70,20 +70,20 @@ if (-not $appKey -or $NeedAppKey) {
     docker compose exec -T app php artisan key:generate --ansi
     Copy-Item $SrcEnv $DockerEnv -Force
     docker compose up -d
-    Write-Host "      ✔ APP_KEY berhasil dibuat." -ForegroundColor Green
+    Write-Host "      [OK] APP_KEY berhasil dibuat." -ForegroundColor Green
 }
 
 docker compose exec -T app php artisan storage:link 2>$null
 docker compose exec -T app php artisan migrate --force
 
-$userCount = docker compose exec -T app php artisan tinker --execute="echo \App\Models\User::count();"
-if ($userCount -match "0" -or -not $userCount) {
-    Write-Host "      -> Database kosong. Menjalankan seeding master & demo data..." -ForegroundColor Yellow
+$userCount = docker compose exec -T app php -r "require 'vendor/autoload.php'; `$app = require_once 'bootstrap/app.php'; `$app->make('Illuminate\Contracts\Console\Kernel')->bootstrap(); echo App\Models\User::count();"
+if ($userCount -eq "0" -or -not $userCount) {
+    Write-Host "      -> Database kosong. Menjalankan seeding master dan demo data..." -ForegroundColor Yellow
     docker compose exec -T app php artisan db:seed --force
-    Write-Host "      ✔ Seeding data berhasil selesai." -ForegroundColor Green
+    Write-Host "      [OK] Seeding data berhasil selesai." -ForegroundColor Green
 }
 Pop-Location
 
 Write-Host "`n===========================================" -ForegroundColor Green
-Write-Host "   ✔ Setup Selesai! Lingkungan siap dipakai. " -ForegroundColor Green
+Write-Host "   [OK] Setup Selesai! Lingkungan siap dipakai. " -ForegroundColor Green
 Write-Host "===========================================`n" -ForegroundColor Green

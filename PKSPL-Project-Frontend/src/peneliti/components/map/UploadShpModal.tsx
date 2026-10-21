@@ -113,11 +113,11 @@ export const UploadShpModal: React.FC<UploadShpModalProps> = ({
 
         {/* Content */}
         <div className="p-5 space-y-4 overflow-y-auto">
-          {/* 1. Proyek Otomatis Terpilih */}
+          {/* 1. Program Otomatis Terpilih */}
           <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex items-center justify-between">
             <div>
               <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                Proyek Ditargetkan
+                Program Ditargetkan
               </div>
               <div className="flex items-center gap-2 mt-1">
                 <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded shrink-0">
@@ -169,7 +169,7 @@ export const UploadShpModal: React.FC<UploadShpModalProps> = ({
           </div>
         </div>
 
-        {/* Footer Buttons: [Batal] [Terapkan SHP ke Proyek] */}
+        {/* Footer Buttons: [Batal] [Terapkan SHP ke Program] */}
         <div className="px-5 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2.5 shrink-0">
           <button
             type="button"
@@ -185,7 +185,7 @@ export const UploadShpModal: React.FC<UploadShpModalProps> = ({
             loading={isSubmitting}
             loadingText="Menerapkan..."
           >
-            Terapkan SHP ke Proyek
+            Terapkan SHP ke Program
           </LoadingButton>
         </div>
       </div>

@@ -62,15 +62,15 @@ export const offlineEmailService = {
 
     switch (params.type) {
       case 'DALAM_REVIEW':
-        subject = `[PKSPL IPB] Pemberitahuan: Proyek ${projectCode} Sedang Ditelaah oleh Validator`;
+        subject = `[PKSPL IPB] Pemberitahuan: Program ${projectCode} Sedang Ditelaah oleh Validator`;
         badgeLabel = 'SEDANG DITELAAH';
         badgeColor = '#6366f1';
-        statusDescription = `Proyek penelitian valuasi ekonomi Anda telah masuk ke dalam antrean telaah oleh tim Validator (${reviewer}). Tim saat ini sedang memverifikasi layer spasial GIS, metode valuasi, serta kalkulasi Total Economic Value (TEV).`;
+        statusDescription = `Program penelitian valuasi ekonomi Anda telah masuk ke dalam antrean telaah oleh tim Validator (${reviewer}). Tim saat ini sedang memverifikasi layer spasial GIS, metode valuasi, serta kalkulasi Total Economic Value (TEV).`;
         actionButtonText = 'Lihat Progress Review';
         break;
 
       case 'REVISI':
-        subject = `[PKSPL IPB] PERLU TINDAK LANJUT: Permintaan Revisi Proyek ${projectCode}`;
+        subject = `[PKSPL IPB] PERLU TINDAK LANJUT: Permintaan Revisi Program ${projectCode}`;
         badgeLabel = 'PERLU PERBAIKAN (REVISI)';
         badgeColor = '#e11d48';
         statusDescription = `Validator (${reviewer}) telah menyelesaikan telaah awal dan menemukan beberapa parameter data atau layer GIS yang memerlukan penyesuaian dari pihak Peneliti Utama sebelum dapat divalidasi.`;
@@ -79,16 +79,16 @@ export const offlineEmailService = {
         break;
 
       case 'SELESAI':
-        subject = `[PKSPL IPB] VALIDASI SELESAI: Proyek ${projectCode} Dinyatakan Selesai & Disetujui`;
+        subject = `[PKSPL IPB] VALIDASI SELESAI: Program ${projectCode} Dinyatakan Selesai & Disetujui`;
         badgeLabel = 'REVIEW SELESAI & DISETUJUI';
         badgeColor = '#059669';
-        statusDescription = `Selamat! Proyek penelitian valuasi ekonomi Anda telah berhasil melewati seluruh tahapan verifikasi mutu dan dinyatakan VALID dan SELESAI oleh Validator (${reviewer}). Dokumen laporan valuasi resmi siap diunduh dan dicetak.`;
+        statusDescription = `Selamat! Program penelitian valuasi ekonomi Anda telah berhasil melewati seluruh tahapan verifikasi mutu dan dinyatakan VALID dan SELESAI oleh Validator (${reviewer}). Dokumen laporan valuasi resmi siap diunduh dan dicetak.`;
         actionButtonText = 'Lihat & Unduh Laporan Akhir';
         actionLink = `${origin}/peneliti/projects/${projectCode}/review`;
         break;
 
       case 'PESAN_MASUK':
-        subject = `[PKSPL IPB] Pesan Baru dari ${reviewer} terkait Proyek ${projectCode}`;
+        subject = `[PKSPL IPB] Pesan Baru dari ${reviewer} terkait Program ${projectCode}`;
         badgeLabel = 'PESAN MASUK';
         badgeColor = '#0284c7';
         statusDescription = `Anda menerima pesan komunikasi baru dari ${reviewer} mengenai tindak lanjut data penelitian pada platform Valuasi Ekonomi PKSPL IPB.`;
@@ -97,10 +97,10 @@ export const offlineEmailService = {
         break;
 
       default:
-        subject = `[PKSPL IPB] Pembaruan Status Proyek ${projectCode}`;
+        subject = `[PKSPL IPB] Pembaruan Status Program ${projectCode}`;
         badgeLabel = 'PEMBARUAN STATUS';
         badgeColor = '#475569';
-        statusDescription = `Terdapat pembaruan status pada proyek penelitian Anda di Sistem Valuasi PKSPL IPB.`;
+        statusDescription = `Terdapat pembaruan status pada program penelitian Anda di Sistem Valuasi PKSPL IPB.`;
         break;
     }
 
@@ -143,7 +143,7 @@ export const offlineEmailService = {
       <p>${statusDescription}</p>
 
       <div class="project-card">
-        <div class="project-code">KODE PROYEK: ${projectCode}</div>
+        <div class="project-code">KODE PROGRAM: ${projectCode}</div>
         <div class="project-title">${projectName}</div>
         <div style="font-size: 12px; color: #64748b; margin-top: 6px;">
           Validator / Super Admin: <strong>${reviewer}</strong>

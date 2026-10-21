@@ -459,11 +459,11 @@ export const ResearcherChatWindowPanel: React.FC<ResearcherChatWindowPanelProps>
           {conversation.projectCode && (
             <button
               onClick={() => navigate(`/peneliti/projects/${conversation.projectCode}/maps`)}
-              title={`Buka proyek ${conversation.projectCode} di modul spasial`}
+              title={`Buka program ${conversation.projectCode} di modul spasial`}
               className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
             >
               <FolderKanban className="w-3.5 h-3.5 text-blue-600" />
-              <span>Lihat Proyek</span>
+              <span>Lihat Program</span>
               <ExternalLink className="w-3 h-3 text-slate-400" />
             </button>
           )}
@@ -483,10 +483,10 @@ export const ResearcherChatWindowPanel: React.FC<ResearcherChatWindowPanelProps>
           <button
             onClick={() =>
               alert(
-                `PKSPL Communication Hub\nKontak: ${conversation.userName} (${conversation.userRole})\nProyek: ${conversation.projectCode || '-'} - ${conversation.projectName || '-'}\nStatus: ${conversation.isOnline ? 'Online' : 'Offline'}`
+                `PKSPL Communication Hub\nKontak: ${conversation.userName} (${conversation.userRole})\nProgram: ${conversation.projectCode || '-'} - ${conversation.projectName || '-'}\nStatus: ${conversation.isOnline ? 'Online' : 'Offline'}`
               )
             }
-            title="Info Pengguna & Proyek"
+            title="Info Pengguna & Program"
             className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <MoreVertical className="w-4 h-4" />
@@ -554,7 +554,7 @@ export const ResearcherChatWindowPanel: React.FC<ResearcherChatWindowPanelProps>
         {/* Project Context Banner */}
         {conversation.projectName && (
           <div className="max-w-md mx-auto my-2 p-2.5 rounded-xl bg-blue-50/90 border border-blue-200/80 text-center text-xs text-blue-950 shadow-2xs">
-            <span className="font-semibold text-blue-800">Topik Proyek: </span>
+            <span className="font-semibold text-blue-800">Topik Program: </span>
             <span className="font-bold">{conversation.projectName}</span>{' '}
             <span className="font-mono text-[11px] text-blue-600 font-semibold">
               ({conversation.projectCode})

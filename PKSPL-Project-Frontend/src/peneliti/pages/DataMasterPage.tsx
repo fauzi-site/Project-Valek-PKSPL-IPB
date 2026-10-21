@@ -355,7 +355,7 @@ export const DataMasterPage: React.FC = () => {
   }>({
     id: String(effectiveProjectId),
     code: currentContextProject?.code || (effectiveProjectId ? `PRJ-${String(effectiveProjectId).padStart(3, '0')}` : 'PRJ-001'),
-    name: currentContextProject?.name || 'Memuat Data Proyek...',
+    name: currentContextProject?.name || 'Memuat Data Program...',
     wilayah: currentContextProject?.location && currentContextProject.location !== '-' ? currentContextProject.location : '',
     kabupaten_kota: '',
     provinsi: '',
@@ -454,7 +454,7 @@ export const DataMasterPage: React.FC = () => {
           setProjectInfo({
             id: String(res.project.id || effectiveProjectId),
             code: res.project.code || `PRJ-${String(effectiveProjectId).padStart(3, '0')}`,
-            name: res.project.name || currentContextProject?.name || 'Proyek Valuasi',
+            name: res.project.name || currentContextProject?.name || 'Program Valuasi',
             wilayah:
               res.project.wilayah ||
               res.project.location ||
@@ -899,7 +899,7 @@ export const DataMasterPage: React.FC = () => {
       const res = await applyProjectMasterTemplate(effectiveProjectId);
       setFeedbackMessage({
         type: 'success',
-        text: res.message || 'Template master acuan ekosistem berhasil diterapkan ke proyek!'
+        text: res.message || 'Template master acuan ekosistem berhasil diterapkan ke program!'
       });
       setTimeout(() => setFeedbackMessage(null), 5000);
       setIsApplyTemplateModalOpen(false);
@@ -972,7 +972,7 @@ export const DataMasterPage: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    const filename = `Data_Master_${kodeProyek || 'Proyek'}_${(wilayahPenelitian || 'Wilayah').replace(
+    const filename = `Data_Master_${kodeProyek || 'Program'}_${(wilayahPenelitian || 'Wilayah').replace(
       /[^a-zA-Z0-9]/g,
       '_'
     )}.csv`;
@@ -994,7 +994,7 @@ export const DataMasterPage: React.FC = () => {
               <span>Data Master Jasa Ekosistem</span>
             </h1>
             <p className="text-xs md:text-sm text-slate-500 mt-1">
-              Basis data referensi biota, parameter pengaturan, fungsi pendukung, dan pariwisata wilayah proyek aktif.
+              Basis data referensi biota, parameter pengaturan, fungsi pendukung, dan pariwisata wilayah program aktif.
             </p>
           </div>
         </div>
@@ -1006,7 +1006,7 @@ export const DataMasterPage: React.FC = () => {
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">
               <span className="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-blue-500/30 text-blue-200 border border-blue-400/40">
-                Proyek Aktif
+                Program Aktif
               </span>
               <span className="text-xs font-semibold text-white">
                 {kodeProyek} — {namaProyek}
@@ -1035,7 +1035,7 @@ export const DataMasterPage: React.FC = () => {
 
           <div className="text-[11px] text-slate-300 bg-slate-950/60 px-3.5 py-2 rounded-lg border border-slate-800 shrink-0 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-            <span>Katalog master disaring otomatis untuk wilayah proyek ini</span>
+            <span>Katalog master disaring otomatis untuk wilayah program ini</span>
           </div>
         </div>
       </div>
@@ -1281,7 +1281,7 @@ export const DataMasterPage: React.FC = () => {
                       description={
                         searchTerm
                           ? 'Coba ubah atau hapus kata kunci pencarian Anda.'
-                          : 'Lokasi atau wilayah penelitian proyek ini belum memiliki data master yang terdaftar.'
+                          : 'Lokasi atau wilayah penelitian program ini belum memiliki data master yang terdaftar.'
                       }
                       actionLabel={searchTerm ? 'Reset Pencarian' : undefined}
                       onAction={searchTerm ? () => setSearchTerm('') : undefined}
@@ -1521,7 +1521,7 @@ export const DataMasterPage: React.FC = () => {
               <div className="p-3.5 rounded-xl border border-blue-100 bg-blue-50/50 flex items-center justify-between">
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 block mb-0.5">
-                    Status Penggunaan Proyek
+                    Status Penggunaan Program
                   </span>
                   <span className="text-xs font-semibold text-slate-800">
                     {selectedDetailItem.usage.used ? (
@@ -1532,7 +1532,7 @@ export const DataMasterPage: React.FC = () => {
                       </span>
                     ) : (
                       <span className="text-slate-500">
-                        Belum dikaitkan ke tutupan lahan proyek ini
+                        Belum dikaitkan ke tutupan lahan program ini
                       </span>
                     )}
                   </span>
@@ -1677,7 +1677,7 @@ export const DataMasterPage: React.FC = () => {
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">Tambah Data Master Baru</h3>
                   <p className="text-[11px] text-slate-500">
-                    Data baru otomatis diasosiasikan dengan wilayah proyek aktif.
+                    Data baru otomatis diasosiasikan dengan wilayah program aktif.
                   </p>
                 </div>
               </div>
@@ -1727,7 +1727,7 @@ export const DataMasterPage: React.FC = () => {
               {projectLandCovers.length > 0 && (
                 <div>
                   <label htmlFor="form-add-landcover" className="block text-xs font-bold text-slate-700 mb-1">
-                    Kaitkan ke Tutupan Lahan Proyek (Opsional)
+                    Kaitkan ke Tutupan Lahan Program (Opsional)
                   </label>
                   <select
                     id="form-add-landcover"
@@ -1910,7 +1910,7 @@ export const DataMasterPage: React.FC = () => {
               {/* Automatic Region Context (Locked) */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Daerah Penelitian (Terkunci Sesuai Proyek Aktif)
+                  Daerah Penelitian (Terkunci Sesuai Program Aktif)
                 </label>
                 <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700">
                   <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
@@ -2025,7 +2025,7 @@ export const DataMasterPage: React.FC = () => {
               {projectLandCovers.length > 0 && (
                 <div>
                   <label htmlFor="form-edit-landcover" className="block text-xs font-bold text-slate-700 mb-1">
-                    Tutupan Lahan Proyek Terkait
+                    Tutupan Lahan Program Terkait
                   </label>
                   <select
                     id="form-edit-landcover"
@@ -2158,7 +2158,7 @@ export const DataMasterPage: React.FC = () => {
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">Gunakan pada Tutupan Lahan</h3>
                   <p className="text-[11px] text-slate-500">
-                    Kaitkan item acuan ini ke tutupan lahan proyek untuk valuasi.
+                    Kaitkan item acuan ini ke tutupan lahan program untuk valuasi.
                   </p>
                 </div>
               </div>
@@ -2185,7 +2185,7 @@ export const DataMasterPage: React.FC = () => {
 
               <div>
                 <label htmlFor="link-landcover-select" className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Pilih Tutupan Lahan Proyek Tujuan <span className="text-rose-500">*</span>
+                  Pilih Tutupan Lahan Program Tujuan <span className="text-rose-500">*</span>
                 </label>
                 {projectLandCovers.length > 0 ? (
                   <select
@@ -2204,7 +2204,7 @@ export const DataMasterPage: React.FC = () => {
                   </select>
                 ) : (
                   <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-                    Proyek belum memiliki tutupan lahan terdaftar. Silakan atur di Tahap 01/02 terlebih dahulu.
+                    Program belum memiliki tutupan lahan terdaftar. Silakan atur di Tahap 01/02 terlebih dahulu.
                   </div>
                 )}
               </div>
@@ -2254,7 +2254,7 @@ export const DataMasterPage: React.FC = () => {
                 </h3>
                 <p className="text-xs text-slate-500 max-w-md mx-auto">
                   Sistem akan secara otomatis mendaftarkan katalog biota dan layanan standar (Provisioning,
-                  Regulating, Supporting, Cultural) untuk seluruh tutupan lahan pada proyek{' '}
+                  Regulating, Supporting, Cultural) untuk seluruh tutupan lahan pada program{' '}
                   <strong className="text-slate-800">{namaProyek}</strong> ({wilayahPenelitian}).
                 </p>
               </div>
@@ -2263,7 +2263,7 @@ export const DataMasterPage: React.FC = () => {
                 <div className="font-semibold text-slate-800">Manfaat penerapan template:</div>
                 <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-600">
                   <li>Mengisi otomatis 8 parameter jasa ekosistem standar per tutupan lahan.</li>
-                  <li>Langsung terhubung dengan status "Digunakan" pada indeks proyek.</li>
+                  <li>Langsung terhubung dengan status "Digunakan" pada indeks program.</li>
                   <li>Siap dihitung langsung pada Tahap 06 Data Valuasi.</li>
                 </ul>
               </div>

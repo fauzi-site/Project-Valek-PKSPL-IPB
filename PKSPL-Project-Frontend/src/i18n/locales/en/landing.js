@@ -1,6 +1,6 @@
 export default {
   hero: {
-    title: "Economic Valuation System for Coastal and Marine Resources",
+    title: "Economic Valuation System for Natural Resources",
     description: "Digital platform supporting data collection, analysis, and economic valuation of Indonesian coastal and marine ecosystems.",
     exploreMap: "Explore Map",
     learnPlatform: "Learn About Platform"

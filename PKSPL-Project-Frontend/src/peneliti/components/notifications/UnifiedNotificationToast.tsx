@@ -114,8 +114,8 @@ export const UnifiedNotificationToast: React.FC<UnifiedNotificationToastProps> =
       if (status === 'DALAM_REVIEW') {
         const notifPayload = {
           type: 'DALAM_REVIEW' as NotificationType,
-          title: 'Proyek Masuk Tahap Review oleh Validator',
-          message: notes || `Proyek ${effectiveCode} sedang ditelaah secara mendalam oleh ${effectiveReviewer}.`,
+          title: 'Program Masuk Tahap Review oleh Validator',
+          message: notes || `Program ${effectiveCode} sedang ditelaah secara mendalam oleh ${effectiveReviewer}.`,
           projectId: String(projectId),
           projectCode: effectiveCode,
           projectName: effectiveName,
@@ -159,7 +159,7 @@ export const UnifiedNotificationToast: React.FC<UnifiedNotificationToastProps> =
           showToast({
             id: `toast-${Date.now()}`,
             type: 'DALAM_REVIEW',
-            title: 'Proyek Masuk Tahap Review',
+            title: 'Program Masuk Tahap Review',
             message: `Validator (${effectiveReviewer}) sedang menelaah data spasial & kalkulasi TEV Anda.`,
             projectCode: effectiveCode,
             projectName: effectiveName,
@@ -229,7 +229,7 @@ export const UnifiedNotificationToast: React.FC<UnifiedNotificationToastProps> =
         const notifPayload = {
           type: 'SELESAI' as NotificationType,
           title: 'Validasi Selesai & Review Disetujui',
-          message: `Proyek ${effectiveCode} telah dinyatakan VALID dan SELESAI oleh ${effectiveReviewer}. Laporan akhir siap diunduh.`,
+          message: `Program ${effectiveCode} telah dinyatakan VALID dan SELESAI oleh ${effectiveReviewer}. Laporan akhir siap diunduh.`,
           projectId: String(projectId),
           projectCode: effectiveCode,
           projectName: effectiveName,
@@ -256,7 +256,7 @@ export const UnifiedNotificationToast: React.FC<UnifiedNotificationToastProps> =
             id: `email-${Date.now()}`,
             type: 'SELESAI',
             title: '📧 Notifikasi Persetujuan Terkirim ke Email',
-            message: `Pemberitahuan persetujuan proyek telah dikirimkan ke ${dispatched.toEmail}.`,
+            message: `Pemberitahuan persetujuan program telah dikirimkan ke ${dispatched.toEmail}.`,
             projectCode: effectiveCode,
             projectName: effectiveName,
             reviewer: effectiveReviewer,
@@ -270,7 +270,7 @@ export const UnifiedNotificationToast: React.FC<UnifiedNotificationToastProps> =
           showToast({
             id: `toast-${Date.now()}`,
             type: 'SELESAI',
-            title: 'Persetujuan Final: Proyek Selesai & Valid',
+            title: 'Persetujuan Final: Program Selesai & Valid',
             message: `Kajian valuasi ekonomi telah disetujui oleh ${effectiveReviewer}. Seluruh perhitungan dinyatakan valid.`,
             projectCode: effectiveCode,
             projectName: effectiveName,

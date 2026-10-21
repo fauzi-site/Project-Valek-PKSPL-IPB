@@ -69,7 +69,7 @@ export const ReportPrintView: React.FC = () => {
             setFetchedProject({
               id: String(data.id_proyek || data.id),
               code: data.kode_proyek || data.code || `PRJ-${String(data.id_proyek).padStart(3, '0')}`,
-              name: data.nama_proyek || data.name || 'Proyek Valuasi',
+              name: data.nama_proyek || data.name || 'Program Valuasi',
               description: data.deskripsi || data.description || '',
               lead: data.user?.nama || data.lead || 'Peneliti Utama',
               location: data.location || data.alamat_lengkap || '-',
@@ -587,7 +587,7 @@ export const ReportPrintView: React.FC = () => {
         <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full text-center">
           <EmptyState
             title="Laporan Tidak Ditemukan"
-            description={`Data proyek dengan ID "${effectiveProjId}" tidak ditemukan atau gagal dimuat.`}
+            description={`Data program dengan ID "${effectiveProjId}" tidak ditemukan atau gagal dimuat.`}
             actionText="Kembali"
             onAction={handleBack}
           />
@@ -708,7 +708,7 @@ export const ReportPrintView: React.FC = () => {
           className="inline-flex items-center justify-center gap-2 h-9 px-4 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs whitespace-nowrap cursor-pointer shrink-0"
         >
           <ArrowLeft className="w-4 h-4 shrink-0" />
-          <span>{isSuperAdmin ? 'Kembali ke Manajemen Proyek' : 'Kembali ke Review & Laporan'}</span>
+          <span>{isSuperAdmin ? 'Kembali ke Manajemen Program' : 'Kembali ke Review & Laporan'}</span>
         </button>
 
         <div className="text-center text-[11px] text-slate-600 px-2 leading-relaxed max-w-md mx-auto">
@@ -747,7 +747,7 @@ export const ReportPrintView: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
             <div className="space-y-1.5">
               <div className="flex items-start">
-                <span className="w-32 text-slate-500 font-medium shrink-0">Kode Proyek</span>
+                <span className="w-32 text-slate-500 font-medium shrink-0">Kode Program</span>
                 <span className="w-3 text-slate-600 shrink-0 text-left">:</span>
                 <span className="font-mono font-bold text-slate-900 flex-1">{currentProject?.code || '-'}</span>
               </div>
@@ -1049,7 +1049,7 @@ export const ReportPrintView: React.FC = () => {
               ) : (
                 <tr>
                   <td colSpan={4} className="py-3 px-3 text-center text-slate-400 italic">
-                    Tidak ada jasa ekosistem yang diaktifkan untuk proyek ini.
+                    Tidak ada jasa ekosistem yang diaktifkan untuk program ini.
                   </td>
                 </tr>
               )}
@@ -1265,7 +1265,7 @@ export const ReportPrintView: React.FC = () => {
               ) : (
                 <tr>
                   <td colSpan={5} className="py-3 px-3 text-center text-slate-400 italic">
-                    Tidak ada jasa ekosistem yang diaktifkan untuk proyek ini.
+                    Tidak ada jasa ekosistem yang diaktifkan untuk program ini.
                   </td>
                 </tr>
               )}
@@ -1548,7 +1548,7 @@ export const ReportPrintView: React.FC = () => {
           {/* Footer Publikasi Dokumen Resmi */}
           <div className="pt-3 border-t border-slate-300 flex flex-col sm:flex-row items-center justify-between text-[10px] text-slate-500 font-mono gap-1 mt-3">
             <div>PUSAT KAJIAN SUMBERDAYA PESISIR DAN LAUT (PKSPL) — IPB UNIVERSITY</div>
-            <div>Dokumen Laporan Ilmiah Valuasi Ekonomi | Kode Proyek: {currentProject?.code || '-'}</div>
+            <div>Dokumen Laporan Ilmiah Valuasi Ekonomi | Kode Program: {currentProject?.code || '-'}</div>
           </div>
         </section>
 

@@ -392,7 +392,7 @@ export const IndexPage: React.FC = () => {
       setIsCreateModalOpen(false);
       setEditingIndex(null);
     } catch {
-      toast.error('Index atau Tutupan Lahan gagal disimpan. Periksa koneksi dan data proyek.');
+      toast.error('Index atau Tutupan Lahan gagal disimpan. Periksa koneksi dan data program.');
     } finally {
       setFormSaving(false);
     }
@@ -431,7 +431,7 @@ export const IndexPage: React.FC = () => {
             <span>Index Tutupan Lahan</span>
           </h1>
           <p className="text-xs md:text-sm text-slate-500 mt-1">
-            {currentProject?.name || activeProject?.name || 'Proyek'} • Kelola identitas wilayah tutupan lahan secara mandiri dengan atau tanpa data spasial SHP.
+            {currentProject?.name || activeProject?.name || 'Program'} • Kelola identitas wilayah tutupan lahan secara mandiri dengan atau tanpa data spasial SHP.
           </p>
         </div>
 

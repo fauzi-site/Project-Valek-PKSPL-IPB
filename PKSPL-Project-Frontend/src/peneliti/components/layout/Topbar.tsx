@@ -124,7 +124,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar, onToggleMobileS
                 : data.status === 'REVISI'
                 ? 'Permintaan Catatan dari Validator'
                 : 'Pembaruan Status Telaah',
-              message: data.notes || `Proyek ${data.projectCode} statusnya kini ${data.status} oleh ${data.reviewer || 'Validator'}.`,
+              message: data.notes || `Program ${data.projectCode} statusnya kini ${data.status} oleh ${data.reviewer || 'Validator'}.`,
               projectCode: data.projectCode,
               projectName: data.projectName,
               reviewer: data.reviewer,
@@ -173,7 +173,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar, onToggleMobileS
 
   // Extract step from path
   const pathParts = location.pathname.split('/').filter(Boolean);
-  let currentStepName = '01 Daftar Proyek';
+  let currentStepName = '01 Daftar Program';
   if (pathParts.includes('maps')) currentStepName = '02 Maps Spasial';
   else if (pathParts.includes('index')) currentStepName = '03 Index Kawasan';
   else if (pathParts.includes('data-master')) currentStepName = '04 Data Master';
@@ -283,7 +283,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar, onToggleMobileS
             <select
               id="topbar-project-select"
               name="selectedProjectId"
-              aria-label="Pilih Proyek Aktif"
+              aria-label="Pilih Program Aktif"
               value={selectedProjId}
               onChange={handleProjectSelect}
               className="text-xs bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded px-2 py-1 text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 w-[95px] xs:w-[130px] sm:w-[160px] md:w-auto md:max-w-[200px] lg:max-w-xs truncate cursor-pointer shrink"
@@ -481,7 +481,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar, onToggleMobileS
                       : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                   }`}
                 >
-                  Status Proyek
+                  Status Program
                 </button>
                 <button
                   onClick={() => setActiveTab('messages')}
@@ -517,7 +517,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar, onToggleMobileS
                       </div>
                       <p className="text-xs font-semibold text-slate-600">Belum Ada Email Notifikasi Terkirim</p>
                       <p className="text-[11px] text-slate-400 leading-relaxed max-w-xs mx-auto">
-                        Jika Peneliti dalam kondisi offline saat analis mengubah status proyek atau mengirim pesan, surat email otomatis akan tercatat di sini.
+                        Jika Peneliti dalam kondisi offline saat analis mengubah status program atau mengirim pesan, surat email otomatis akan tercatat di sini.
                       </p>
                     </div>
                   ) : (

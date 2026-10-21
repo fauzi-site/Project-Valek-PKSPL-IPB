@@ -98,7 +98,7 @@ export const AdminSidebar = ({
       badge: '38',
     },
     {
-      title: 'Manajemen Proyek',
+      title: 'Manajemen Program',
       path: '/admin/projects',
       icon: FolderKanban,
       badge: '18',

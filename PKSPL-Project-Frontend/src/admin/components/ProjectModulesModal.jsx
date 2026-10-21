@@ -36,7 +36,7 @@ export const ProjectModulesModal = ({ isOpen, onClose, project }) => {
     project.code ||
     project.kode_proyek ||
     (project.id_proyek ? `PRJ-${String(project.id_proyek).padStart(3, '0')}` : String(project.id || '-'));
-  const effectiveName = project.name || project.nama_proyek || 'Proyek Valuasi';
+  const effectiveName = project.name || project.nama_proyek || 'Program Valuasi';
   const effectiveLead = project.lead || project.user?.nama || 'Peneliti PKSPL';
   const effectiveLocation = project.location || project.alamat_lengkap || 'Indonesia';
   const effectiveArea = Number(project.areaHa ?? project.luas ?? 100);
@@ -120,7 +120,7 @@ export const ProjectModulesModal = ({ isOpen, onClose, project }) => {
                 </h3>
               </div>
               <p className="text-xs sm:text-sm text-slate-600">
-                Lihat hasil lengkap laporan valuasi ekonomi proyek ini.
+                Lihat hasil lengkap laporan valuasi ekonomi program ini.
               </p>
             </div>
             <button

@@ -109,7 +109,7 @@ export const ADMIN_ACTIVITY_LOGS = [
     id: 'ACT-01',
     userName: 'Dr. Ir. Retno Wulandari',
     userRole: 'Peneliti',
-    action: 'Mengajukan dokumen final proyek',
+    action: 'Mengajukan dokumen final program',
     target: 'Revitalisasi Mangrove Teluk Benoa (PKS-994KY1)',
     timestamp: '15 Menit lalu',
     category: 'review',
@@ -160,8 +160,8 @@ export const ADMIN_ACTIVITY_LOGS = [
 export const ADMIN_NOTIFICATIONS = [
   {
     id: 'NOTIF-01',
-    title: 'Pembaruan Data Proyek',
-    message: 'Proyek PKS-994KY1 telah diperbarui oleh Dr. Retno Wulandari.',
+    title: 'Pembaruan Data Program',
+    message: 'Program PKS-994KY1 telah diperbarui oleh Dr. Retno Wulandari.',
     timestamp: '15 Menit lalu',
     read: false,
     type: 'info'

@@ -711,9 +711,9 @@ const AnalyticsPageContent: React.FC = () => {
     return (
       <div className="p-8 max-w-2xl mx-auto my-12 bg-white border border-slate-200 rounded-lg shadow-sm text-center">
         <EmptyState
-          title="Project Tidak Ditemukan"
-          description={`Project dengan kode atau ID "${routeProjId}" tidak ditemukan di sistem.`}
-          actionText="Kembali ke Daftar Proyek"
+          title="Program Tidak Ditemukan"
+          description={`Program dengan kode atau ID "${routeProjId}" tidak ditemukan di sistem.`}
+          actionText="Kembali ke Daftar Program"
           onAction={() => navigate('/peneliti/projects')}
         />
       </div>
@@ -1840,7 +1840,7 @@ const AnalyticsPageContent: React.FC = () => {
 export const AnalyticsPage: React.FC = () => (
   <ErrorBoundary
     fallbackTitle="Terjadi masalah saat memuat Analitik & Visualisasi."
-    fallbackMessage="Komponen analitik mengalami kendala render. Silakan coba muat ulang halaman atau pilih proyek lain."
+    fallbackMessage="Komponen analitik mengalami kendala render. Silakan coba muat ulang halaman atau pilih program lain."
   >
     <AnalyticsPageContent />
   </ErrorBoundary>

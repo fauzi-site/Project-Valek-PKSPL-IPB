@@ -233,7 +233,7 @@ export default function MapSection() {
       setLocations(validProjects);
     } catch (err) {
       console.error('Error loading public map projects:', err);
-      setError('Data proyek tidak dapat dimuat.');
+      setError('Data program tidak dapat dimuat.');
       setLocations([]);
     } finally {
       setIsLoading(false);
@@ -711,7 +711,7 @@ export default function MapSection() {
                         }}
                         className="w-full flex items-center justify-center space-x-1.5 bg-[#0f284e] hover:bg-[#153a70] text-white py-2 rounded-lg transition-colors text-xs font-semibold shadow-2xs cursor-pointer"
                       >
-                        <span>{t('map.viewProjectDetail', 'Lihat Detail Proyek')}</span>
+                        <span>{t('map.viewProjectDetail', 'Lihat Detail Program')}</span>
                         <ChevronRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
