@@ -25,7 +25,8 @@ import {
   RotateCcw,
   ArrowUp,
   ArrowDown,
-  ArrowUpDown
+  ArrowUpDown,
+  Loader2
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -104,9 +105,16 @@ export const IndexPage: React.FC = () => {
 
   // Resolve current project's land covers
   const landCovers = useMemo(() => {
-    const list = getProjectLandCovers ? getProjectLandCovers(routeProjId) : defaultLandCovers;
-    return (list && list.length > 0) ? list : (defaultLandCovers || []);
-  }, [getProjectLandCovers, routeProjId, defaultLandCovers]);
+    const list = getProjectLandCovers ? getProjectLandCovers(effectiveProjectId) : [];
+    const raw = (list && list.length > 0) ? list : [];
+    return raw.filter(
+      (lc) =>
+        !lc.id?.startsWith('poly-idx-') &&
+        !lc.id?.startsWith('boundary-poly-') &&
+        lc.properties?.type !== 'index_polygon' &&
+        lc.properties?.type !== 'project_boundary'
+    );
+  }, [getProjectLandCovers, effectiveProjectId]);
 
   // Unique list of land cover names already existing in this project
   const existingLandCoverNames = useMemo(() => {
@@ -120,47 +128,12 @@ export const IndexPage: React.FC = () => {
 
   // Resolve current project's indices
   const indices = useMemo(() => {
-    const list = getProjectIndices ? getProjectIndices(routeProjId) : defaultIndices;
-    if (list && list.length > 0) return list;
-    if (defaultIndices && defaultIndices.length > 0) return defaultIndices;
-
-    // Fallback: auto-derive index items from project land covers if available
-    if (landCovers && landCovers.length > 0) {
-      const derivedMap = new Map<string, IndexItem>();
-      landCovers.forEach((lc, idx) => {
-        const code = lc.indexCode || `IDX-${String(idx + 1).padStart(3, '0')}`;
-        const name = lc.indexName || lc.name || `Index ${idx + 1}`;
-        const key = lc.indexId || code;
-
-        if (!derivedMap.has(key)) {
-          derivedMap.set(key, {
-            id: key,
-            code,
-            name,
-            landCoverType: lc.type || 'Lainnya',
-            landCoverName: lc.name,
-            landCoverId: lc.id,
-            polygonId: lc.id,
-            areaHa: Number(lc.areaHa) || 0,
-            unit: 'ha',
-            description: `Tutupan lahan (${name})`,
-            status: 'Draft',
-            spatialStatus: (lc.coordinates && lc.coordinates.length > 0) ? 'connected' : 'unconnected',
-            createdAt: new Date().toISOString().split('T')[0],
-          });
-        } else {
-          const item = derivedMap.get(key)!;
-          item.areaHa = Number((item.areaHa + (Number(lc.areaHa) || 0)).toFixed(2));
-          if (lc.coordinates && lc.coordinates.length > 0) {
-            item.spatialStatus = 'connected';
-          }
-        }
-      });
-      return Array.from(derivedMap.values());
+    if (getProjectIndices) {
+      const list = getProjectIndices(effectiveProjectId);
+      if (Array.isArray(list)) return list;
     }
-
     return [];
-  }, [getProjectIndices, routeProjId, defaultIndices, landCovers]);
+  }, [getProjectIndices, effectiveProjectId]);
 
   // Ordinal label map: index id/code → "Index 1", "Index 2", ...
   const indexLabelMap = useMemo(() => buildIndexLabelMap(indices), [indices]);
@@ -172,18 +145,28 @@ export const IndexPage: React.FC = () => {
   const [formLandCovers, setFormLandCovers] = useState([{ name: '', areaHa: 75 }]);
   const [formSaving, setFormSaving] = useState(false);
   const [indexToDelete, setIndexToDelete] = useState<IndexItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const getLinkedLandCovers = (item: IndexItem): LandCoverPolygon[] => {
     return landCovers.filter(lc =>
-      (item.id && lc.indexId === item.id) ||
+      !lc.id?.startsWith('poly-idx-') &&
+      !lc.id?.startsWith('boundary-poly-') &&
+      lc.properties?.type !== 'index_polygon' &&
+      lc.properties?.type !== 'project_boundary' &&
+      ((item.id && lc.indexId === item.id) ||
       (item.code && lc.indexCode === item.code) ||
       (item.landCoverId && lc.id === item.landCoverId) ||
-      (item.polygonId && lc.id === item.polygonId)
+      (item.polygonId && lc.id === item.polygonId))
     );
   };
 
   // Helper to check spatial connection
   const checkIsConnected = (item: IndexItem): boolean => {
+    if (item.spatialStatus === 'connected') return true;
+    if ((item as any).geometry && (
+      ((item as any).geometry.coordinates && (item as any).geometry.coordinates.length > 0) ||
+      (typeof (item as any).geometry === 'string' && (item as any).geometry.length > 10)
+    )) return true;
     const linked = getLinkedLandCovers(item);
     return linked.some(lc => Array.isArray(lc.coordinates) && lc.coordinates.length > 0);
   };
@@ -231,8 +214,8 @@ export const IndexPage: React.FC = () => {
       } else if (sortCol === 'LUAS') {
         const linkedA = getLinkedLandCovers(a);
         const linkedB = getLinkedLandCovers(b);
-        valA = linkedA.length > 0 ? linkedA.reduce((s, lc) => s + (Number(lc.areaHa) || 0), 0) : (Number(a.areaHa) || 0);
-        valB = linkedB.length > 0 ? linkedB.reduce((s, lc) => s + (Number(lc.areaHa) || 0), 0) : (Number(b.areaHa) || 0);
+        valA = (Number(a.areaHa) > 0) ? Number(a.areaHa) : (linkedA.length > 0 ? linkedA.reduce((s, lc) => s + (Number(lc.areaHa) || 0), 0) : 0);
+        valB = (Number(b.areaHa) > 0) ? Number(b.areaHa) : (linkedB.length > 0 ? linkedB.reduce((s, lc) => s + (Number(lc.areaHa) || 0), 0) : 0);
       } else if (sortCol === 'SPASIAL') {
         valA = checkIsConnected(a) ? 1 : 0;
         valB = checkIsConnected(b) ? 1 : 0;
@@ -247,12 +230,19 @@ export const IndexPage: React.FC = () => {
   // Overall Statistics for quick KPI cards
   const stats = useMemo(() => {
     const totalIndices = indices.length;
-    const totalCovers = landCovers.length;
+    // Calculate total actual tutupan lahan across all indices
+    const totalCovers = indices.reduce((sum, item) => {
+      const linked = getLinkedLandCovers(item);
+      const names = linked.length > 0
+        ? Array.from(new Set(linked.map(lc => lc.name).filter(Boolean)))
+        : (item.landCoverName && item.landCoverName !== item.name && !item.landCoverName.startsWith('Index ') ? [item.landCoverName] : []);
+      return sum + names.length;
+    }, 0);
     const totalLuas = indices.reduce((sum, item) => {
       const linked = getLinkedLandCovers(item);
-      const luas = linked.length > 0
-        ? linked.reduce((s, lc) => s + (Number(lc.areaHa) || 0), 0)
-        : (Number(item.areaHa) || 0);
+      const luas = (Number(item.areaHa) > 0)
+        ? Number(item.areaHa)
+        : (linked.length > 0 ? linked.reduce((s, lc) => s + (Number(lc.areaHa) || 0), 0) : 0);
       return sum + luas;
     }, 0);
     const connectedCount = indices.filter(checkIsConnected).length;
@@ -360,7 +350,7 @@ export const IndexPage: React.FC = () => {
     setFormCode(index.code);
     setFormNumber(existingNum);
     setFormDesc(index.description || '');
-    setFormLandCovers(rows.length ? rows : [{ name: index.landCoverName || '', areaHa: index.areaHa || 50 }]);
+    setFormLandCovers(rows);
     setIsCreateModalOpen(true);
   };
 
@@ -376,7 +366,7 @@ export const IndexPage: React.FC = () => {
       return;
     }
 
-    if (formLandCovers.length === 0 || formLandCovers.some((lc) => !lc.name.trim() || !(Number(lc.areaHa) > 0))) {
+    if (formLandCovers.length > 0 && formLandCovers.some((lc) => !lc.name.trim() || !(Number(lc.areaHa) > 0))) {
       toast.error('Nama dan luas (harus > 0) setiap Tutupan Lahan wajib diisi.');
       return;
     }
@@ -627,14 +617,18 @@ export const IndexPage: React.FC = () => {
                 pagedIndices.map((item) => {
                   const linked = getLinkedLandCovers(item);
                   const isConnected = checkIsConnected(item);
-                  const calculatedArea = linked.length > 0
-                    ? linked.reduce((sum, lc) => sum + (Number(lc.areaHa) || 0), 0)
-                    : (Number(item.areaHa) || 0);
+                  const calculatedArea = (Number(item.areaHa) > 0)
+                    ? Number(item.areaHa)
+                    : (linked.length > 0
+                        ? linked.reduce((sum, lc) => sum + (Number(lc.areaHa) || 0), 0)
+                        : 0);
 
                   const coverNames = linked.length > 0
                     ? Array.from(new Set(linked.map((lc) => lc.name).filter(Boolean)))
-                    : (item.landCoverName ? [item.landCoverName] : []);
-                  const count = linked.length > 0 ? linked.length : coverNames.length;
+                    : (item.landCoverName && item.landCoverName !== item.name && !item.landCoverName.startsWith('Index ')
+                        ? [item.landCoverName]
+                        : []);
+                  const count = coverNames.length;
 
                   // Limit display to max 3 items
                   const maxDisplay = 3;
@@ -645,13 +639,13 @@ export const IndexPage: React.FC = () => {
                     <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
                       {/* Index Label */}
                       <td className="py-3.5 px-4 font-semibold text-blue-700">
-                        <span>{indexLabelMap.get(item.code) ?? indexLabelMap.get(item.id) ?? '—'}</span>
+                        <span>{indexLabelMap.get(item.code) ?? indexLabelMap.get(item.id) ?? item.name ?? '—'}</span>
                       </td>
 
                       {/* Area Tutupan Lahan (Maksimal 3 Baris + ... jika lebih + Jumlah Tutupan Lahan setelahnya) */}
                       <td className="py-3.5 px-4 text-slate-700 max-w-[320px]">
                         <div className="space-y-1 py-0.5">
-                          {coverNames.length === 0 ? (
+                          {count === 0 ? (
                             <span className="text-slate-400 italic text-[11px]">Belum ada tutupan lahan</span>
                           ) : (
                             <div className="space-y-0.5 text-xs text-slate-800 leading-snug">
@@ -669,7 +663,11 @@ export const IndexPage: React.FC = () => {
                             </div>
                           )}
                           <div className="pt-0.5">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-mono font-bold">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                              count === 0
+                                ? 'bg-slate-100 text-slate-600 border border-slate-200'
+                                : 'bg-blue-50 text-blue-700 border border-blue-200'
+                            }`}>
                               {count} tutupan lahan
                             </span>
                           </div>
@@ -932,39 +930,53 @@ export const IndexPage: React.FC = () => {
                     </datalist>
 
                     <div className="space-y-2 overflow-y-auto pr-1 flex-1 mt-2">
-                      {formLandCovers.map((landCover, index) => (
-                        <div key={index} className="grid grid-cols-[1fr_100px_auto] gap-2 items-start p-2.5 bg-white border border-slate-200 rounded-lg shadow-2xs">
-                          <div className="min-w-0">
-                            <label className="block text-[10px] text-slate-500 mb-0.5">Nama Tutupan</label>
-                            <input
-                              list="existing-land-cover-suggestions"
-                              value={landCover.name}
-                              onChange={(e) => setFormLandCovers((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, name: e.target.value } : item))}
-                              placeholder="Ketik atau pilih nama tutupan (misal: Hutan Mangrove)"
-                              className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
-                              required
-                            />
-                            {landCover.name && existingLandCoverNames.includes(landCover.name.trim()) && (
-                              <div className="flex items-center gap-1 mt-1 text-[10px] text-blue-700 bg-blue-50/80 px-2 py-0.5 rounded border border-blue-200/60 font-medium">
-                                <CheckCircle2 className="w-3 h-3 text-blue-600 shrink-0" />
-                                <span>Tercatat di index lain • Luas akan digabungkan di analitik</span>
-                              </div>
-                            )}
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-slate-500 mb-0.5">Luas (Ha)</label>
-                            <input
-                              type="number"
-                              min="0.01"
-                              step="0.01"
-                              value={landCover.areaHa}
-                              onChange={(e) => setFormLandCovers((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, areaHa: Number(e.target.value) } : item))}
-                              className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded text-xs text-right font-mono font-bold"
-                              required
-                            />
-                          </div>
-                          <div className="pt-5">
-                            {formLandCovers.length > 1 && (
+                      {formLandCovers.length === 0 ? (
+                        <div className="p-6 bg-white border border-dashed border-slate-300 rounded-lg text-center space-y-2.5 my-auto">
+                          <p className="text-xs text-slate-500">
+                            Belum ada tutupan lahan untuk index ini.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setFormLandCovers([{ name: '', areaHa: Number(editingIndex?.areaHa) || 50 }])}
+                            className="px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 cursor-pointer shadow-2xs inline-flex items-center gap-1.5"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Tambah Tutupan Lahan</span>
+                          </button>
+                        </div>
+                      ) : (
+                        formLandCovers.map((landCover, index) => (
+                          <div key={index} className="grid grid-cols-[1fr_100px_auto] gap-2 items-start p-2.5 bg-white border border-slate-200 rounded-lg shadow-2xs">
+                            <div className="min-w-0">
+                              <label className="block text-[10px] text-slate-500 mb-0.5">Nama Tutupan</label>
+                              <input
+                                list="existing-land-cover-suggestions"
+                                value={landCover.name}
+                                onChange={(e) => setFormLandCovers((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, name: e.target.value } : item))}
+                                placeholder="Ketik atau pilih nama tutupan (misal: Hutan Mangrove)"
+                                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
+                                required
+                              />
+                              {landCover.name && existingLandCoverNames.includes(landCover.name.trim()) && (
+                                <div className="flex items-center gap-1 mt-1 text-[10px] text-blue-700 bg-blue-50/80 px-2 py-0.5 rounded border border-blue-200/60 font-medium">
+                                  <CheckCircle2 className="w-3 h-3 text-blue-600 shrink-0" />
+                                  <span>Tercatat di index lain • Luas akan digabungkan di analitik</span>
+                                </div>
+                              )}
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-slate-500 mb-0.5">Luas (Ha)</label>
+                              <input
+                                type="number"
+                                min="0.01"
+                                step="0.01"
+                                value={landCover.areaHa}
+                                onChange={(e) => setFormLandCovers((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, areaHa: Number(e.target.value) } : item))}
+                                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded text-xs text-right font-mono font-bold"
+                                required
+                              />
+                            </div>
+                            <div className="pt-5">
                               <button
                                 type="button"
                                 onClick={() => setFormLandCovers((current) => current.filter((_, itemIndex) => itemIndex !== index))}
@@ -973,10 +985,10 @@ export const IndexPage: React.FC = () => {
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
-                            )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1080,32 +1092,55 @@ export const IndexPage: React.FC = () => {
               <div className="p-2 bg-rose-100 text-rose-600 rounded-full shrink-0">
                 <AlertCircle className="w-5 h-5" />
               </div>
-              <div>
+              <div className="flex-1">
                 <h3 className="font-bold text-slate-900 text-sm">Hapus Index</h3>
                 <p className="text-xs text-slate-500 mt-1">
-                  Apakah Anda yakin ingin menghapus <strong>{indexLabelMap.get(indexToDelete.code) ?? indexToDelete.code}</strong>? Tindakan ini tidak dapat dibatalkan.
+                  Apakah Anda yakin ingin menghapus <strong>{indexLabelMap.get(indexToDelete.code) ?? indexToDelete.name ?? indexToDelete.code}</strong>? Tindakan ini tidak dapat dibatalkan.
                 </p>
+                {checkIsConnected(indexToDelete) && (
+                  <div className="mt-2.5 p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-800 leading-relaxed">
+                    ⚠️ <strong>Data Spasial Terhubung:</strong> Index ini memiliki data spasial di peta. Menghapus index ini akan sekaligus menghapus polygon terkait di halaman Maps.
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => setIndexToDelete(null)}
                 className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold cursor-pointer"
+                disabled={isDeleting}
               >
                 Batal
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  deleteIndex(indexToDelete.id);
-                  toast.success('Index berhasil dihapus.');
-                  setIndexToDelete(null);
+                disabled={isDeleting}
+                onClick={async () => {
+                  if (!indexToDelete) return;
+                  setIsDeleting(true);
+                  try {
+                    await deleteIndex(indexToDelete.id, effectiveProjectId);
+                    toast.success(`Index ${indexLabelMap.get(indexToDelete.code) ?? indexToDelete.name ?? indexToDelete.code} berhasil dihapus.`);
+                    setIndexToDelete(null);
+                  } catch (err: any) {
+                    console.error('[IndexPage] Gagal menghapus index:', err);
+                    toast.error(err?.message || 'Gagal menghapus index dari server.');
+                  } finally {
+                    setIsDeleting(false);
+                  }
                 }}
-                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold shadow-xs cursor-pointer"
+                className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-xs cursor-pointer flex items-center gap-1.5"
               >
-                Hapus
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Menghapus...</span>
+                  </>
+                ) : (
+                  <span>Hapus</span>
+                )}
               </button>
             </div>
           </div>

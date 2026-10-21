@@ -420,14 +420,25 @@ class ProyekController extends ApiResourceController
             }
         }
 
-        // 2. Kosongkan atribut spasial dan geometri di database
-        $proyek->update([
-            'shapefile_files' => null,
-            'geometry' => null,
-            'latitude' => null,
-            'longitude' => null,
-            'luas' => null,
-        ]);
+        // 2. Kosongkan atribut spasial shapefile di database (tetap pertahankan geometry jika bersumber manual)
+        $isManualGeometry = false;
+        if (!empty($proyek->geometry)) {
+            $geom = is_string($proyek->geometry) ? json_decode($proyek->geometry, true) : $proyek->geometry;
+            $firstProps = $geom['features'][0]['properties'] ?? [];
+            if ((isset($firstProps['source']) && strtolower((string) $firstProps['source']) === 'manual') ||
+                (isset($firstProps['sumber']) && str_contains(strtolower((string) $firstProps['sumber']), 'manual'))) {
+                $isManualGeometry = true;
+            }
+        }
+
+        $updates = ['shapefile_files' => null];
+        if (!$isManualGeometry) {
+            $updates['geometry'] = null;
+            $updates['latitude'] = null;
+            $updates['longitude'] = null;
+            $updates['luas'] = null;
+        }
+        $proyek->update($updates);
 
         // 3. Tangani indeks: konfirmasi apakah indeks terdaftar juga ikut dihapus
         $deleteIndices = $request->boolean('delete_indices')

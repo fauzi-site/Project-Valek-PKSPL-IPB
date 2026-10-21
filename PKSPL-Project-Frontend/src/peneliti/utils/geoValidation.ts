@@ -88,3 +88,140 @@ export function filterValidPolygons<T extends { coordinates?: any }>(items: T[] 
   if (!items || !Array.isArray(items)) return [];
   return items.filter(item => isValidPolygonCoordinates(item.coordinates));
 }
+
+/**
+ * Calculates geodesic area in Hectares (Ha) for a polygon ring using spherical excess
+ * on the WGS 84 ellipsoid radius (6,378,137 m).
+ *
+ * @param coords Array of [latitude, longitude] pairs
+ * @returns Geodesic area in hectares rounded to 2 decimal places
+ */
+export function calculateGeodesicAreaHa(coords: [number, number][]): number {
+  if (!coords || !Array.isArray(coords) || coords.length < 3) return 0;
+
+  // Filter valid points
+  const valid = coords.filter(p => isValidPoint(p));
+  if (valid.length < 3) return 0;
+
+  // Ensure ring is closed
+  const points = [...valid];
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (Math.abs(first[0] - last[0]) > 0.0000001 || Math.abs(first[1] - last[1]) > 0.0000001) {
+    points.push([first[0], first[1]]);
+  }
+
+  let totalExcess = 0;
+  const rad = Math.PI / 180;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    totalExcess += (p2[1] - p1[1]) * rad * (2 + Math.sin(p1[0] * rad) + Math.sin(p2[0] * rad));
+  }
+
+  const radius = 6378137; // WGS 84 major radius in meters
+  const areaSqMeters = Math.abs((totalExcess * radius * radius) / 2.0);
+  const areaHa = areaSqMeters / 10000.0;
+
+  return Number(areaHa.toFixed(2));
+}
+
+/**
+ * Calculates bounding-box or average centroid [lat, lng] for a polygon ring.
+ */
+export function calculatePolygonCentroid(coords: [number, number][]): [number, number] {
+  if (!coords || coords.length === 0) return [-2.5, 118]; // Default Indonesia center
+  let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+  let count = 0;
+
+  coords.forEach(([lat, lng]) => {
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+      count++;
+    }
+  });
+
+  if (count === 0 || !Number.isFinite(minLat)) return [-2.5, 118];
+  return [Number(((minLat + maxLat) / 2).toFixed(6)), Number(((minLng + maxLng) / 2).toFixed(6))];
+}
+
+/**
+ * Validates a manual polygon before saving.
+ */
+export function validateManualPolygon(coords: [number, number][]): { valid: boolean; reason?: string } {
+  if (!coords || !Array.isArray(coords)) {
+    return { valid: false, reason: 'Titik koordinat tidak boleh kosong.' };
+  }
+  if (coords.length < 3) {
+    return { valid: false, reason: `Polygon harus memiliki minimal 3 titik batas (saat ini ${coords.length} titik).` };
+  }
+
+  // Check distinct points
+  const distinct = new Set<string>();
+  for (const [lat, lng] of coords) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+      return { valid: false, reason: 'Terdapat titik koordinat di luar batas geografis valid (-90 s/d 90 lat, -180 s/d 180 lng).' };
+    }
+    distinct.add(`${lat.toFixed(6)},${lng.toFixed(6)}`);
+  }
+
+  if (distinct.size < 3) {
+    return { valid: false, reason: 'Polygon harus memiliki minimal 3 titik sudut yang berbeda.' };
+  }
+
+  const areaHa = calculateGeodesicAreaHa(coords);
+  if (areaHa <= 0) {
+    return { valid: false, reason: 'Luas polygon bernilai 0 atau tidak valid (titik-titik mungkin sejajar dalam satu garis lurus).' };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Checks whether a single point [lat, lng] is inside a polygon ring using ray-casting.
+ */
+export function isPointInsidePolygon(point: [number, number], polygon: [number, number][]): boolean {
+  if (!polygon || polygon.length < 3) return false;
+  const [lat, lng] = point;
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, yi] = polygon[i];
+    const [xj, yj] = polygon[j];
+    const intersect = ((yi > lng) !== (yj > lng)) &&
+      (lat < ((xj - xi) * (lng - yi)) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * Checks whether an inner polygon is completely contained within an outer polygon.
+ * Returns containment ratio, counts, and validation status.
+ */
+export function isPolygonInsidePolygon(
+  inner: [number, number][],
+  outer: [number, number][]
+): {
+  inside: boolean;
+  outsideCount: number;
+  totalPoints: number;
+} {
+  if (!inner || !outer || inner.length < 3 || outer.length < 3) {
+    return { inside: true, outsideCount: 0, totalPoints: inner?.length || 0 };
+  }
+  let outsideCount = 0;
+  for (const pt of inner) {
+    if (!isPointInsidePolygon(pt, outer)) {
+      outsideCount++;
+    }
+  }
+  return {
+    inside: outsideCount === 0,
+    outsideCount,
+    totalPoints: inner.length,
+  };
+}
+
