@@ -67,6 +67,38 @@ class IndexController extends ApiResourceController
 
     public function destroy(Index $index)
     {
-        return $this->destroyResource($index);
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($index) {
+            $landCoverIds = \Illuminate\Support\Facades\DB::table('jenis_tutupan_lahan')
+                ->where('id_index', $index->id_index)
+                ->pluck('id_jenis_tutupan_lahan')
+                ->toArray();
+
+            if (!empty($landCoverIds)) {
+                \Illuminate\Support\Facades\DB::table('provisioning_service')->whereIn('id_jenis_tutupan_lahan', $landCoverIds)->delete();
+                \Illuminate\Support\Facades\DB::table('regulating_service')->whereIn('id_jenis_tutupan_lahan', $landCoverIds)->delete();
+                \Illuminate\Support\Facades\DB::table('supporting_service')->whereIn('id_jenis_tutupan_lahan', $landCoverIds)->delete();
+                \Illuminate\Support\Facades\DB::table('cultural_service')->whereIn('id_jenis_tutupan_lahan', $landCoverIds)->delete();
+                \Illuminate\Support\Facades\DB::table('hasil_valuasi')->whereIn('id_jenis_tutupan_lahan', $landCoverIds)->delete();
+
+                $possibleValuationTables = [
+                    'valuation_rows',
+                    'valuation_custom_columns',
+                    'area_service_configs',
+                    'active_service_configs',
+                    'selected_methods',
+                    'valuation_row_values',
+                    'valuation_calculated_results',
+                ];
+                foreach ($possibleValuationTables as $tbl) {
+                    if (\Illuminate\Support\Facades\Schema::hasTable($tbl) && \Illuminate\Support\Facades\Schema::hasColumn($tbl, 'id_jenis_tutupan_lahan')) {
+                        \Illuminate\Support\Facades\DB::table($tbl)->whereIn('id_jenis_tutupan_lahan', $landCoverIds)->delete();
+                    }
+                }
+
+                \Illuminate\Support\Facades\DB::table('jenis_tutupan_lahan')->where('id_index', $index->id_index)->delete();
+            }
+
+            return $this->destroyResource($index);
+        });
     }
 }

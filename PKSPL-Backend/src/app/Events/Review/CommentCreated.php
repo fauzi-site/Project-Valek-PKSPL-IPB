@@ -17,7 +17,7 @@ class CommentCreated
     public function __construct(
         public readonly ReviewComment $comment,
         public readonly Review $review,
-        public readonly Proyek $proyek
+        public readonly ?Proyek $proyek = null
     ) {
     }
 }

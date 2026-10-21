@@ -160,8 +160,9 @@ export const ProjectListPage: React.FC = () => {
     setDeleteError('');
     try {
       await deleteProject(project.id);
-    } catch {
-      setDeleteError('Proyek gagal dihapus. Periksa koneksi atau hak akses Anda.');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'Proyek gagal dihapus. Periksa koneksi atau hak akses Anda.';
+      setDeleteError(msg);
     }
   };
 

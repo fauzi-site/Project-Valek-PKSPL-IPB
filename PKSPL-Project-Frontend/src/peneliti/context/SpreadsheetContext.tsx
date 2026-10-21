@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { getMethodSchema, MethodSchema, CustomColumnDefinition, CustomColumnType } from '../types/methodSchemas';
 import { loadFromStorage, saveToStorage } from '../utils/storage';
 import { formatTime } from '../utils/formatter';
-import { EcosystemServiceId } from '../types/valuation';
+import { EcosystemServiceId, normalizeMethods } from '../types/valuation';
 import {
   getValuationRows,
   addValuationRow,
@@ -49,8 +49,8 @@ interface SpreadsheetContextType {
   getGrandTotalForArea: (
     projectId: string,
     areaId: string,
-    activeServices: Record<EcosystemServiceId, boolean>,
-    selectedMethods: Record<EcosystemServiceId, string>,
+    activeServices?: Record<EcosystemServiceId, boolean>,
+    selectedMethods?: Record<EcosystemServiceId, string | string[]>,
     biota?: string
   ) => number;
   rows: Record<string, any>[];
@@ -423,25 +423,25 @@ export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
     projectId: string,
     areaId: string,
     activeServices?: Record<EcosystemServiceId, boolean>,
-    selectedMethods?: Record<EcosystemServiceId, string>,
+    selectedMethods?: Record<EcosystemServiceId, string | string[]>,
     biota: string = 'flora'
   ): number => {
     let grand = 0;
     const services: EcosystemServiceId[] = ['provisioning', 'regulating', 'supporting', 'cultural'];
     const act = activeServices || { provisioning: true, regulating: true, supporting: true, cultural: true };
-    const meth = selectedMethods || ({} as Record<EcosystemServiceId, string>);
+    const meth = selectedMethods || ({} as Record<EcosystemServiceId, string | string[]>);
 
     services.forEach(sId => {
       if (act[sId]) {
-        const mId = meth[sId] || (
-          sId === 'provisioning' ? 'market-price' :
-          sId === 'regulating' ? 'replacement-cost' :
-          sId === 'supporting' ? 'nursery-ground' : 'tcm'
-        );
-        const sub = sId === 'provisioning'
-          ? (getServiceSubtotal(projectId, areaId, sId, mId, 'flora') + getServiceSubtotal(projectId, areaId, sId, mId, 'fauna'))
-          : getServiceSubtotal(projectId, areaId, sId, mId, 'none');
-        grand += (sub || 0);
+        const defaultM = sId === 'provisioning' ? 'market-price' : sId === 'regulating' ? 'replacement-cost' : sId === 'supporting' ? 'nursery-ground' : 'tcm';
+        const methods = normalizeMethods(meth[sId], defaultM);
+
+        methods.forEach(mId => {
+          const sub = sId === 'provisioning'
+            ? (getServiceSubtotal(projectId, areaId, sId, mId, 'flora') + getServiceSubtotal(projectId, areaId, sId, mId, 'fauna'))
+            : getServiceSubtotal(projectId, areaId, sId, mId, 'none');
+          grand += (sub || 0);
+        });
       }
     });
 

@@ -119,6 +119,8 @@ class ProyekResource extends JsonResource
             'geometry' => $this->geometry,
             'shapefile_files' => $this->shapefile_files,
             'hasShp' => !empty($this->shapefile_files),
+            'hasGeometry' => !empty($this->geometry),
+            'hasManual' => !empty($this->geometry),
 
             // Metadata proyek dan timestamp
             'tahun' => $this->tahun,

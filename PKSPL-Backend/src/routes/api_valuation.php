@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Route;
 // ============================================================
 // BAB 8. VALUASI EKONOMI TERINTEGRASI
 // ============================================================
-Route::prefix('v1')->group(function (): void {
+Route::prefix('v1')->middleware('auth:sanctum')->group(function (): void {
     
     // 8.1 MANAJEMEN MODUL VALUASI
     Route::apiResource('valuation-modules', ValuationModuleController::class);
@@ -22,10 +22,10 @@ Route::prefix('v1')->group(function (): void {
     Route::apiResource('costs', CostController::class);
 
     // 8.4 HASIL KALKULASI PROYEK (NPV, BCR, dll)
-    Route::middleware('auth:sanctum')->get('proyek/{proyek}/economic-valuation', [ProjectValuationController::class, 'getResults']);
+    Route::get('proyek/{proyek}/economic-valuation', [ProjectValuationController::class, 'getResults']);
 
     // 8.4.1 ANALITIK VALUASI PER KATEGORI JASA (Filtered strictly by valuation data)
-    Route::middleware('auth:sanctum')->get('proyek/{proyek}/valuation/analytics', [ProjectValuationController::class, 'getAnalytics']);
+    Route::get('proyek/{proyek}/valuation/analytics', [ProjectValuationController::class, 'getAnalytics']);
 });
 
 // ============================================================

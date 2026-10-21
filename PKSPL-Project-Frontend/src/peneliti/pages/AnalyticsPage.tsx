@@ -294,122 +294,177 @@ const AnalyticsPageContent: React.FC = () => {
   const inputSummary = useMemo(() => {
     return relevantLandCovers.flatMap(lc => {
       const cfg = getAreaConfig ? getAreaConfig(lc.id) : null;
-      return SERVICE_IDS.map(sId => {
+      return SERVICE_IDS.flatMap(sId => {
         const meta = SERVICE_META[sId];
         const isActive = cfg?.activeServices ? (cfg.activeServices[sId] ?? true) : true;
-        if (!isActive) return null;
+        if (!isActive) return [];
 
         const configuredMethod = cfg?.selectedMethods?.[sId];
         const configuredBiota = sId === 'provisioning' ? (cfg?.biota || 'flora') : 'none';
 
-        // Retrieve valuation row groups from spreadsheet store
+        // Retrieve valuation row groups from spreadsheet store (multi-method support)
         const rowGroups = getRowsForAreaService
           ? getRowsForAreaService(effectiveProjId, lc.id, sId, configuredMethod, configuredBiota)
           : [];
 
-        // Deduplicate rows across groups
-        const seenRowIds = new Set<string>();
-        const uniqueRows: { r: Record<string, any>; method: string; biota: string }[] = [];
-
-        rowGroups.forEach(grp => {
-          grp.rows.forEach(r => {
-            const rowKey = r.id || `${r.no}_${r.item || ''}_${grp.methodId}_${grp.biota}`;
-            if (!seenRowIds.has(rowKey)) {
-              seenRowIds.add(rowKey);
-              uniqueRows.push({ r, method: grp.methodId, biota: grp.biota });
-            }
-          });
-        });
-
-        // DEFINISI "MEMILIKI DATA": Minimal 1 record data valuasi (length > 0)
-        // Jika tidak ada record data valuasi sama sekali, area TIDAK ditampilkan di jasa ini
-        if (uniqueRows.length === 0) {
-          return null;
+        if (rowGroups.length === 0) {
+          return [];
         }
 
-        const primaryMethod = rowGroups[0]?.methodId || configuredMethod || 'standard';
-        const primaryBiota  = rowGroups[0]?.biota || configuredBiota;
-
-        const items = uniqueRows.map(({ r, method, biota }, idx) => {
+        return rowGroups.map(grp => {
+          const rawMethod = grp.methodId || configuredMethod || 'standard';
+          const method = typeof rawMethod === 'string' ? rawMethod : (rawMethod?.id || rawMethod?.methodId || String(rawMethod));
+          const rawBiota = grp.biota || configuredBiota || 'none';
+          const biota  = typeof rawBiota === 'string' ? rawBiota : String(rawBiota);
           const schema = getMethodSchema(sId, method, biota);
-          const calc = schema.calculateRow(r);
-          const val = (r.totalNilai !== undefined && r.totalNilai !== null && !isNaN(Number(r.totalNilai)))
-            ? Number(r.totalNilai)
-            : (calc.total || 0);
+
+          const items = (grp.rows || []).map((r, idx) => {
+            const calc = schema.calculateRow(r);
+            const val = (r.totalNilai !== undefined && r.totalNilai !== null && !isNaN(Number(r.totalNilai)))
+              ? Number(r.totalNilai)
+              : (calc.total || 0);
+
+            return {
+              id: r.id || `${lc.id}-${sId}-${method}-${biota}-${idx}`,
+              label: r.item || r.komoditas || r.spesies || r.area || r.fungsiPendukung || r.namaAktivitas || r.kegiatan || r.ekosistem || r.tipeEkosistem || `Baris ${r.no || idx + 1}`,
+              value: Math.max(0, val),
+              row: r,
+              serviceId: sId,
+              methodId: method,
+              biota,
+              lcId: lc.id,
+              lcName: lc.name,
+              lcAreaHa: lc.areaHa,
+            };
+          });
+
+          const subtotal = items.reduce((s, i) => s + i.value, 0);
 
           return {
-            id: r.id || `${lc.id}-${sId}-${idx}`,
-            label: r.item || r.komoditas || r.spesies || r.area || r.fungsiPendukung || r.namaAktivitas || r.kegiatan || r.ekosistem || r.tipeEkosistem || `Baris ${r.no || idx + 1}`,
-            value: Math.max(0, val),
-            row: r,
-            serviceId: sId,
-            methodId: method,
+            entryKey   : `${lc.id}_${sId}_${method}_${biota}`,
+            lcId       : lc.id,
+            lcName     : lc.name,
+            lcAreaHa   : lc.areaHa,
+            serviceId  : sId,
+            serviceMeta: meta,
+            method,
             biota,
-            lcId: lc.id,
-            lcName: lc.name,
-            lcAreaHa: lc.areaHa,
+            methodTitle   : schema.methodName || schema.title || method,
+            methodSubtitle: schema.formulaDescription || schema.subtitle || '',
+            isActive   : true,
+            itemCount  : items.length,
+            items,
+            subtotal,
           };
-        });
-
-        const subtotal = items.reduce((s, i) => s + i.value, 0);
-
-        return {
-          entryKey   : `${lc.id}_${sId}`,
-          lcId       : lc.id,
-          lcName     : lc.name,
-          lcAreaHa   : lc.areaHa,
-          serviceId  : sId,
-          serviceMeta: meta,
-          method     : primaryMethod,
-          biota      : primaryBiota,
-          isActive   : true,
-          itemCount  : items.length,
-          items,
-          subtotal,
-        };
-      }).filter((d): d is NonNullable<typeof d> => d !== null && d.itemCount > 0);
+        }).filter(entry => entry.itemCount > 0);
+      });
     });
   }, [relevantLandCovers, effectiveProjId, getAreaConfig, getRowsForAreaService]);
 
-  // Kelompokkan per jasa untuk tampilan ringkasan (hanya area yang memiliki data valuasi)
-  // Area tutupan lahan dengan nama yang sama dikonsolidasikan
-  const inputByService = useMemo(() => {
+  // Kelompokkan per Jasa dan Metode untuk tampilan vertikal & multi-metode
+  const inputByServiceAndMethod = useMemo(() => {
     return SERVICE_IDS.reduce((acc, sId) => {
       const rawEntries = inputSummary.filter(d => d.serviceId === sId);
-      const map = new Map<string, typeof rawEntries[0] & { indexList: string[] }>();
+
+      const methodMap = new Map<string, {
+        methodKey: string;
+        methodId: string;
+        biota: string;
+        methodTitle: string;
+        methodSubtitle: string;
+        subtotal: number;
+        itemCount: number;
+        entriesMap: Map<string, {
+          entryKey: string;
+          lcId: string;
+          lcName: string;
+          lcAreaHa: number;
+          subtotal: number;
+          itemCount: number;
+          items: typeof rawEntries[0]['items'];
+          indexList: string[];
+        }>;
+      }>();
 
       rawEntries.forEach(entry => {
-        const key = normalizeLandCoverName(entry.lcName);
+        const mKey = `${entry.method}_${entry.biota}`;
+        if (!methodMap.has(mKey)) {
+          methodMap.set(mKey, {
+            methodKey: mKey,
+            methodId: entry.method,
+            biota: entry.biota,
+            methodTitle: entry.methodTitle,
+            methodSubtitle: entry.methodSubtitle,
+            subtotal: 0,
+            itemCount: 0,
+            entriesMap: new Map(),
+          });
+        }
+
+        const mGroup = methodMap.get(mKey)!;
+        mGroup.subtotal += entry.subtotal;
+        mGroup.itemCount += entry.itemCount;
+
+        const normLcName = normalizeLandCoverName(entry.lcName);
         const matchingLc = relevantLandCovers.find(lc => lc.id === entry.lcId);
         const idx = matchingLc?.indexName || matchingLc?.indexCode;
 
-        const existing = map.get(key);
-        if (existing) {
-          existing.lcAreaHa = Number((existing.lcAreaHa + (Number(entry.lcAreaHa) || 0)).toFixed(2));
-          existing.subtotal += entry.subtotal;
-          existing.itemCount += entry.itemCount;
-          existing.items = [...existing.items, ...entry.items];
-          if (idx && !existing.indexList.includes(idx)) {
-            existing.indexList.push(idx);
+        const existingLc = mGroup.entriesMap.get(normLcName);
+        if (existingLc) {
+          existingLc.lcAreaHa = Number((existingLc.lcAreaHa + (Number(entry.lcAreaHa) || 0)).toFixed(2));
+          existingLc.subtotal += entry.subtotal;
+          existingLc.itemCount += entry.itemCount;
+          existingLc.items = [...existingLc.items, ...entry.items];
+          if (idx && !existingLc.indexList.includes(idx)) {
+            existingLc.indexList.push(idx);
           }
         } else {
-          map.set(key, {
-            ...entry,
+          mGroup.entriesMap.set(normLcName, {
+            entryKey: `${entry.lcId}_${sId}_${mKey}`,
+            lcId: entry.lcId,
+            lcName: entry.lcName,
+            lcAreaHa: Number(entry.lcAreaHa) || 0,
+            subtotal: entry.subtotal,
+            itemCount: entry.itemCount,
+            items: entry.items,
             indexList: idx ? [idx] : [],
           });
         }
       });
 
-      acc[sId] = Array.from(map.values());
+      const methodList = Array.from(methodMap.values()).map(mGroup => ({
+        ...mGroup,
+        entries: Array.from(mGroup.entriesMap.values()),
+      }));
+
+      acc[sId] = methodList;
       return acc;
-    }, {} as Record<EcosystemServiceId, (typeof inputSummary[0] & { indexList: string[] })[]>);
+    }, {} as Record<EcosystemServiceId, {
+      methodKey: string;
+      methodId: string;
+      biota: string;
+      methodTitle: string;
+      methodSubtitle: string;
+      subtotal: number;
+      itemCount: number;
+      entries: {
+        entryKey: string;
+        lcId: string;
+        lcName: string;
+        lcAreaHa: number;
+        subtotal: number;
+        itemCount: number;
+        items: any[];
+        indexList: string[];
+      }[];
+    }[]>);
   }, [inputSummary, relevantLandCovers]);
 
-  // ── Subtotal akurat per jasa (dihitung hanya dari area yang memiliki data valuasi) ──
-  const provTotal = useMemo(() => (inputByService['provisioning'] || []).reduce((s, e) => s + e.subtotal, 0), [inputByService]);
-  const regTotal  = useMemo(() => (inputByService['regulating']   || []).reduce((s, e) => s + e.subtotal, 0), [inputByService]);
-  const suppTotal = useMemo(() => (inputByService['supporting']   || []).reduce((s, e) => s + e.subtotal, 0), [inputByService]);
-  const cultTotal = useMemo(() => (inputByService['cultural']     || []).reduce((s, e) => s + e.subtotal, 0), [inputByService]);
+  // ── Subtotal akurat per jasa (dihitung langsung dari seluruh metode aktif) ──
+  const provTotal = useMemo(() => inputSummary.filter(d => d.serviceId === 'provisioning').reduce((s, e) => s + e.subtotal, 0), [inputSummary]);
+  const regTotal  = useMemo(() => inputSummary.filter(d => d.serviceId === 'regulating').reduce((s, e) => s + e.subtotal, 0), [inputSummary]);
+  const suppTotal = useMemo(() => inputSummary.filter(d => d.serviceId === 'supporting').reduce((s, e) => s + e.subtotal, 0), [inputSummary]);
+  const cultTotal = useMemo(() => inputSummary.filter(d => d.serviceId === 'cultural').reduce((s, e) => s + e.subtotal, 0), [inputSummary]);
   const totalTEV  = provTotal + regTotal + suppTotal + cultTotal;
 
   // ── Area terhitung hanya dari area yang memiliki data valuasi ─────────────
@@ -419,8 +474,18 @@ const AnalyticsPageContent: React.FC = () => {
   const totalAreaHa = relevantLandCovers.reduce((s, lc) => s + (Number(lc.areaHa) || 0), 0);
   const tevPerHa  = totalValuedAreaHa > 0 ? Math.round(totalTEV / totalValuedAreaHa) : 0;
 
-  // ── Kontribusi 4 Jasa ──────────────────────────────────────────────────
-  const serviceContributions = SERVICE_IDS.map(sId => {
+  // ── Jasa yang aktif pada minimal satu tutupan lahan relevan ──────────────
+  const activeServiceIds = useMemo(() => {
+    return SERVICE_IDS.filter(sId =>
+      relevantLandCovers.some(lc => {
+        const cfg = getAreaConfig ? getAreaConfig(lc.id) : null;
+        return cfg?.activeServices ? (cfg.activeServices[sId] ?? true) : true;
+      })
+    );
+  }, [relevantLandCovers, getAreaConfig]);
+
+  // ── Kontribusi Jasa Aktif ───────────────────────────────────────────────
+  const serviceContributions = activeServiceIds.map(sId => {
     const meta  = SERVICE_META[sId];
     const nominal = sId === 'provisioning' ? provTotal
                   : sId === 'regulating'   ? regTotal
@@ -464,16 +529,19 @@ const AnalyticsPageContent: React.FC = () => {
       });
       return aggregateValuationByLandCoverName(raw);
     } else {
-      const serviceEntries = inputByService[filterService as EcosystemServiceId] || [];
-      const raw = serviceEntries.map(e => ({
-        name: e.lcName || 'Area',
-        luas: Number(e.lcAreaHa) || 0,
-        total: Math.max(0, e.subtotal),
-        indexName: (e as any).indexList?.join(', '),
-      }));
+      const serviceEntries = inputSummary.filter(d => d.serviceId === filterService);
+      const raw = serviceEntries.map(e => {
+        const matchingLc = relevantLandCovers.find(lc => lc.id === e.lcId);
+        return {
+          name: e.lcName || 'Area',
+          luas: Number(e.lcAreaHa) || 0,
+          total: Math.max(0, e.subtotal),
+          indexName: matchingLc?.indexName || matchingLc?.indexCode,
+        };
+      });
       return aggregateValuationByLandCoverName(raw);
     }
-  }, [filterService, valuedLandCovers, inputSummary, inputByService]);
+  }, [filterService, valuedLandCovers, inputSummary, relevantLandCovers]);
 
   // ── Data Nilai per Metode Valuasi (hanya metode yang memiliki data) ─────
   const methodByServiceData = useMemo(() => {
@@ -492,11 +560,13 @@ const AnalyticsPageContent: React.FC = () => {
       if (filterService !== 'ALL' && filterService !== entry.serviceId) return;
 
       const sId = entry.serviceId;
-      const m = entry.method || 'standard';
-      const biota = entry.biota || 'none';
+      const rawM = entry.method || 'standard';
+      const m = typeof rawM === 'string' ? rawM : (rawM?.id || rawM?.methodId || rawM?.name || String(rawM));
+      const rawB = entry.biota || 'none';
+      const biota = typeof rawB === 'string' ? rawB : String(rawB);
 
       // Format method display label
-      let displayMethod = m
+      let displayMethod = String(m)
         .split('-')
         .map(w => w.charAt(0).toUpperCase() + w.slice(1))
         .join(' ');
@@ -744,11 +814,13 @@ const AnalyticsPageContent: React.FC = () => {
               onChange={e => setFilterService(e.target.value)}
               className="bg-slate-50 border border-slate-300 rounded px-2.5 py-1 text-slate-700 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer"
             >
-              <option value="ALL">Semua Jasa (4 Kategori)</option>
-              <option value="provisioning">A. Provisioning</option>
-              <option value="regulating">B. Regulating</option>
-              <option value="supporting">C. Supporting</option>
-              <option value="cultural">D. Cultural</option>
+              <option value="ALL">Semua Jasa Aktif ({activeServiceIds.length})</option>
+              {activeServiceIds.map(sId => {
+                const meta = SERVICE_META[sId];
+                return (
+                  <option key={sId} value={sId}>{meta.code}. {meta.label}</option>
+                );
+              })}
             </select>
           </div>
         </div>
@@ -1070,19 +1142,19 @@ const AnalyticsPageContent: React.FC = () => {
 
         {(() => {
           const visibleServiceIds = filterService === 'ALL'
-            ? SERVICE_IDS
-            : [filterService as EcosystemServiceId];
+            ? activeServiceIds
+            : activeServiceIds.filter(id => id === filterService);
 
           return (
             <div className="space-y-4">
               {visibleServiceIds.map(sId => {
-                const meta    = SERVICE_META[sId];
-                const entries = inputByService[sId] || [];
-                const hasData = entries.length > 0;
-                const Icon    = meta.icon;
-                const totalItems = entries.reduce((s, e) => s + e.itemCount, 0);
-                const totalVal   = entries.reduce((s, e) => s + e.subtotal, 0);
-                const isCollapsed = !!collapsedServices[sId];
+                const meta         = SERVICE_META[sId];
+                const methodGroups = inputByServiceAndMethod[sId] || [];
+                const hasData      = methodGroups.length > 0;
+                const Icon         = meta.icon;
+                const totalItems   = methodGroups.reduce((s, mg) => s + mg.itemCount, 0);
+                const totalVal     = methodGroups.reduce((s, mg) => s + mg.subtotal, 0);
+                const isCollapsed  = !!collapsedServices[sId];
 
                 return (
                   <div key={sId} className={`rounded-lg border ${meta.borderClass} overflow-hidden shadow-2xs hover:shadow-md transition-all duration-300`}>
@@ -1124,81 +1196,118 @@ const AnalyticsPageContent: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Per land cover (tampil jika tidak dicollapse dan ada data) */}
+                    {/* Multi-Method Vertical Stack (tampil jika tidak dicollapse dan ada data) */}
                     {!isCollapsed && hasData && (
-                      <div className="divide-y divide-slate-100">
-                        {entries.map((entry, eIdx) => {
-                          const isExpanded = !!expandedLandCovers[entry.entryKey];
-                          const displayItems = isExpanded ? entry.items : entry.items.slice(0, 5);
-                          const hasMore = entry.items.length > 5;
-
-                          return (
-                            <div key={eIdx} className="px-4 py-3 bg-white">
-                              <div className="flex items-center justify-between mb-2 text-xs">
-                                <div className="flex items-center gap-2">
-                                  <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                                  <span className="font-semibold text-slate-700">{entry.lcName}</span>
-                                  <span className="text-slate-400 font-mono">({formatNumber(entry.lcAreaHa, 2)} Ha)</span>
-                                  {(entry as any).indexList && (entry as any).indexList.length > 1 && (
-                                    <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200/60 font-medium">
-                                      {(entry as any).indexList.length} Indeks ({(entry as any).indexList.join(', ')})
-                                    </span>
+                      <div className="p-3 sm:p-4 space-y-4 bg-slate-50/50">
+                        {methodGroups.map((mGroup, mIdx) => (
+                          <div key={mGroup.methodKey} className="bg-white rounded-lg border border-slate-200 shadow-2xs overflow-hidden">
+                            {/* Method Card Header */}
+                            <div className="px-4 py-3 bg-slate-50/80 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded font-mono text-[10px] font-bold uppercase border border-blue-200/80 shrink-0">
+                                  Metode {mIdx + 1}
+                                </span>
+                                <div>
+                                  <h4 className="font-bold text-xs text-slate-900 flex items-center gap-2">
+                                    <span>{mGroup.methodTitle}</span>
+                                    {mGroup.biota && mGroup.biota !== 'none' && (
+                                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-200/80 text-slate-700 capitalize font-normal">
+                                        Biota: {mGroup.biota}
+                                      </span>
+                                    )}
+                                  </h4>
+                                  {mGroup.methodSubtitle && (
+                                    <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                      {mGroup.methodSubtitle}
+                                    </p>
                                   )}
                                 </div>
-                                <div className="flex items-center gap-3">
-                                  <span className="text-slate-500 bg-slate-100 px-2 py-0.5 rounded text-[10px] font-medium border border-slate-200">
-                                    Metode: {entry.method || '—'}
-                                  </span>
-                                  <span className="font-mono font-bold text-slate-800 text-xs">
-                                    {formatIDR(entry.subtotal)}
+                              </div>
+                              <div className="flex items-center gap-3 self-end sm:self-auto shrink-0">
+                                <span className="text-[10px] text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 font-medium">
+                                  {mGroup.itemCount} item
+                                </span>
+                                <div className="text-right">
+                                  <span className="text-[10px] text-slate-400 block leading-none">Subtotal Metode</span>
+                                  <span className="font-mono font-bold text-xs text-blue-900">
+                                    {formatIDR(mGroup.subtotal)}
                                   </span>
                                 </div>
                               </div>
+                            </div>
 
-                              <div className="space-y-1">
-                                {displayItems.map((item, iIdx) => (
-                                  <div
-                                    key={item.id || iIdx}
-                                    onClick={() => setSelectedRowDetail(item)}
-                                    className="flex items-center justify-between text-[11px] bg-slate-50 hover:bg-blue-50/80 hover:border-blue-300 border border-slate-100 rounded-md px-2.5 py-2 transition-all duration-150 cursor-pointer group/row"
-                                    title={`Klik untuk melihat detail kalkulasi & parameter ${item.label}`}
-                                  >
-                                    <div className="flex items-center gap-2 truncate max-w-[65%]">
-                                      <span className="text-slate-400 group-hover/row:text-blue-600 font-mono text-[10px] w-4 shrink-0">
-                                        {iIdx + 1}.
+                            {/* Rincian Area & Item per Metode */}
+                            <div className="divide-y divide-slate-100">
+                              {mGroup.entries.map((entry, eIdx) => {
+                                const isExpanded = !!expandedLandCovers[entry.entryKey];
+                                const displayItems = isExpanded ? entry.items : entry.items.slice(0, 5);
+                                const hasMore = entry.items.length > 5;
+
+                                return (
+                                  <div key={eIdx} className="px-4 py-3 bg-white">
+                                    <div className="flex items-center justify-between mb-2 text-xs">
+                                      <div className="flex items-center gap-2">
+                                        <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                                        <span className="font-semibold text-slate-700">{entry.lcName}</span>
+                                        <span className="text-slate-400 font-mono">({formatNumber(entry.lcAreaHa, 2)} Ha)</span>
+                                        {entry.indexList && entry.indexList.length > 1 && (
+                                          <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200/60 font-medium">
+                                            {entry.indexList.length} Indeks ({entry.indexList.join(', ')})
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span className="font-mono font-bold text-slate-800 text-xs">
+                                        {formatIDR(entry.subtotal)}
                                       </span>
-                                      <span className="text-slate-700 group-hover/row:text-blue-900 font-medium truncate">
-                                        {item.label}
-                                      </span>
-                                      {item.biota && item.biota !== 'none' && (
-                                        <span className="text-[9px] px-1 py-0.2 rounded bg-slate-200/70 text-slate-600 capitalize shrink-0">
-                                          {item.biota}
-                                        </span>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                      {displayItems.map((item, iIdx) => (
+                                        <div
+                                          key={item.id || iIdx}
+                                          onClick={() => setSelectedRowDetail(item)}
+                                          className="flex items-center justify-between text-[11px] bg-slate-50 hover:bg-blue-50/80 hover:border-blue-300 border border-slate-100 rounded-md px-2.5 py-2 transition-all duration-150 cursor-pointer group/row"
+                                          title={`Klik untuk melihat detail kalkulasi & parameter ${item.label}`}
+                                        >
+                                          <div className="flex items-center gap-2 truncate max-w-[65%]">
+                                            <span className="text-slate-400 group-hover/row:text-blue-600 font-mono text-[10px] w-4 shrink-0">
+                                              {iIdx + 1}.
+                                            </span>
+                                            <span className="text-slate-700 group-hover/row:text-blue-900 font-medium truncate">
+                                              {item.label}
+                                            </span>
+                                            {item.biota && item.biota !== 'none' && (
+                                              <span className="text-[9px] px-1 py-0.2 rounded bg-slate-200/70 text-slate-600 capitalize shrink-0">
+                                                {item.biota}
+                                              </span>
+                                            )}
+                                          </div>
+                                          <div className="flex items-center gap-2 shrink-0">
+                                            <span className="font-mono text-slate-800 group-hover/row:text-blue-950 font-semibold">
+                                              {formatIDR(item.value)}
+                                            </span>
+                                            <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover/row:text-blue-600 transition-transform group-hover/row:translate-x-0.5" />
+                                          </div>
+                                        </div>
+                                      ))}
+
+                                      {hasMore && (
+                                        <div
+                                          onClick={() => setExpandedLandCovers(prev => ({ ...prev, [entry.entryKey]: !isExpanded }))}
+                                          className="w-full text-[11px] text-blue-600 hover:text-blue-800 font-medium text-center py-1.5 rounded hover:bg-blue-50/60 cursor-pointer transition-colors select-none"
+                                        >
+                                          {isExpanded
+                                            ? '▲ Sembunyikan sebagian'
+                                            : `▼ +${entry.items.length - 5} objek lainnya (klik untuk melihat)`}
+                                        </div>
                                       )}
                                     </div>
-                                    <div className="flex items-center gap-2 shrink-0">
-                                      <span className="font-mono text-slate-800 group-hover/row:text-blue-950 font-semibold">
-                                        {formatIDR(item.value)}
-                                      </span>
-                                      <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover/row:text-blue-600 transition-transform group-hover/row:translate-x-0.5" />
-                                    </div>
                                   </div>
-                                ))}
-
-                                {hasMore && (
-                                  <div
-                                    onClick={() => setExpandedLandCovers(prev => ({ ...prev, [entry.entryKey]: !isExpanded }))}
-                                    className="w-full text-[11px] text-blue-600 hover:text-blue-800 font-medium text-center py-1.5 rounded hover:bg-blue-50/60 cursor-pointer transition-colors select-none"
-                                  >
-                                    {isExpanded
-                                      ? '▲ Sembunyikan sebagian'
-                                      : `▼ +${entry.items.length - 5} objek lainnya (klik untuk melihat)`}
-                                  </div>
-                                )}
-                              </div>
+                                );
+                              })}
                             </div>
-                          );
-                        })}
+                          </div>
+                        ))}
                       </div>
                     )}
 

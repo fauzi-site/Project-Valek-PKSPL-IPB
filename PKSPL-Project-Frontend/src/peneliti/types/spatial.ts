@@ -23,6 +23,7 @@ export interface LandCoverPolygon {
   totalValue: number;
   fillColor?: string;
   strokeColor?: string;
+  source?: 'shp' | 'manual';
   properties?: Record<string, any>;
 }
 
@@ -39,6 +40,8 @@ export interface IndexItem {
   status: 'Draft' | 'Selesai';
   spatialStatus: 'connected' | 'unconnected';
   polygonId?: string;
+  geometry?: any;
+  color?: string;
   createdAt?: string;
   updatedAt?: string;
 }

@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useProject } from '../context/ProjectContext';
 import { ECOSYSTEM_SERVICES_CONFIG } from '../mock/valuationMock';
-import { EcosystemServiceId } from '../types/valuation';
+import { EcosystemServiceId, normalizeMethods } from '../types/valuation';
 import { getMethodSchema } from '../types/methodSchemas';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { buildIndexLabelMap } from '../utils/indexLabel';
 import { formatNumber } from '../utils/formatter';
 import {
@@ -27,7 +28,9 @@ import {
   ChevronRight,
   RotateCcw,
   LayoutGrid,
-  ListFilter
+  ListFilter,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 
 const formatTypeName = (type?: string) => {
@@ -46,17 +49,44 @@ const getTypeBadgeClasses = (type?: string) => {
 };
 
 export const ServicesMethodsPage: React.FC = () => {
+  const params = useParams<{ projectId?: string }>();
   const {
+    projects,
     activeProject,
-    landCovers,
-    indices,
+    landCovers: defaultLandCovers,
+    indices: defaultIndices,
     activeProjectId,
+    setActiveProjectId,
+    getProjectLandCovers,
+    getProjectIndices,
     getAreaConfig,
     updateAreaConfig
   } = useProject();
 
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+
+  // Resolve project from route param or activeProjectId
+  const routeProjId = params.projectId || activeProjectId;
+  const currentProject = projects?.find(p => p.id === routeProjId || p.code === routeProjId) || activeProject;
+
+  // Sync activeProjectId with route param
+  useEffect(() => {
+    if (params.projectId && params.projectId !== activeProjectId) {
+      const found = projects?.find(p => p.id === params.projectId || p.code === params.projectId);
+      if (found) {
+        setActiveProjectId(found.id);
+      }
+    }
+  }, [params.projectId, activeProjectId, projects, setActiveProjectId]);
+
+  const landCovers = useMemo(() => {
+    return (getProjectLandCovers ? getProjectLandCovers(routeProjId) : defaultLandCovers) || defaultLandCovers || [];
+  }, [getProjectLandCovers, routeProjId, defaultLandCovers]);
+
+  const indices = useMemo(() => {
+    return (getProjectIndices ? getProjectIndices(routeProjId) : defaultIndices) || defaultIndices || [];
+  }, [getProjectIndices, routeProjId, defaultIndices]);
 
   // Selected area tutupan lahan: from query param or first item
   const queryArea = searchParams.get('area');
@@ -67,9 +97,13 @@ export const ServicesMethodsPage: React.FC = () => {
   });
 
   useEffect(() => {
-    const area = searchParams.get('area');
-    if (area && area !== selectedAreaId && landCovers.some(lc => lc.id === area)) {
-      setSelectedAreaId(area);
+    if (landCovers.length > 0) {
+      const queryArea = searchParams.get('area');
+      if (queryArea && landCovers.some(lc => lc.id === queryArea)) {
+        setSelectedAreaId(queryArea);
+      } else if (!landCovers.some(lc => lc.id === selectedAreaId)) {
+        setSelectedAreaId(landCovers[0].id);
+      }
     }
   }, [searchParams, landCovers, selectedAreaId]);
 
@@ -266,19 +300,75 @@ export const ServicesMethodsPage: React.FC = () => {
   const toggleService = (serviceId: EcosystemServiceId) => {
     const currentState = areaConfig.activeServices[serviceId];
     const nextState = !currentState;
+    const defaultM = serviceId === 'provisioning' ? 'market-price' : serviceId === 'regulating' ? 'replacement-cost' : serviceId === 'supporting' ? 'nursery-ground' : 'tcm';
+    const currentMethods = normalizeMethods(areaConfig.selectedMethods?.[serviceId], defaultM);
+
+    const nextMethods = nextState && currentMethods.length === 0 ? [defaultM] : currentMethods;
+
+    if (nextState) {
+      const serviceName = serviceId === 'provisioning' ? 'Penyediaan' :
+                          serviceId === 'regulating' ? 'Pengaturan' :
+                          serviceId === 'supporting' ? 'Pendukung' : 'Budaya';
+      toast.success(`Jasa ${serviceName} diaktifkan.`, {
+        id: `service-activated-${serviceId}`,
+      });
+    }
+
     updateAreaConfig(selectedAreaId, {
       activeServices: {
         ...areaConfig.activeServices,
         [serviceId]: nextState,
+      },
+      selectedMethods: {
+        ...areaConfig.selectedMethods,
+        [serviceId]: nextMethods,
       },
     });
   };
 
   const handleMethodChange = (serviceId: EcosystemServiceId, methodId: string) => {
     updateAreaConfig(selectedAreaId, {
+      activeServices: {
+        ...areaConfig.activeServices,
+        [serviceId]: true,
+      },
       selectedMethods: {
         ...areaConfig.selectedMethods,
-        [serviceId]: methodId,
+        [serviceId]: [methodId],
+      },
+    });
+  };
+
+  const handleToggleMethod = (serviceId: EcosystemServiceId, methodId: string) => {
+    const defaultM = serviceId === 'provisioning' ? 'market-price' : serviceId === 'regulating' ? 'replacement-cost' : serviceId === 'supporting' ? 'nursery-ground' : 'tcm';
+    const currentList = normalizeMethods(areaConfig.selectedMethods?.[serviceId], defaultM);
+    let nextList: string[];
+    if (currentList.includes(methodId)) {
+      nextList = currentList.filter(m => m !== methodId);
+    } else {
+      nextList = [...currentList, methodId];
+    }
+
+    const isNowActive = nextList.length > 0;
+
+    if (!isNowActive && areaConfig.activeServices[serviceId]) {
+      const serviceName = serviceId === 'provisioning' ? 'Penyediaan' :
+                          serviceId === 'regulating' ? 'Pengaturan' :
+                          serviceId === 'supporting' ? 'Pendukung' : 'Budaya';
+      toast(`Jasa ${serviceName} dinonaktifkan otomatis karena tidak ada metode yang dipilih.`, {
+        icon: 'ℹ️',
+        id: `service-deactivated-${serviceId}`,
+      });
+    }
+
+    updateAreaConfig(selectedAreaId, {
+      activeServices: {
+        ...areaConfig.activeServices,
+        [serviceId]: isNowActive,
+      },
+      selectedMethods: {
+        ...areaConfig.selectedMethods,
+        [serviceId]: nextList,
       },
     });
   };
@@ -312,7 +402,7 @@ export const ServicesMethodsPage: React.FC = () => {
         </div>
 
         <button
-          onClick={() => navigate(`/peneliti/projects/${activeProjectId}/valuation-data?area=${selectedAreaId}`)}
+          onClick={() => navigate(`/peneliti/projects/${routeProjId}/valuation-data?area=${selectedAreaId}`)}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs md:text-sm font-semibold flex items-center gap-2 transition-colors shadow-xs self-start sm:self-auto cursor-pointer"
         >
           <TableProperties className="w-4 h-4" />
@@ -845,7 +935,7 @@ export const ServicesMethodsPage: React.FC = () => {
             <Info className="w-4 h-4" />
           </div>
           <p className="text-slate-600 leading-relaxed">
-            <strong className="text-blue-900 font-semibold">Ketentuan Metode & Penyimpanan Data:</strong> Setiap jasa ekosistem pada area tutupan lahan hanya menggunakan <strong>1 metode valuasi</strong>. Jika Anda mengganti metode, data lama Anda <strong>tetap tersimpan aman</strong> namun <strong>tidak digunakan dalam perhitungan</strong> selanjutnya (sistem akan beralih menggunakan lembar input baru untuk metode yang aktif).
+            <strong className="text-blue-900 font-semibold">Ketentuan Metode & Penyimpanan Data:</strong> Peneliti dapat memilih <strong>lebih dari satu metode valuasi</strong> pada jasa ekosistem yang sama (misalnya: TCM dan CVM pada Jasa Budaya). Data untuk setiap metode <strong>tersimpan mandiri</strong> dan seluruh metode yang aktif akan dihitung serta diagregasikan dalam lembar valuasi dan laporan.
           </p>
         </div>
 
@@ -854,9 +944,9 @@ export const ServicesMethodsPage: React.FC = () => {
           {/* A. Provisioning Services */}
           {(() => {
             const isActive = areaConfig.activeServices.provisioning;
-            const currentMethodId = areaConfig.selectedMethods.provisioning || 'market-price';
+            const activeMethodIds = normalizeMethods(areaConfig.selectedMethods?.provisioning, 'market-price');
             const options = METHOD_OPTIONS.provisioning;
-            const activeMethod = options.find(m => m.id === currentMethodId) || options[0];
+            const activeMethods = options.filter(m => activeMethodIds.includes(m.id));
 
             return (
               <div
@@ -882,7 +972,7 @@ export const ServicesMethodsPage: React.FC = () => {
 
                     <button
                       onClick={() => toggleService('provisioning')}
-                      className={`px-3 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-colors ${
+                      className={`px-3 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
                         isActive
                           ? 'bg-cyan-600 hover:bg-cyan-700 text-white shadow-xs'
                           : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-300'
@@ -895,31 +985,63 @@ export const ServicesMethodsPage: React.FC = () => {
 
                   {isActive && (
                     <div className="space-y-3 pt-2 border-t border-slate-100">
-                      {/* Method selector */}
+                      {/* Method selector multi-choice */}
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
-                          Metode Valuasi Ilmiah:
-                        </label>
-                        <select
-                          value={currentMethodId}
-                          onChange={(e) => handleMethodChange('provisioning', e.target.value)}
-                          className="w-full bg-white border border-slate-300 rounded px-3 py-1.5 text-xs font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                        >
-                          {options.map(opt => (
-                            <option key={opt.id} value={opt.id}>
-                              {opt.name}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-[11px] font-semibold text-slate-600 uppercase">
+                            Metode Valuasi Ilmiah:
+                          </label>
+                          <span className="text-[10px] text-cyan-800 font-semibold bg-cyan-50 px-1.5 py-0.5 rounded border border-cyan-200">
+                            {activeMethodIds.length} metode aktif
+                          </span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {options.map(opt => {
+                            const isSelected = activeMethodIds.includes(opt.id);
+                            return (
+                              <button
+                                key={opt.id}
+                                type="button"
+                                onClick={() => handleToggleMethod('provisioning', opt.id)}
+                                className={`w-full p-2.5 rounded-lg border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-cyan-50/70 border-cyan-400 text-cyan-950 ring-1 ring-cyan-400/20 shadow-2xs'
+                                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'
+                                }`}
+                              >
+                                <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                                  isSelected ? 'bg-cyan-600 border-cyan-600 text-white' : 'border-slate-300 bg-white'
+                                }`}>
+                                  {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="font-semibold text-xs text-slate-900">{opt.name}</span>
+                                    {isSelected && (
+                                      <span className="text-[9px] font-bold text-cyan-700 bg-cyan-100 px-1.5 py-0.2 rounded">
+                                        Aktif
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{opt.subtitle || opt.desc}</p>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
 
-                      {/* Method Description & Variables */}
-                      <div className="p-3 bg-cyan-50/50 rounded border border-cyan-100 text-xs space-y-1.5">
-                        <div className="font-semibold text-cyan-900">{activeMethod.name}</div>
-                        <div className="text-[11px] text-slate-600 leading-relaxed">{activeMethod.desc}</div>
-                        <div className="pt-1 text-[11px] text-cyan-800">
-                          <strong>Variabel Input:</strong> {activeMethod.variables.join(', ')}
-                        </div>
+                      {/* Active Method Descriptions */}
+                      <div className="space-y-2">
+                        {activeMethods.map(m => (
+                          <div key={m.id} className="p-2.5 bg-cyan-50/50 rounded border border-cyan-100 text-xs space-y-1">
+                            <div className="font-semibold text-cyan-900 text-[11px]">{m.name}</div>
+                            <div className="text-[10px] text-slate-600 leading-relaxed">{m.desc}</div>
+                            <div className="pt-0.5 text-[10px] text-cyan-800">
+                              <strong>Variabel Input:</strong> {m.variables.join(', ')}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
@@ -933,10 +1055,19 @@ export const ServicesMethodsPage: React.FC = () => {
 
                 {isActive && (
                   <button
-                    onClick={() => navigate(`/peneliti/projects/${activeProjectId}/valuation-data?area=${selectedAreaId}&service=provisioning`)}
-                    className="w-full py-1.5 bg-cyan-50 hover:bg-cyan-100 text-cyan-800 font-semibold rounded text-xs border border-cyan-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                    disabled={activeMethods.length === 0}
+                    onClick={() => navigate(`/peneliti/projects/${routeProjId}/valuation-data?area=${selectedAreaId}&service=provisioning`)}
+                    className={`w-full py-1.5 font-semibold rounded text-xs border transition-colors flex items-center justify-center gap-1.5 ${
+                      activeMethods.length === 0
+                        ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                        : 'bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border-cyan-200 cursor-pointer'
+                    }`}
                   >
-                    <span>Buka Data Valuasi ({activeMethod.name.split('(')[0].trim()})</span>
+                    <span>
+                      {activeMethods.length === 0
+                        ? 'Pilih minimal 1 metode'
+                        : `Buka Data Valuasi (${activeMethods.map(m => m.name.split('(')[0].trim()).join(', ')})`}
+                    </span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 )}
@@ -947,9 +1078,9 @@ export const ServicesMethodsPage: React.FC = () => {
           {/* B. Regulating Services */}
           {(() => {
             const isActive = areaConfig.activeServices.regulating;
-            const currentMethodId = areaConfig.selectedMethods.regulating || 'replacement-cost';
+            const activeMethodIds = normalizeMethods(areaConfig.selectedMethods?.regulating, 'replacement-cost');
             const options = METHOD_OPTIONS.regulating;
-            const activeMethod = options.find(m => m.id === currentMethodId) || options[0];
+            const activeMethods = options.filter(m => activeMethodIds.includes(m.id));
 
             return (
               <div
@@ -975,7 +1106,7 @@ export const ServicesMethodsPage: React.FC = () => {
 
                     <button
                       onClick={() => toggleService('regulating')}
-                      className={`px-3 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-colors ${
+                      className={`px-3 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
                         isActive
                           ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs'
                           : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-300'
@@ -989,29 +1120,61 @@ export const ServicesMethodsPage: React.FC = () => {
                   {isActive && (
                     <div className="space-y-3 pt-2 border-t border-slate-100">
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
-                          Metode Valuasi Ilmiah:
-                        </label>
-                        <select
-                          value={currentMethodId}
-                          onChange={(e) => handleMethodChange('regulating', e.target.value)}
-                          className="w-full bg-white border border-slate-300 rounded px-3 py-1.5 text-xs font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        >
-                          {options.map(opt => (
-                            <option key={opt.id} value={opt.id}>
-                              {opt.name}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-[11px] font-semibold text-slate-600 uppercase">
+                            Metode Valuasi Ilmiah:
+                          </label>
+                          <span className="text-[10px] text-blue-800 font-semibold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                            {activeMethodIds.length} metode aktif
+                          </span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {options.map(opt => {
+                            const isSelected = activeMethodIds.includes(opt.id);
+                            return (
+                              <button
+                                key={opt.id}
+                                type="button"
+                                onClick={() => handleToggleMethod('regulating', opt.id)}
+                                className={`w-full p-2.5 rounded-lg border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-blue-50/70 border-blue-400 text-blue-950 ring-1 ring-blue-400/20 shadow-2xs'
+                                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'
+                                }`}
+                              >
+                                <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                                  isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 bg-white'
+                                }`}>
+                                  {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="font-semibold text-xs text-slate-900">{opt.name}</span>
+                                    {isSelected && (
+                                      <span className="text-[9px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.2 rounded">
+                                        Aktif
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{opt.subtitle || opt.desc}</p>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
 
-                      {/* Method Description & Variables */}
-                      <div className="p-3 bg-blue-50/50 rounded border border-blue-100 text-xs space-y-1.5">
-                        <div className="font-semibold text-blue-900">{activeMethod.name}</div>
-                        <div className="text-[11px] text-slate-600 leading-relaxed">{activeMethod.desc}</div>
-                        <div className="pt-1 text-[11px] text-blue-800">
-                          <strong>Variabel Input:</strong> {activeMethod.variables.join(', ')}
-                        </div>
+                      {/* Active Method Descriptions */}
+                      <div className="space-y-2">
+                        {activeMethods.map(m => (
+                          <div key={m.id} className="p-2.5 bg-blue-50/50 rounded border border-blue-100 text-xs space-y-1">
+                            <div className="font-semibold text-blue-900 text-[11px]">{m.name}</div>
+                            <div className="text-[10px] text-slate-600 leading-relaxed">{m.desc}</div>
+                            <div className="pt-0.5 text-[10px] text-blue-800">
+                              <strong>Variabel Input:</strong> {m.variables.join(', ')}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
@@ -1025,10 +1188,19 @@ export const ServicesMethodsPage: React.FC = () => {
 
                 {isActive && (
                   <button
-                    onClick={() => navigate(`/peneliti/projects/${activeProjectId}/valuation-data?area=${selectedAreaId}&service=regulating`)}
-                    className="w-full py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 font-semibold rounded text-xs border border-blue-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                    disabled={activeMethods.length === 0}
+                    onClick={() => navigate(`/peneliti/projects/${routeProjId}/valuation-data?area=${selectedAreaId}&service=regulating`)}
+                    className={`w-full py-1.5 font-semibold rounded text-xs border transition-colors flex items-center justify-center gap-1.5 ${
+                      activeMethods.length === 0
+                        ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                        : 'bg-blue-50 hover:bg-blue-100 text-blue-800 border-blue-200 cursor-pointer'
+                    }`}
                   >
-                    <span>Buka Data Valuasi ({activeMethod.name.split('(')[0].trim()})</span>
+                    <span>
+                      {activeMethods.length === 0
+                        ? 'Pilih minimal 1 metode'
+                        : `Buka Data Valuasi (${activeMethods.map(m => m.name.split('(')[0].trim()).join(', ')})`}
+                    </span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 )}
@@ -1039,9 +1211,9 @@ export const ServicesMethodsPage: React.FC = () => {
           {/* C. Supporting Services */}
           {(() => {
             const isActive = areaConfig.activeServices.supporting;
-            const currentMethodId = areaConfig.selectedMethods.supporting || 'nursery-ground';
+            const activeMethodIds = normalizeMethods(areaConfig.selectedMethods?.supporting, 'nursery-ground');
             const options = METHOD_OPTIONS.supporting;
-            const activeMethod = options.find(m => m.id === currentMethodId) || options[0];
+            const activeMethods = options.filter(m => activeMethodIds.includes(m.id));
 
             return (
               <div
@@ -1067,7 +1239,7 @@ export const ServicesMethodsPage: React.FC = () => {
 
                     <button
                       onClick={() => toggleService('supporting')}
-                      className={`px-3 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-colors ${
+                      className={`px-3 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
                         isActive
                           ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-xs'
                           : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-300'
@@ -1081,29 +1253,61 @@ export const ServicesMethodsPage: React.FC = () => {
                   {isActive && (
                     <div className="space-y-3 pt-2 border-t border-slate-100">
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
-                          Metode Valuasi Ilmiah:
-                        </label>
-                        <select
-                          value={currentMethodId}
-                          onChange={(e) => handleMethodChange('supporting', e.target.value)}
-                          className="w-full bg-white border border-slate-300 rounded px-3 py-1.5 text-xs font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                        >
-                          {options.map(opt => (
-                            <option key={opt.id} value={opt.id}>
-                              {opt.name}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-[11px] font-semibold text-slate-600 uppercase">
+                            Metode Valuasi Ilmiah:
+                          </label>
+                          <span className="text-[10px] text-purple-800 font-semibold bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                            {activeMethodIds.length} metode aktif
+                          </span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {options.map(opt => {
+                            const isSelected = activeMethodIds.includes(opt.id);
+                            return (
+                              <button
+                                key={opt.id}
+                                type="button"
+                                onClick={() => handleToggleMethod('supporting', opt.id)}
+                                className={`w-full p-2.5 rounded-lg border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-purple-50/70 border-purple-400 text-purple-950 ring-1 ring-purple-400/20 shadow-2xs'
+                                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'
+                                }`}
+                              >
+                                <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                                  isSelected ? 'bg-purple-600 border-purple-600 text-white' : 'border-slate-300 bg-white'
+                                }`}>
+                                  {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="font-semibold text-xs text-slate-900">{opt.name}</span>
+                                    {isSelected && (
+                                      <span className="text-[9px] font-bold text-purple-700 bg-purple-100 px-1.5 py-0.2 rounded">
+                                        Aktif
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{opt.subtitle || opt.desc}</p>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
 
-                      {/* Method Description & Variables */}
-                      <div className="p-3 bg-purple-50/50 rounded border border-purple-100 text-xs space-y-1.5">
-                        <div className="font-semibold text-purple-900">{activeMethod.name}</div>
-                        <div className="text-[11px] text-slate-600 leading-relaxed">{activeMethod.desc}</div>
-                        <div className="pt-1 text-[11px] text-purple-800">
-                          <strong>Variabel Input:</strong> {activeMethod.variables.join(', ')}
-                        </div>
+                      {/* Active Method Descriptions */}
+                      <div className="space-y-2">
+                        {activeMethods.map(m => (
+                          <div key={m.id} className="p-2.5 bg-purple-50/50 rounded border border-purple-100 text-xs space-y-1">
+                            <div className="font-semibold text-purple-900 text-[11px]">{m.name}</div>
+                            <div className="text-[10px] text-slate-600 leading-relaxed">{m.desc}</div>
+                            <div className="pt-0.5 text-[10px] text-purple-800">
+                              <strong>Variabel Input:</strong> {m.variables.join(', ')}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
@@ -1117,10 +1321,19 @@ export const ServicesMethodsPage: React.FC = () => {
 
                 {isActive && (
                   <button
-                    onClick={() => navigate(`/peneliti/projects/${activeProjectId}/valuation-data?area=${selectedAreaId}&service=supporting`)}
-                    className="w-full py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-800 font-semibold rounded text-xs border border-purple-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                    disabled={activeMethods.length === 0}
+                    onClick={() => navigate(`/peneliti/projects/${routeProjId}/valuation-data?area=${selectedAreaId}&service=supporting`)}
+                    className={`w-full py-1.5 font-semibold rounded text-xs border transition-colors flex items-center justify-center gap-1.5 ${
+                      activeMethods.length === 0
+                        ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                        : 'bg-purple-50 hover:bg-purple-100 text-purple-800 border-purple-200 cursor-pointer'
+                    }`}
                   >
-                    <span>Buka Data Valuasi ({activeMethod.name.split('(')[0].trim()})</span>
+                    <span>
+                      {activeMethods.length === 0
+                        ? 'Pilih minimal 1 metode'
+                        : `Buka Data Valuasi (${activeMethods.map(m => m.name.split('(')[0].trim()).join(', ')})`}
+                    </span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 )}
@@ -1131,9 +1344,9 @@ export const ServicesMethodsPage: React.FC = () => {
           {/* D. Cultural Services (Lengkap dengan TCM, CVM, Choice Experiment) */}
           {(() => {
             const isActive = areaConfig.activeServices.cultural;
-            const currentMethodId = areaConfig.selectedMethods.cultural || 'tcm';
+            const activeMethodIds = normalizeMethods(areaConfig.selectedMethods?.cultural, 'tcm');
             const options = METHOD_OPTIONS.cultural;
-            const activeMethod = options.find(m => m.id === currentMethodId) || options[0];
+            const activeMethods = options.filter(m => activeMethodIds.includes(m.id));
 
             return (
               <div
@@ -1159,7 +1372,7 @@ export const ServicesMethodsPage: React.FC = () => {
 
                     <button
                       onClick={() => toggleService('cultural')}
-                      className={`px-3 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-colors ${
+                      className={`px-3 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
                         isActive
                           ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs'
                           : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-300'
@@ -1173,29 +1386,61 @@ export const ServicesMethodsPage: React.FC = () => {
                   {isActive && (
                     <div className="space-y-3 pt-2 border-t border-slate-100">
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
-                          Metode Valuasi Ilmiah:
-                        </label>
-                        <select
-                          value={currentMethodId}
-                          onChange={(e) => handleMethodChange('cultural', e.target.value)}
-                          className="w-full bg-white border border-slate-300 rounded px-3 py-1.5 text-xs font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                        >
-                          {options.map(opt => (
-                            <option key={opt.id} value={opt.id}>
-                              {opt.name}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-[11px] font-semibold text-slate-600 uppercase">
+                            Metode Valuasi Ilmiah:
+                          </label>
+                          <span className="text-[10px] text-amber-800 font-semibold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                            {activeMethodIds.length} metode aktif
+                          </span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {options.map(opt => {
+                            const isSelected = activeMethodIds.includes(opt.id);
+                            return (
+                              <button
+                                key={opt.id}
+                                type="button"
+                                onClick={() => handleToggleMethod('cultural', opt.id)}
+                                className={`w-full p-2.5 rounded-lg border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-amber-50/70 border-amber-400 text-amber-950 ring-1 ring-amber-400/20 shadow-2xs'
+                                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'
+                                }`}
+                              >
+                                <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                                  isSelected ? 'bg-amber-600 border-amber-600 text-white' : 'border-slate-300 bg-white'
+                                }`}>
+                                  {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="font-semibold text-xs text-slate-900">{opt.name}</span>
+                                    {isSelected && (
+                                      <span className="text-[9px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded">
+                                        Aktif
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{opt.subtitle || opt.desc}</p>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
 
-                      {/* Method Description & Variables */}
-                      <div className="p-3 bg-amber-50/50 rounded border border-amber-100 text-xs space-y-1.5">
-                        <div className="font-semibold text-amber-900">{activeMethod.name}</div>
-                        <div className="text-[11px] text-slate-600 leading-relaxed">{activeMethod.desc}</div>
-                        <div className="pt-1 text-[11px] text-amber-800">
-                          <strong>Variabel Input:</strong> {activeMethod.variables.join(', ')}
-                        </div>
+                      {/* Active Method Descriptions */}
+                      <div className="space-y-2">
+                        {activeMethods.map(m => (
+                          <div key={m.id} className="p-2.5 bg-amber-50/50 rounded border border-amber-100 text-xs space-y-1">
+                            <div className="font-semibold text-amber-900 text-[11px]">{m.name}</div>
+                            <div className="text-[10px] text-slate-600 leading-relaxed">{m.desc}</div>
+                            <div className="pt-0.5 text-[10px] text-amber-800">
+                              <strong>Variabel Input:</strong> {m.variables.join(', ')}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
@@ -1209,10 +1454,19 @@ export const ServicesMethodsPage: React.FC = () => {
 
                 {isActive && (
                   <button
-                    onClick={() => navigate(`/peneliti/projects/${activeProjectId}/valuation-data?area=${selectedAreaId}&service=cultural`)}
-                    className="w-full py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold rounded text-xs border border-amber-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                    disabled={activeMethods.length === 0}
+                    onClick={() => navigate(`/peneliti/projects/${routeProjId}/valuation-data?area=${selectedAreaId}&service=cultural`)}
+                    className={`w-full py-1.5 font-semibold rounded text-xs border transition-colors flex items-center justify-center gap-1.5 ${
+                      activeMethods.length === 0
+                        ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                        : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200 cursor-pointer'
+                    }`}
                   >
-                    <span>Buka Data Valuasi ({activeMethod.name.split('(')[0].trim()})</span>
+                    <span>
+                      {activeMethods.length === 0
+                        ? 'Pilih minimal 1 metode'
+                        : `Buka Data Valuasi (${activeMethods.map(m => m.name.split('(')[0].trim()).join(', ')})`}
+                    </span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 )}
@@ -1237,7 +1491,7 @@ export const ServicesMethodsPage: React.FC = () => {
         </div>
 
         <button
-          onClick={() => navigate(`/peneliti/projects/${activeProjectId}/valuation-data?area=${selectedAreaId}`)}
+          onClick={() => navigate(`/peneliti/projects/${routeProjId}/valuation-data?area=${selectedAreaId}`)}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs self-start sm:self-auto flex-shrink-0 cursor-pointer"
         >
           <span>Lanjut ke 06 Data Valuasi</span>

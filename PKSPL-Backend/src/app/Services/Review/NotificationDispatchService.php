@@ -18,13 +18,13 @@ use App\Notifications\Review\ReviewClosedNotification;
 
 class NotificationDispatchService
 {
-    public function notifyDatasetSubmitted(Proyek $proyek): void
+    public function notifyDatasetSubmitted(Proyek $proyek, ?User $submitter = null): void
     {
-        $analysts = User::whereHas('role', fn ($q) => $q->where('nama_role', 'ilike', '%analyst%'))
-            ->orWhere('id_role', 2)
+        $admins = User::whereHas('role', fn ($q) => $q->whereIn('nama_role', [Role::SUPER_ADMIN, 'Super Admin']))
+            ->orWhere('id_role', 1)
             ->get();
-        foreach ($analysts as $analyst) {
-            $analyst->notify(new DatasetSubmittedNotification($proyek));
+        foreach ($admins as $admin) {
+            $admin->notify(new DatasetSubmittedNotification($proyek, $submitter ?? $proyek->user));
         }
     }
 

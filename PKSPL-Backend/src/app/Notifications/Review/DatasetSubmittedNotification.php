@@ -17,7 +17,7 @@ class DatasetSubmittedNotification extends Notification implements ShouldQueue
 
     public function __construct(
         public readonly Proyek $proyek,
-        public readonly User $submitter
+        public readonly ?User $submitter = null
     ) {
     }
 

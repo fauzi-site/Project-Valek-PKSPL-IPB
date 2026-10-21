@@ -8,6 +8,8 @@ use App\Http\Requests\Project\JenisTutupanLahanRequest;
 use App\Http\Resources\Project\JenisTutupanLahanResource;
 use App\Models\JenisTutupanLahan;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class JenisTutupanLahanController extends ApiResourceController
 {
@@ -37,6 +39,31 @@ class JenisTutupanLahanController extends ApiResourceController
 
     public function destroy(JenisTutupanLahan $jenisTutupanLahan)
     {
-        return $this->destroyResource($jenisTutupanLahan);
+        return DB::transaction(function () use ($jenisTutupanLahan) {
+            $id = $jenisTutupanLahan->id_jenis_tutupan_lahan;
+
+            DB::table('provisioning_service')->where('id_jenis_tutupan_lahan', $id)->delete();
+            DB::table('regulating_service')->where('id_jenis_tutupan_lahan', $id)->delete();
+            DB::table('supporting_service')->where('id_jenis_tutupan_lahan', $id)->delete();
+            DB::table('cultural_service')->where('id_jenis_tutupan_lahan', $id)->delete();
+            DB::table('hasil_valuasi')->where('id_jenis_tutupan_lahan', $id)->delete();
+
+            $possibleValuationTables = [
+                'valuation_rows',
+                'valuation_custom_columns',
+                'area_service_configs',
+                'active_service_configs',
+                'selected_methods',
+                'valuation_row_values',
+                'valuation_calculated_results',
+            ];
+            foreach ($possibleValuationTables as $tbl) {
+                if (Schema::hasTable($tbl) && Schema::hasColumn($tbl, 'id_jenis_tutupan_lahan')) {
+                    DB::table($tbl)->where('id_jenis_tutupan_lahan', $id)->delete();
+                }
+            }
+
+            return $this->destroyResource($jenisTutupanLahan);
+        });
     }
 }

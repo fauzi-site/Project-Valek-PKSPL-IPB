@@ -24,6 +24,7 @@ export interface Project {
   reviewers?: string[];
   reviewedAt?: string;
   hasShp?: boolean;
+  hasManual?: boolean;
   latitude?: number | string | null;
   longitude?: number | string | null;
   geometry?: any;

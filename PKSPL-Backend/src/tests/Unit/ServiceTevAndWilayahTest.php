@@ -2,10 +2,10 @@
 
 namespace Tests\Unit;
 
-use App\Http\Requests\CulturalServiceRequest;
-use App\Http\Requests\ProvisioningServiceRequest;
-use App\Http\Requests\RegulatingServiceRequest;
-use App\Http\Requests\SupportingServiceRequest;
+use App\Http\Requests\Ecosystem\CulturalServiceRequest;
+use App\Http\Requests\Ecosystem\ProvisioningServiceRequest;
+use App\Http\Requests\Ecosystem\RegulatingServiceRequest;
+use App\Http\Requests\Ecosystem\SupportingServiceRequest;
 use App\Models\CulturalService;
 use App\Models\ProvisioningService;
 use App\Models\RegulatingService;

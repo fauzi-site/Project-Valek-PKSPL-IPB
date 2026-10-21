@@ -73,18 +73,32 @@ class ValuationDataController extends Controller
         ]);
 
         $upserted = [];
+        $keepIds = [];
         foreach ($validated['configs'] as $cfg) {
-            $upserted[] = AreaServiceConfig::query()->updateOrCreate(
+            $record = AreaServiceConfig::query()->updateOrCreate(
                 [
                     'id_jenis_tutupan_lahan' => $landCoverId,
                     'service_id'             => $cfg['service_id'],
+                    'method_id'              => $cfg['method_id'],
                 ],
                 [
                     'is_active' => $cfg['is_active'],
-                    'method_id' => $cfg['method_id'],
                     'biota'     => $cfg['biota'] ?? null,
                 ]
             );
+            $upserted[] = $record;
+            $keepIds[] = $record->id;
+        }
+
+        if (!empty($keepIds)) {
+            AreaServiceConfig::query()
+                ->where('id_jenis_tutupan_lahan', $landCoverId)
+                ->whereNotIn('id', $keepIds)
+                ->delete();
+        } else {
+            AreaServiceConfig::query()
+                ->where('id_jenis_tutupan_lahan', $landCoverId)
+                ->delete();
         }
 
         return response()->json([

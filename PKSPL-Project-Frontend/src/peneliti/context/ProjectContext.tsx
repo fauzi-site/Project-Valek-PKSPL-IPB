@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Project, ProjectStatus } from '../types/project';
 import { LandCoverPolygon, IndexItem, MapLayer } from '../types/spatial';
@@ -29,9 +29,9 @@ import { saveSpatialToIndexedDB, loadAllSpatialFromIndexedDB, deleteSpatialFromI
 import { createProyek, deleteProyek, getProyekList, updateProyek, deleteProjectShapefileApi } from '../../services/projectService';
 import { createIndexApi, createLandCoverApi, deleteLandCoverApi, deleteIndexApi, getIndexesApi, updateIndexApi, updateLandCoverApi } from '../../services/indexService';
 
-import { AreaServiceConfig, EcosystemServiceId } from '../types/valuation';
+import { AreaServiceConfig, EcosystemServiceId, normalizeMethods } from '../types/valuation';
 import { getValuationConfigs, upsertValuationConfigs } from '../services/valuationDataService';
-import { isValidPoint } from '../utils/geoValidation';
+import { isValidPoint, calculateGeodesicAreaHa, calculatePolygonCentroid } from '../utils/geoValidation';
 import { healPolygonsColors, getPolygonColor } from '../utils/spatialColors';
 import { applyLayerStyle, paletteLookup } from '../../lib/shpStyle';
 
@@ -53,7 +53,88 @@ interface ProjectContextType {
   addShpLayer: (name: string, featureCount: number, crs: string, targetProjId?: string, geojson?: any) => void;
   uploadProjectShapefile: (targetProjId: string, geojson: any, fileName?: string, rawFile?: File) => void;
   deleteProjectShapefile: (targetProjId: string, deleteAssociatedIndices?: boolean) => Promise<void>;
+  saveManualPolygon: (
+    targetProjId: string,
+    areaData: {
+      name: string;
+      description?: string;
+      notes?: string;
+      polygons: [number, number][][];
+      areaHa?: number;
+      center?: [number, number];
+    }
+  ) => Promise<void>;
   setProjectHasShp: (projectId: string, hasShp: boolean) => void;
+  getProjectShpLandCovers: (projectId: string) => LandCoverPolygon[];
+  getProjectManualLandCovers: (projectId: string) => LandCoverPolygon[];
+  getProjectShpLayers: (projectId: string) => MapLayer[];
+  getProjectManualLayers: (projectId: string) => MapLayer[];
+  deleteManualPolygon: (targetProjId: string, polygonId: string) => Promise<void>;
+  deleteAllManualPolygons: (targetProjId: string) => Promise<void>;
+  saveManualProjectBoundary: (
+    targetProjId: string,
+    boundary: {
+      name: string;
+      notes?: string;
+      coordinates: [number, number][];
+      areaHa: number;
+      center?: [number, number];
+    }
+  ) => Promise<void>;
+  deleteManualProjectBoundary: (
+    targetProjId: string,
+    deleteAssociatedIndices?: boolean
+  ) => Promise<void>;
+  getProjectManualBoundary: (
+    projectId: string
+  ) => {
+    name: string;
+    notes?: string;
+    coordinates: [number, number][];
+    areaHa: number;
+    center: [number, number];
+  } | null;
+  createManualSpatialIndex: (
+    targetProjId: string,
+    indexData: {
+      name: string;
+      notes?: string;
+      coordinates: [number, number][];
+      areaHa: number;
+      center?: [number, number];
+      code?: string;
+    }
+  ) => Promise<IndexItem>;
+  updateManualSpatialIndex: (
+    targetProjId: string,
+    indexId: string,
+    indexData: {
+      name?: string;
+      notes?: string;
+      coordinates?: [number, number][];
+      areaHa?: number;
+      center?: [number, number];
+    }
+  ) => Promise<IndexItem>;
+  deleteManualSpatialIndex: (
+    targetProjId: string,
+    indexId: string
+  ) => Promise<void>;
+  saveManualLandCovers: (
+    targetProjId: string,
+    manualItems: {
+      id?: string;
+      name: string;
+      type?: LandCoverPolygon['type'] | 'belum_diklasifikasi';
+      areaHa?: number;
+      coordinates: [number, number][];
+      center?: [number, number];
+      description?: string;
+      notes?: string;
+      fillColor?: string;
+      strokeColor?: string;
+    }[]
+  ) => Promise<void>;
   getProjectLandCovers: (projectId: string) => LandCoverPolygon[];
   getProjectIndices: (projectId: string) => IndexItem[];
   getProjectLayers: (projectId: string) => MapLayer[];
@@ -74,7 +155,7 @@ interface ProjectContextType {
     landCovers: { id?: string; name: string; areaHa: number; description?: string }[];
   }) => Promise<void>;
   updateIndex: (id: string, updates: Partial<IndexItem>) => void;
-  deleteIndex: (id: string) => void;
+  deleteIndex: (id: string, targetProjId?: string) => Promise<void>;
   linkPolygonToIndex: (polygonId: string, indexId: string) => void;
   unlinkPolygonFromIndex: (polygonId: string) => void;
   createIndexFromPolygon: (polygonId: string, customCode?: string) => IndexItem;
@@ -99,10 +180,10 @@ export const DEFAULT_AREA_CONFIG: AreaServiceConfig = {
     cultural: true,
   },
   selectedMethods: {
-    provisioning: 'market-price',
-    regulating: 'replacement-cost',
-    supporting: 'nursery-ground',
-    cultural: 'tcm',
+    provisioning: ['market-price'],
+    regulating: ['replacement-cost'],
+    supporting: ['nursery-ground'],
+    cultural: ['tcm'],
   },
   biota: 'flora',
 };
@@ -202,13 +283,17 @@ const fromApiProject = (project: any, fallbackLead = 'Peneliti Utama'): Project 
     hasShp: (() => {
       const explicitFalse = localStorage.getItem(`pkspl_has_shp_${code}`) === 'false' || localStorage.getItem(`pkspl_has_shp_${idKey}`) === 'false';
       if (explicitFalse) return false;
-      const explicitTrue = localStorage.getItem(`pkspl_has_shp_${code}`) === 'true' || localStorage.getItem(`pkspl_has_shp_${idKey}`) === 'true';
-      if (explicitTrue) return true;
+      if (project.hasShp !== undefined && project.hasShp !== null) return Boolean(project.hasShp);
       return Boolean(
-        (project.shapefile_files && Object.keys(project.shapefile_files).length) ||
-        project.geometry ||
-        project.boundary_geojson
+        project.shapefile_files &&
+        (Array.isArray(project.shapefile_files) ? project.shapefile_files.length > 0 : Object.keys(project.shapefile_files).length > 0)
       );
+    })(),
+    hasManual: (() => {
+      const explicitFalse = localStorage.getItem(`pkspl_has_manual_${code}`) === 'false' || localStorage.getItem(`pkspl_has_manual_${idKey}`) === 'false';
+      if (explicitFalse) return false;
+      if (project.hasManual !== undefined && project.hasManual !== null) return Boolean(project.hasManual);
+      return Boolean(project.geometry);
     })(),
     latitude: project.latitude ?? null,
     longitude: project.longitude ?? null,
@@ -229,6 +314,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return {
         ...p,
         hasShp: p.hasShp !== undefined ? p.hasShp : (init ? init.hasShp : false),
+        hasManual: p.hasManual !== undefined ? p.hasManual : false,
       };
     });
   });
@@ -251,6 +337,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           const list = (Array.isArray(data) ? data : []).map((project) => fromApiProject(project, user?.nama));
           setProjects(list);
           setProjectsError('');
+
+          // Auto-unpack backend geometry for manual polygons if present
+          list.forEach((p) => {
+            if (p.geometry) {
+              unpackBackendGeometry(p.id, p.code, p.name, p.geometry);
+            }
+          });
         }
       })
       .catch((err) => {
@@ -312,7 +405,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             const pData = spatialMap[p.id] || (p.code ? spatialMap[p.code] : null);
             const hasPolys = Boolean(pData?.polygons && Array.isArray(pData.polygons) && pData.polygons.length > 0);
             if (hasPolys) {
-              return { ...p, hasShp: true };
+              const hasShpPolys = pData.polygons.some((poly: any) => poly.source === 'shp' || (poly.source !== 'manual' && poly.id?.startsWith('shp-poly-')));
+              const hasManualPolys = pData.polygons.some((poly: any) => poly.source === 'manual' || poly.id?.startsWith('manual-poly-') || poly.id?.startsWith('backend-poly-'));
+              return {
+                ...p,
+                hasShp: hasShpPolys ? true : p.hasShp,
+                hasManual: hasManualPolys ? true : p.hasManual,
+              };
             }
             return p;
           })
@@ -398,11 +497,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         );
         return {
           id: String(index.id_index), code: index.kode_index, name: index.nama_index,
-          landCoverType: landCover?.kategori || 'Lainnya', landCoverName: landCover?.nama_tutupan_lahan || index.nama_index,
-          landCoverId: undefined,
+          landCoverType: landCover?.kategori || undefined,
+          landCoverName: landCover?.nama_tutupan_lahan || undefined,
+          landCoverId: landCover ? String(landCover.id_jenis_tutupan_lahan) : undefined,
           polygonId: undefined,
           areaHa: Number(index.luas) || 0, unit: index.satuan_luas || 'ha', description: index.deskripsi || '',
           status: 'Draft', spatialStatus: hasGeometry ? 'connected' : 'unconnected',
+          geometry: index.geometry,
           createdAt: index.created_at, updatedAt: index.updated_at,
         };
       });
@@ -453,25 +554,23 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           } : {})
         }));
       }
-      if (mappedLandCovers.length > 0) {
-        setProjectLandCovers((prev) => ({
+      setProjectLandCovers((prev) => {
+        const cleanExisting = (prev[activeProjectId] || []).filter(
+          (lc) => !lc.id.startsWith('poly-idx-') &&
+                  !lc.id.startsWith('boundary-poly-') &&
+                  lc.properties?.type !== 'index_polygon' &&
+                  lc.properties?.type !== 'project_boundary'
+        );
+        const nonApiLandCovers = cleanExisting.filter(
+          (lc) => lc.coordinates.length > 0 && !mappedLandCovers.some((m) => m.id === lc.id || m.code === lc.code)
+        );
+        const combined = [...mappedLandCovers, ...nonApiLandCovers];
+        return {
           ...prev,
-          [activeProjectId]: [
-            ...mappedLandCovers,
-            ...(prev[activeProjectId] || []).filter(
-              (lc) => lc.coordinates.length > 0 && !mappedLandCovers.find((m) => m.indexCode === lc.indexCode)
-            ),
-          ],
-          ...(projectCode ? {
-            [projectCode]: [
-              ...mappedLandCovers,
-              ...(prev[projectCode] || []).filter(
-                (lc) => lc.coordinates.length > 0 && !mappedLandCovers.find((m) => m.indexCode === lc.indexCode)
-              ),
-            ]
-          } : {})
-        }));
-      }
+          [activeProjectId]: combined,
+          ...(projectCode ? { [projectCode]: combined } : {})
+        };
+      });
     }).catch(() => undefined);
     return () => { mounted = false; };
   }, [activeProjectId, isAuthenticated]);
@@ -520,7 +619,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const getProjectLandCovers = (projectId: string): LandCoverPolygon[] => {
-    const stored = (() => {
+    const rawStored = (() => {
       if (projectLandCovers[projectId] && projectLandCovers[projectId].length > 0) {
         return projectLandCovers[projectId];
       }
@@ -535,6 +634,17 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
       return null;
     })();
+
+    // Strictly filter out any index polygons or project boundaries from land covers
+    const stored = rawStored
+      ? rawStored.filter(
+          (p) =>
+            !p.id.startsWith('poly-idx-') &&
+            !p.id.startsWith('boundary-poly-') &&
+            p.properties?.type !== 'index_polygon' &&
+            p.properties?.type !== 'project_boundary'
+        )
+      : null;
 
     const found = projects.find(p => p.id === projectId || p.code === projectId);
 
@@ -588,16 +698,17 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
 
   const getProjectIndices = (projectId: string): IndexItem[] => {
-    if (projectIndices[projectId] && projectIndices[projectId].length > 0) {
+    if (Array.isArray(projectIndices[projectId])) {
       return projectIndices[projectId];
     }
-    const found = projects.find(p => p.id === projectId || p.code === projectId);
+    const found = projects.find(p => p.id === projectId || p.code === projectId || String(p.id) === String(projectId));
     if (found) {
-      if (found.code && projectIndices[found.code] && projectIndices[found.code].length > 0) {
-        return projectIndices[found.code];
+      const idKey = String(found.id);
+      if (Array.isArray(projectIndices[idKey])) {
+        return projectIndices[idKey];
       }
-      if (found.id && projectIndices[found.id] && projectIndices[found.id].length > 0) {
-        return projectIndices[found.id];
+      if (found.code && Array.isArray(projectIndices[found.code])) {
+        return projectIndices[found.code];
       }
     }
 
@@ -606,7 +717,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const isMockProject =
       KNOWN_MOCK_PROJECT_IDS.has(projectId) ||
       (found?.code ? KNOWN_MOCK_PROJECT_IDS.has(found.code) : false) ||
-      (found?.id ? KNOWN_MOCK_PROJECT_IDS.has(found.id) : false);
+      (found?.id ? KNOWN_MOCK_PROJECT_IDS.has(String(found.id)) : false);
 
     if (!isMockProject) {
       return projectIndices[projectId] || [];
@@ -616,55 +727,11 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const mockIdx =
       ALL_PROJECT_INDICES[projectId] ||
       (found?.code ? ALL_PROJECT_INDICES[found.code] : undefined) ||
-      (found?.id ? ALL_PROJECT_INDICES[found.id] : undefined);
+      (found?.id ? ALL_PROJECT_INDICES[String(found.id)] : undefined);
 
     if (mockIdx && mockIdx.length > 0) return mockIdx;
 
-    // Check if project has land covers in projectLandCovers or ALL_PROJECT_LAND_COVERS
-    const pLandCovers =
-      (projectLandCovers[projectId] && projectLandCovers[projectId].length > 0 ? projectLandCovers[projectId] : null) ||
-      (found?.code && projectLandCovers[found.code] && projectLandCovers[found.code].length > 0 ? projectLandCovers[found.code] : null) ||
-      (found?.id && projectLandCovers[found.id] && projectLandCovers[found.id].length > 0 ? projectLandCovers[found.id] : null) ||
-      (ALL_PROJECT_LAND_COVERS[projectId] && ALL_PROJECT_LAND_COVERS[projectId].length > 0 ? ALL_PROJECT_LAND_COVERS[projectId] : null) ||
-      (found?.code && ALL_PROJECT_LAND_COVERS[found.code] && ALL_PROJECT_LAND_COVERS[found.code].length > 0 ? ALL_PROJECT_LAND_COVERS[found.code] : null);
-
-    if (pLandCovers && pLandCovers.length > 0) {
-      const derivedMap = new Map<string, IndexItem>();
-      pLandCovers.forEach((lc, idx) => {
-        const code = lc.indexCode || `IDX-${String(idx + 1).padStart(3, '0')}`;
-        const name = lc.indexName || lc.name || `Index ${idx + 1}`;
-        const key = lc.indexId || code;
-
-        if (!derivedMap.has(key)) {
-          derivedMap.set(key, {
-            id: key,
-            code,
-            name,
-            landCoverType: lc.type || 'Lainnya',
-            landCoverName: lc.name,
-            landCoverId: lc.id,
-            polygonId: lc.id,
-            areaHa: Number(lc.areaHa) || 0,
-            unit: 'ha',
-            description: `Tutupan lahan (${name})`,
-            status: 'Draft',
-            spatialStatus: (lc.coordinates && lc.coordinates.length > 0) ? 'connected' : 'unconnected',
-            createdAt: new Date().toISOString().split('T')[0],
-          });
-        } else {
-          const item = derivedMap.get(key)!;
-          item.areaHa = Number((item.areaHa + (Number(lc.areaHa) || 0)).toFixed(2));
-          if (lc.coordinates && lc.coordinates.length > 0) {
-            item.spatialStatus = 'connected';
-          }
-        }
-      });
-      if (derivedMap.size > 0) {
-        return Array.from(derivedMap.values());
-      }
-    }
-
-    return getFallbackIndicesForProject(found?.code || projectId);
+    return [];
   };
 
   const getProjectLayers = (projectId: string): MapLayer[] => {
@@ -697,30 +764,33 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const proj = projects.find(p => p.id === activeProjectId);
       return proj?.code ? (ALL_PROJECT_LAND_COVERS[proj.code] || []) : [];
     })();
-  const landCovers: LandCoverPolygon[] = rawLandCovers.length > 0
-    ? (rawLandCovers[0]?.id?.startsWith('shp-poly-')
-        ? rawLandCovers
-        : rawLandCovers.map((lc) => {
-            const mockMatch = enrichedMockLCs.find(
-              (m) => m.id === lc.id || m.indexCode === lc.indexCode || m.code === lc.code || m.name === lc.name || m.indexName === lc.indexName
-            );
-            const isStale = lc.totalValue === 35800000000 || lc.totalValue === 15350000000 || lc.totalValue === 7573271140 || lc.totalValue === 58723271140 || !lc.serviceDetails || lc.serviceDetails.length === 0;
-            if (mockMatch && (isStale || (mockMatch.totalValue && mockMatch.totalValue !== lc.totalValue))) {
-              return {
-                ...lc,
-                name: mockMatch.name || lc.name,
-                code: mockMatch.code || lc.code,
-                areaHa: mockMatch.areaHa || lc.areaHa,
-                activeServices: mockMatch.activeServices || lc.activeServices,
-                serviceDetails: mockMatch.serviceDetails || lc.serviceDetails,
-                totalValue: mockMatch.totalValue,
-                coordinates: (lc.coordinates && lc.coordinates.length > 0) ? lc.coordinates : mockMatch.coordinates,
-                center: (lc.center && (lc.center[0] !== 0 || lc.center[1] !== 0)) ? lc.center : mockMatch.center,
-              };
-            }
-            return lc;
-          }))
-    : enrichedMockLCs;
+  const landCovers: LandCoverPolygon[] = useMemo(() => {
+    return rawLandCovers.length > 0
+      ? (rawLandCovers[0]?.id?.startsWith('shp-poly-')
+          ? rawLandCovers
+          : rawLandCovers.map((lc) => {
+              const mockMatch = enrichedMockLCs.find(
+                (m) => m.id === lc.id || m.indexCode === lc.indexCode || m.code === lc.code || m.name === lc.name || m.indexName === lc.indexName
+              );
+              const isStale = lc.totalValue === 35800000000 || lc.totalValue === 15350000000 || lc.totalValue === 7573271140 || lc.totalValue === 58723271140 || !lc.serviceDetails || lc.serviceDetails.length === 0;
+              if (mockMatch && (isStale || (mockMatch.totalValue && mockMatch.totalValue !== lc.totalValue))) {
+                return {
+                  ...lc,
+                  name: mockMatch.name || lc.name,
+                  code: mockMatch.code || lc.code,
+                  areaHa: mockMatch.areaHa || lc.areaHa,
+                  activeServices: mockMatch.activeServices || lc.activeServices,
+                  serviceDetails: mockMatch.serviceDetails || lc.serviceDetails,
+                  totalValue: mockMatch.totalValue,
+                  coordinates: (lc.coordinates && lc.coordinates.length > 0) ? lc.coordinates : mockMatch.coordinates,
+                  center: (lc.center && (lc.center[0] !== 0 || lc.center[1] !== 0)) ? lc.center : mockMatch.center,
+                };
+              }
+              return lc;
+            }))
+      : enrichedMockLCs;
+  }, [rawLandCovers, enrichedMockLCs]);
+
   const rawProjectIndices = getProjectIndices(activeProjectId);
   const indices: IndexItem[] = rawProjectIndices.length > 0
     ? rawProjectIndices
@@ -761,12 +831,19 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         : []);
   const layers = projectLayers[activeProjectId] || [];
 
+  const landCoverIdsKey = useMemo(() => {
+    return landCovers
+      .map(lc => lc.id)
+      .filter(id => !isNaN(Number(id)) && Number(id) > 0)
+      .sort()
+      .join(',');
+  }, [landCovers]);
+
   useEffect(() => {
+    if (!landCoverIdsKey) return;
+    const numericAreaIds = landCoverIdsKey.split(',').filter(Boolean);
+
     const fetchConfigs = async () => {
-      const numericAreaIds = landCovers
-        .map(lc => lc.id)
-        .filter(id => !isNaN(Number(id)) && Number(id) > 0);
-        
       for (const areaId of numericAreaIds) {
         try {
           const apiConfigs = await getValuationConfigs(areaId);
@@ -777,14 +854,33 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
               const nextMethods = { ...current.selectedMethods };
               let nextBiota = current.biota;
               
+              const serviceMethodsMap: Record<string, string[]> = {
+                provisioning: [],
+                regulating: [],
+                supporting: [],
+                cultural: [],
+              };
+              
               apiConfigs.forEach(cfg => {
                 const sId = cfg.service_id as keyof AreaServiceConfig['activeServices'];
                 if (sId) {
-                  nextServices[sId] = cfg.is_active;
-                  nextMethods[sId] = cfg.method_id;
+                  if (cfg.is_active) {
+                    nextServices[sId] = true;
+                  }
+                  if (cfg.is_active && !serviceMethodsMap[sId].includes(cfg.method_id)) {
+                    serviceMethodsMap[sId].push(cfg.method_id);
+                  }
                   if (sId === 'provisioning' && cfg.biota) {
                     nextBiota = cfg.biota;
                   }
+                }
+              });
+
+              (Object.keys(serviceMethodsMap) as (keyof AreaServiceConfig['activeServices'])[]).forEach(sId => {
+                if (serviceMethodsMap[sId].length > 0) {
+                  const existing = normalizeMethods(current.selectedMethods?.[sId], '');
+                  const combined = Array.from(new Set([...serviceMethodsMap[sId], ...existing])).filter(Boolean);
+                  nextMethods[sId] = combined.length > 0 ? combined : serviceMethodsMap[sId];
                 }
               });
               
@@ -804,10 +900,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       }
     };
-    if (landCovers && landCovers.length > 0) {
-      fetchConfigs();
-    }
-  }, [landCovers]);
+
+    fetchConfigs();
+  }, [landCoverIdsKey, activeProjectId]);
 
 
 
@@ -840,12 +935,24 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       
       // Sync ke backend jika areaId adalah numeric
       if (!isNaN(Number(areaId)) && Number(areaId) > 0) {
-        const configsPayload = [
-          { service_id: 'provisioning', is_active: next.activeServices.provisioning, method_id: next.selectedMethods.provisioning, biota: next.biota },
-          { service_id: 'regulating', is_active: next.activeServices.regulating, method_id: next.selectedMethods.regulating },
-          { service_id: 'supporting', is_active: next.activeServices.supporting, method_id: next.selectedMethods.supporting },
-          { service_id: 'cultural', is_active: next.activeServices.cultural, method_id: next.selectedMethods.cultural },
-        ];
+        const configsPayload: { service_id: string; is_active: boolean; method_id: string; biota?: string }[] = [];
+        const serviceKeys: (keyof AreaServiceConfig['activeServices'])[] = ['provisioning', 'regulating', 'supporting', 'cultural'];
+
+        serviceKeys.forEach(sId => {
+          const isActive = !!next.activeServices[sId];
+          const defaultM = sId === 'provisioning' ? 'market-price' : sId === 'regulating' ? 'replacement-cost' : sId === 'supporting' ? 'nursery-ground' : 'tcm';
+          const methods = normalizeMethods(next.selectedMethods[sId], defaultM);
+
+          methods.forEach(mId => {
+            configsPayload.push({
+              service_id: sId,
+              is_active: isActive,
+              method_id: mId,
+              ...(sId === 'provisioning' ? { biota: next.biota } : {}),
+            });
+          });
+        });
+
         upsertValuationConfigs(areaId, configsPayload).catch(err => 
           console.warn('[ValuationData] Gagal sync configs ke backend:', err)
         );
@@ -1139,7 +1246,11 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           totalValue: 0,
           fillColor,
           strokeColor,
-          properties: props,
+          source: 'shp',
+          properties: {
+            ...props,
+            source: 'shp',
+          },
         });
       });
     });
@@ -1166,19 +1277,29 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       .map(ex => ({ ...ex, spatialStatus: 'unconnected' as const }));
     const idxList = [...connectedList, ...unmatchedExisting];
 
-    setProjectLayers(prev => ({
-      ...prev,
-      [idKey]: newLayers,
-      ...(codeKey ? { [codeKey]: newLayers } : {}),
-      [projId]: newLayers,
-    }));
+    setProjectLayers(prev => {
+      const current = prev[idKey] || prev[projId] || (codeKey ? prev[codeKey] : []) || [];
+      const manualOnly = current.filter(l => l.id.includes('manual') || l.id.includes('layer-geo-'));
+      const combined = [...newLayers, ...manualOnly];
+      return {
+        ...prev,
+        [idKey]: combined,
+        ...(codeKey ? { [codeKey]: combined } : {}),
+        [projId]: combined,
+      };
+    });
 
-    setProjectLandCovers(prev => ({
-      ...prev,
-      [idKey]: finalPolygons,
-      ...(codeKey ? { [codeKey]: finalPolygons } : {}),
-      [projId]: finalPolygons,
-    }));
+    setProjectLandCovers(prev => {
+      const current = prev[idKey] || prev[projId] || (codeKey ? prev[codeKey] : []) || [];
+      const manualOnly = current.filter(lc => lc.source === 'manual' || lc.id.startsWith('manual-poly-') || lc.id.startsWith('backend-poly-'));
+      const combined = [...finalPolygons, ...manualOnly];
+      return {
+        ...prev,
+        [idKey]: combined,
+        ...(codeKey ? { [codeKey]: combined } : {}),
+        [projId]: combined,
+      };
+    });
 
     setProjectIndices(prev => ({
       ...prev,
@@ -1340,20 +1461,30 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const idKey = String(targetP?.id || projId);
     const codeKey = targetP?.code;
 
-    // 1. Reset land covers & layers
-    setProjectLandCovers(prev => ({
-      ...prev,
-      [idKey]: [],
-      ...(codeKey ? { [codeKey]: [] } : {}),
-      [projId]: [],
-    }));
+    // 1. Reset ONLY SHP land covers & layers, strictly preserving manual polygons & layers
+    let remainingManualPolygons: LandCoverPolygon[] = [];
+    setProjectLandCovers(prev => {
+      const current = prev[idKey] || prev[projId] || (codeKey ? prev[codeKey] : []) || [];
+      remainingManualPolygons = current.filter(p => p.source === 'manual' || p.id.startsWith('manual-poly-') || p.id.startsWith('backend-poly-'));
+      return {
+        ...prev,
+        [idKey]: remainingManualPolygons,
+        ...(codeKey ? { [codeKey]: remainingManualPolygons } : {}),
+        [projId]: remainingManualPolygons,
+      };
+    });
 
-    setProjectLayers(prev => ({
-      ...prev,
-      [idKey]: [],
-      ...(codeKey ? { [codeKey]: [] } : {}),
-      [projId]: [],
-    }));
+    let remainingManualLayers: MapLayer[] = [];
+    setProjectLayers(prev => {
+      const current = prev[idKey] || prev[projId] || (codeKey ? prev[codeKey] : []) || [];
+      remainingManualLayers = current.filter(l => l.id.includes('manual') || l.id.includes('layer-geo-'));
+      return {
+        ...prev,
+        [idKey]: remainingManualLayers,
+        ...(codeKey ? { [codeKey]: remainingManualLayers } : {}),
+        [projId]: remainingManualLayers,
+      };
+    });
 
     // 2. Handle indices based on confirmation choice
     let updatedIndices: IndexItem[] = [];
@@ -1417,17 +1548,17 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       } else {
         await saveSpatialToIndexedDB(idKey, {
           geojson: null,
-          polygons: [],
+          polygons: remainingManualPolygons,
           indices: updatedIndices,
-          layers: [],
+          layers: remainingManualLayers,
           fileName: undefined,
         });
         if (codeKey && codeKey !== idKey) {
           await saveSpatialToIndexedDB(codeKey, {
             geojson: null,
-            polygons: [],
+            polygons: remainingManualPolygons,
             indices: updatedIndices,
-            layers: [],
+            layers: remainingManualLayers,
             fileName: undefined,
           });
         }
@@ -1446,6 +1577,1079 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         console.warn('Backend deleteProjectShapefile API warning:', err);
       }
     }
+  };
+
+  const unpackBackendGeometry = (idKey: string, codeKey: string | undefined, name: string, geometry: any) => {
+    if (!geometry) return;
+    try {
+      let features: any[] = [];
+      if (geometry.type === 'FeatureCollection' && Array.isArray(geometry.features)) {
+        features = geometry.features;
+      } else if (geometry.type === 'Feature') {
+        features = [geometry];
+      } else if (geometry.type === 'Polygon' || geometry.type === 'MultiPolygon') {
+        features = [{ type: 'Feature', geometry, properties: { name } }];
+      }
+      if (!features.length) return;
+
+      const polygons: LandCoverPolygon[] = [];
+      features.forEach((feat: any, idx: number) => {
+        const geom = feat?.geometry;
+        if (!geom) return;
+        const ringCoordsList: [number, number][][] = [];
+        if (geom.type === 'Polygon' && Array.isArray(geom.coordinates?.[0])) {
+          const ring = geom.coordinates[0]
+            .filter((pt: any) => Array.isArray(pt) && Number.isFinite(pt[0]) && Number.isFinite(pt[1]))
+            .map(([lng, lat]: [number, number]) => [lat, lng] as [number, number])
+            .filter(([lat, lng]: [number, number]) => Math.abs(lat) <= 90 && Math.abs(lng) <= 180);
+          if (ring.length >= 3) ringCoordsList.push(ring);
+        } else if (geom.type === 'MultiPolygon' && Array.isArray(geom.coordinates)) {
+          geom.coordinates.forEach((polyGeom: any) => {
+            if (Array.isArray(polyGeom?.[0])) {
+              const ring = polyGeom[0]
+                .filter((pt: any) => Array.isArray(pt) && Number.isFinite(pt[0]) && Number.isFinite(pt[1]))
+                .map(([lng, lat]: [number, number]) => [lat, lng] as [number, number])
+                .filter(([lat, lng]: [number, number]) => Math.abs(lat) <= 90 && Math.abs(lng) <= 180);
+              if (ring.length >= 3) ringCoordsList.push(ring);
+            }
+          });
+        }
+
+        ringCoordsList.forEach((ringCoords, rIdx) => {
+          const areaHa = calculateGeodesicAreaHa(ringCoords);
+          const center = calculatePolygonCentroid(ringCoords);
+          const partSuffix = ringCoordsList.length > 1 ? `-${rIdx + 1}` : '';
+          const polyId = `backend-poly-${idKey}-${idx + 1}${partSuffix}`;
+          const polyCode = `${codeKey || idKey}-GEO-${String(polygons.length + 1).padStart(3, '0')}`;
+          const polyName = feat?.properties?.name || feat?.properties?.keterangan || `${name} ${partSuffix}`.trim();
+
+          polygons.push({
+            id: polyId,
+            code: polyCode,
+            name: polyName,
+            type: feat?.properties?.type || detectLandCoverType(polyName) || 'lainnya',
+            areaHa,
+            coordinates: ringCoords,
+            center,
+            activeServices: [],
+            serviceDetails: [],
+            totalValue: 0,
+            fillColor: feat?.properties?._fill || feat?.properties?.fillColor || '#38bdf8',
+            strokeColor: feat?.properties?._stroke || feat?.properties?.strokeColor || '#0284c7',
+            source: 'manual',
+            properties: {
+              ...(feat?.properties || {}),
+              source: 'manual',
+            },
+          });
+        });
+      });
+
+      if (polygons.length > 0) {
+        const layers: MapLayer[] = [{
+          id: `layer-geo-${idKey}-${Date.now()}`,
+          projectId: idKey,
+          name: `Batas Kawasan: ${name}`,
+          type: 'polygon',
+          featureCount: polygons.length,
+          crs: 'WGS 84 (EPSG:4326)',
+          color: '#38bdf8',
+          visible: true,
+          updatedAt: new Date().toISOString().split('T')[0],
+        }];
+
+        // The project boundary is stored in proyek.geometry and IndexedDB.
+        // It is strictly a boundary, NOT a land cover, and must not pollute projectLandCovers.
+        setProjectLayers(prev => {
+          const current = prev[idKey] || (codeKey ? prev[codeKey] : []) || [];
+          const shpOnly = current.filter(l => !l.id.includes('manual') && !l.id.includes('layer-geo-'));
+          return {
+            ...prev,
+            [idKey]: [...shpOnly, ...layers],
+            ...(codeKey ? { [codeKey]: [...shpOnly, ...layers] } : {}),
+          };
+        });
+        saveSpatialToIndexedDB(idKey, {
+          geojson: geometry,
+          polygons,
+          indices: projectIndices[idKey] || [],
+          layers,
+          fileName: `Geometry_${name}`,
+        });
+      }
+    } catch (err) {
+      console.warn('Failed to unpack backend geometry:', err);
+    }
+  };
+
+  const saveManualLandCovers = async (
+    targetProjId: string,
+    manualItems: {
+      id?: string;
+      name: string;
+      type?: LandCoverPolygon['type'] | 'belum_diklasifikasi';
+      areaHa?: number;
+      coordinates: [number, number][];
+      center?: [number, number];
+      description?: string;
+      notes?: string;
+      fillColor?: string;
+      strokeColor?: string;
+    }[]
+  ): Promise<void> => {
+    const projId = targetProjId || activeProjectId;
+    const targetP = projects.find(p => p.id === projId || p.code === projId || String(p.id) === String(projId));
+    const idKey = String(targetP?.id || projId);
+    const codeKey = targetP?.code;
+
+    if (!manualItems || manualItems.length === 0) {
+      await deleteAllManualPolygons(targetProjId);
+      return;
+    }
+
+    const features: any[] = [];
+    const newPolys: LandCoverPolygon[] = [];
+    let totalHa = 0;
+    const allPoints: [number, number][] = [];
+
+    manualItems.forEach((item, idx) => {
+      const ring = item.coordinates;
+      const singleAreaHa = item.areaHa || calculateGeodesicAreaHa(ring);
+      totalHa += singleAreaHa;
+      const ringCenter = item.center && isValidPoint(item.center) ? item.center : calculatePolygonCentroid(ring);
+      ring.forEach(pt => allPoints.push(pt));
+
+      const polyId = item.id || `manual-poly-${idKey}-${Date.now()}-${idx + 1}`;
+      const polyCode = `${codeKey || idKey}-MAN-${String(idx + 1).padStart(3, '0')}`;
+      const polyName = item.name || `Tutupan Lahan ${idx + 1}`;
+      const polyType = (item.type || 'belum_diklasifikasi') as LandCoverPolygon['type'];
+
+      const closedCoords = [...ring];
+      const first = closedCoords[0];
+      const last = closedCoords[closedCoords.length - 1];
+      if (first && last && (Math.abs(first[0] - last[0]) > 0.0000001 || Math.abs(first[1] - last[1]) > 0.0000001)) {
+        closedCoords.push([first[0], first[1]]);
+      }
+      const geoJsonRing = closedCoords.map(([lat, lng]) => [lng, lat]);
+
+      features.push({
+        type: 'Feature',
+        properties: {
+          id: polyId,
+          name: polyName,
+          type: polyType,
+          keterangan: polyName,
+          deskripsi: item.description || '',
+          catatan: item.notes || '',
+          luas_ha: singleAreaHa,
+          tipe: 'tutupan_lahan',
+          sumber: 'Peta Manual (Digitasi)',
+          source: 'manual',
+          _fill: item.fillColor || '#38bdf8',
+          _stroke: item.strokeColor || '#0284c7',
+        },
+        geometry: {
+          type: 'Polygon',
+          coordinates: [geoJsonRing],
+        },
+      });
+
+      newPolys.push({
+        id: polyId,
+        code: polyCode,
+        name: polyName,
+        type: polyType === 'belum_diklasifikasi' ? 'lainnya' : polyType,
+        areaHa: singleAreaHa,
+        coordinates: ring,
+        center: ringCenter,
+        indexId: undefined,
+        indexCode: undefined,
+        indexName: undefined,
+        activeServices: [],
+        serviceDetails: [],
+        totalValue: 0,
+        fillColor: item.fillColor || '#38bdf8',
+        strokeColor: item.strokeColor || '#0284c7',
+        source: 'manual',
+        properties: {
+          name: polyName,
+          keterangan: polyName,
+          deskripsi: item.description || '',
+          catatan: item.notes || '',
+          source: 'manual',
+          manualType: polyType,
+        },
+      });
+    });
+
+    const overallCenter = calculatePolygonCentroid(allPoints.length > 0 ? allPoints : [[-2.5, 118]]);
+
+    const geojson = {
+      type: 'FeatureCollection',
+      features,
+    };
+
+    const newLayers: MapLayer[] = [
+      {
+        id: `layer-manual-${idKey}-${Date.now()}`,
+        projectId: idKey,
+        name: `Tutupan Lahan Manual (${newPolys.length} Poligon)`,
+        type: 'polygon',
+        featureCount: newPolys.length,
+        crs: 'WGS 84 (EPSG:4326)',
+        color: '#38bdf8',
+        visible: true,
+        updatedAt: new Date().toISOString().split('T')[0],
+      },
+    ];
+
+    const currentIndices = projectIndices[idKey] || projectIndices[projId] || (codeKey ? projectIndices[codeKey] : []) || [];
+
+    // 1. Update React state, PRESERVING SHP
+    setProjectLandCovers(prev => {
+      const current = prev[idKey] || prev[projId] || (codeKey ? prev[codeKey] : []) || [];
+      const shpOnly = current.filter(p => p.source === 'shp' || (p.source !== 'manual' && p.id.startsWith('shp-poly-')));
+      const combined = [...shpOnly, ...newPolys];
+      return {
+        ...prev,
+        [idKey]: combined,
+        ...(codeKey ? { [codeKey]: combined } : {}),
+        [projId]: combined,
+      };
+    });
+
+    setProjectLayers(prev => {
+      const current = prev[idKey] || prev[projId] || (codeKey ? prev[codeKey] : []) || [];
+      const shpOnly = current.filter(l => !l.id.includes('manual') && !l.id.includes('layer-geo-'));
+      const combined = [...shpOnly, ...newLayers];
+      return {
+        ...prev,
+        [idKey]: combined,
+        ...(codeKey ? { [codeKey]: combined } : {}),
+        [projId]: combined,
+      };
+    });
+
+    setProjects(prev => prev.map(p => {
+      if (p.id === idKey || p.code === codeKey || p.id === projId || p.code === projId) {
+        return {
+          ...p,
+          hasManual: true,
+          latitude: overallCenter[0],
+          longitude: overallCenter[1],
+          updatedAt: 'Baru saja',
+        };
+      }
+      return p;
+    }));
+
+    // 2. Persist to localStorage flags (strictly has_manual, NEVER has_shp)
+    try {
+      localStorage.setItem(`pkspl_has_manual_${idKey}`, 'true');
+      if (codeKey) localStorage.setItem(`pkspl_has_manual_${codeKey}`, 'true');
+      if (projId) localStorage.setItem(`pkspl_has_manual_${projId}`, 'true');
+    } catch (e) {
+      console.warn('Failed to set localStorage has_manual flag:', e);
+    }
+
+    // 3. Persist to IndexedDB
+    try {
+      await saveSpatialToIndexedDB(idKey, {
+        geojson,
+        polygons: newPolys,
+        indices: currentIndices,
+        layers: newLayers,
+        fileName: `Manual_${newPolys[0]?.name || 'TutupanLahan'}`,
+      });
+      if (codeKey && codeKey !== idKey) {
+        await saveSpatialToIndexedDB(codeKey, {
+          geojson,
+          polygons: newPolys,
+          indices: currentIndices,
+          layers: newLayers,
+          fileName: `Manual_${newPolys[0]?.name || 'TutupanLahan'}`,
+        });
+      }
+    } catch (err) {
+      console.warn('saveManualLandCovers IndexedDB warning:', err);
+    }
+
+    // 4. Synchronize with backend API
+    const numericId = Number(idKey);
+    const apiTargetId = (Number.isInteger(numericId) && numericId > 0) ? String(numericId) : (codeKey || idKey);
+    if (apiTargetId) {
+      const payload: Record<string, any> = {
+        geometry: geojson,
+        latitude: overallCenter[0],
+        longitude: overallCenter[1],
+        luas: Number(totalHa.toFixed(2)),
+        satuan_luas: 'ha',
+      };
+      await updateProyek(apiTargetId, payload);
+    }
+  };
+
+  const saveManualPolygon = async (
+    targetProjId: string,
+    areaData: {
+      name: string;
+      description?: string;
+      notes?: string;
+      polygons: [number, number][][];
+      areaHa?: number;
+      center?: [number, number];
+      type?: LandCoverPolygon['type'] | 'belum_diklasifikasi';
+    }
+  ): Promise<void> => {
+    const items = areaData.polygons.map((ring, idx) => ({
+      name: areaData.name + (areaData.polygons.length > 1 ? ` (Zona ${idx + 1})` : ''),
+      type: areaData.type || detectLandCoverType(areaData.name) || 'belum_diklasifikasi',
+      coordinates: ring,
+      description: areaData.description,
+      notes: areaData.notes,
+    }));
+    await saveManualLandCovers(targetProjId, items);
+  };
+
+  const deleteManualPolygon = async (targetProjId: string, polygonId: string): Promise<void> => {
+    const projId = targetProjId || activeProjectId;
+    const targetP = projects.find(p => p.id === projId || p.code === projId || String(p.id) === String(projId));
+    const idKey = String(targetP?.id || projId);
+    const codeKey = targetP?.code;
+
+    const current = projectLandCovers[idKey] || projectLandCovers[projId] || (codeKey ? projectLandCovers[codeKey] : []) || [];
+    const polyToDelete = current.find(p => String(p.id) === String(polygonId));
+    const linkedIndexId = polyToDelete?.indexId || polyToDelete?.properties?.id_index;
+
+    // Two-way sync: If this manual polygon is connected to an Index, also delete the connected Index!
+    if (linkedIndexId) {
+      if (!isNaN(Number(linkedIndexId)) && Number(linkedIndexId) > 0) {
+        try {
+          await deleteIndexApi(linkedIndexId);
+        } catch (err) {
+          console.warn('[ProjectContext] deleteIndexApi warning in deleteManualPolygon:', err);
+        }
+      }
+      setProjectIndices(prev => {
+        const next = { ...prev };
+        for (const k of Object.keys(next)) {
+          next[k] = (next[k] || []).filter(i => String(i.id) !== String(linkedIndexId));
+        }
+        return next;
+      });
+    }
+
+    const remaining = current.filter(p => String(p.id) !== String(polygonId));
+    const remainingManual = remaining.filter(p => p.source === 'manual' || p.id.startsWith('manual-poly-') || p.id.startsWith('backend-poly-'));
+
+    let newGeoJson: any = null;
+    let totalHa = 0;
+    if (remainingManual.length > 0) {
+      const features = remainingManual.map(poly => {
+        totalHa += (poly.areaHa || 0);
+        const closedCoords = [...poly.coordinates];
+        const first = closedCoords[0];
+        const last = closedCoords[closedCoords.length - 1];
+        if (first && last && (Math.abs(first[0] - last[0]) > 0.0000001 || Math.abs(first[1] - last[1]) > 0.0000001)) {
+          closedCoords.push([first[0], first[1]]);
+        }
+        return {
+          type: 'Feature',
+          properties: {
+            id: poly.id,
+            name: poly.name,
+            type: poly.type,
+            luas_ha: poly.areaHa,
+            sumber: 'Peta Manual (Digitasi)',
+            source: 'manual',
+            _fill: poly.fillColor || '#38bdf8',
+            _stroke: poly.strokeColor || '#0284c7',
+            ...(poly.properties || {}),
+          },
+          geometry: {
+            type: 'Polygon',
+            coordinates: [closedCoords.map(([lat, lng]) => [lng, lat])],
+          },
+        };
+      });
+      newGeoJson = {
+        type: 'FeatureCollection',
+        features,
+      };
+    }
+
+    const currentLayers = projectLayers[idKey] || projectLayers[projId] || (codeKey ? projectLayers[codeKey] : []) || [];
+    const updatedLayers = currentLayers.map(l => {
+      if (l.id.includes('manual') || l.id.includes('layer-geo-')) {
+        return {
+          ...l,
+          featureCount: remainingManual.length,
+          name: `Tutupan Lahan Manual (${remainingManual.length} Poligon)`,
+          updatedAt: new Date().toISOString().split('T')[0],
+        };
+      }
+      return l;
+    }).filter(l => !((l.id.includes('manual') || l.id.includes('layer-geo-')) && remainingManual.length === 0));
+
+    setProjectLandCovers(prev => ({
+      ...prev,
+      [idKey]: remaining,
+      ...(codeKey ? { [codeKey]: remaining } : {}),
+      [projId]: remaining,
+    }));
+
+    setProjectLayers(prev => ({
+      ...prev,
+      [idKey]: updatedLayers,
+      ...(codeKey ? { [codeKey]: updatedLayers } : {}),
+      [projId]: updatedLayers,
+    }));
+
+    setProjects(prev => prev.map(p => {
+      if (p.id === idKey || p.code === codeKey || p.id === projId || p.code === projId) {
+        return {
+          ...p,
+          hasManual: remainingManual.length > 0,
+          updatedAt: 'Baru saja',
+        };
+      }
+      return p;
+    }));
+
+    try {
+      if (remainingManual.length === 0) {
+        localStorage.setItem(`pkspl_has_manual_${idKey}`, 'false');
+        if (codeKey) localStorage.setItem(`pkspl_has_manual_${codeKey}`, 'false');
+        if (projId) localStorage.setItem(`pkspl_has_manual_${projId}`, 'false');
+      }
+    } catch (e) {
+      console.warn('localStorage error:', e);
+    }
+
+    try {
+      await saveSpatialToIndexedDB(idKey, {
+        geojson: newGeoJson,
+        polygons: remaining,
+        indices: projectIndices[idKey] || [],
+        layers: updatedLayers,
+        fileName: remainingManual.length > 0 ? `Manual_${remainingManual[0].name}` : undefined,
+      });
+      if (codeKey && codeKey !== idKey) {
+        await saveSpatialToIndexedDB(codeKey, {
+          geojson: newGeoJson,
+          polygons: remaining,
+          indices: projectIndices[codeKey] || [],
+          layers: updatedLayers,
+          fileName: remainingManual.length > 0 ? `Manual_${remainingManual[0].name}` : undefined,
+        });
+      }
+    } catch (err) {
+      console.warn('IndexedDB update error:', err);
+    }
+
+    const numericId = Number(idKey);
+    const apiTargetId = (Number.isInteger(numericId) && numericId > 0) ? String(numericId) : (codeKey || idKey);
+    if (apiTargetId) {
+      try {
+        await updateProyek(apiTargetId, {
+          geometry: newGeoJson,
+        });
+      } catch (err) {
+        console.warn('Backend updateProyek geometry error:', err);
+      }
+    }
+  };
+
+  const deleteAllManualPolygons = async (targetProjId: string): Promise<void> => {
+    const projId = targetProjId || activeProjectId;
+    const targetP = projects.find(p => p.id === projId || p.code === projId || String(p.id) === String(projId));
+    const idKey = String(targetP?.id || projId);
+    const codeKey = targetP?.code;
+
+    const current = projectLandCovers[idKey] || projectLandCovers[projId] || (codeKey ? projectLandCovers[codeKey] : []) || [];
+    const shpOnly = current.filter(p => !(p.source === 'manual' || p.id.startsWith('manual-poly-') || p.id.startsWith('backend-poly-')));
+
+    const currentLayers = projectLayers[idKey] || projectLayers[projId] || (codeKey ? projectLayers[codeKey] : []) || [];
+    const shpLayersOnly = currentLayers.filter(l => !(l.id.includes('manual') || l.id.includes('layer-geo-')));
+
+    setProjectLandCovers(prev => ({
+      ...prev,
+      [idKey]: shpOnly,
+      ...(codeKey ? { [codeKey]: shpOnly } : {}),
+      [projId]: shpOnly,
+    }));
+
+    setProjectLayers(prev => ({
+      ...prev,
+      [idKey]: shpLayersOnly,
+      ...(codeKey ? { [codeKey]: shpLayersOnly } : {}),
+      [projId]: shpLayersOnly,
+    }));
+
+    setProjects(prev => prev.map(p => {
+      if (p.id === idKey || p.code === codeKey || p.id === projId || p.code === projId) {
+        return {
+          ...p,
+          hasManual: false,
+          updatedAt: 'Baru saja',
+        };
+      }
+      return p;
+    }));
+
+    try {
+      localStorage.setItem(`pkspl_has_manual_${idKey}`, 'false');
+      if (codeKey) localStorage.setItem(`pkspl_has_manual_${codeKey}`, 'false');
+      if (projId) localStorage.setItem(`pkspl_has_manual_${projId}`, 'false');
+    } catch (e) {
+      console.warn('localStorage error:', e);
+    }
+
+    try {
+      await saveSpatialToIndexedDB(idKey, {
+        geojson: null,
+        polygons: shpOnly,
+        indices: projectIndices[idKey] || [],
+        layers: shpLayersOnly,
+        fileName: undefined,
+      });
+      if (codeKey && codeKey !== idKey) {
+        await saveSpatialToIndexedDB(codeKey, {
+          geojson: null,
+          polygons: shpOnly,
+          indices: projectIndices[codeKey] || [],
+          layers: shpLayersOnly,
+          fileName: undefined,
+        });
+      }
+    } catch (err) {
+      console.warn('IndexedDB error:', err);
+    }
+
+    const numericId = Number(idKey);
+    const apiTargetId = (Number.isInteger(numericId) && numericId > 0) ? String(numericId) : (codeKey || idKey);
+    if (apiTargetId) {
+      try {
+        await updateProyek(apiTargetId, {
+          geometry: null,
+        });
+      } catch (err) {
+        console.warn('Backend updateProyek clear geometry error:', err);
+      }
+    }
+  };
+
+  const getProjectShpLandCovers = (projectId: string): LandCoverPolygon[] => {
+    const all = getProjectLandCovers(projectId);
+    return all.filter(p => p.source === 'shp' || (p.source !== 'manual' && p.id.startsWith('shp-poly-')));
+  };
+
+  const getProjectManualLandCovers = (projectId: string): LandCoverPolygon[] => {
+    const all = getProjectLandCovers(projectId);
+    return all.filter(p => p.source === 'manual' || p.id.startsWith('manual-poly-') || p.id.startsWith('backend-poly-'));
+  };
+
+  const getProjectShpLayers = (projectId: string): MapLayer[] => {
+    const all = getProjectLayers(projectId);
+    return all.filter(l => !l.id.includes('manual') && !l.id.includes('layer-geo-'));
+  };
+
+  const getProjectManualLayers = (projectId: string): MapLayer[] => {
+    const all = getProjectLayers(projectId);
+    return all.filter(l => l.id.includes('manual') || l.id.includes('layer-geo-') || l.id.includes('boundary'));
+  };
+
+  const getProjectManualBoundary = (projectId: string): {
+    name: string;
+    notes?: string;
+    coordinates: [number, number][];
+    areaHa: number;
+    center: [number, number];
+  } | null => {
+    const proj = projects.find(p => p.id === projectId || p.code === projectId);
+    const geom = proj?.geometry;
+    if (!geom) return null;
+
+    let feature: any = null;
+    if (geom.type === 'FeatureCollection' && Array.isArray(geom.features) && geom.features.length > 0) {
+      feature = geom.features.find((f: any) => f.properties?.type === 'project_boundary') || geom.features[0];
+    } else if (geom.type === 'Feature') {
+      feature = geom;
+    } else if (geom.type === 'Polygon') {
+      feature = { type: 'Feature', geometry: geom, properties: {} };
+    }
+
+    if (!feature || !feature.geometry) return null;
+    const ring = feature.geometry.coordinates?.[0];
+    if (!Array.isArray(ring) || ring.length < 3) return null;
+
+    const coords: [number, number][] = ring
+      .filter((pt: any) => Array.isArray(pt) && Number.isFinite(pt[0]) && Number.isFinite(pt[1]))
+      .map(([lng, lat]: [number, number]) => [lat, lng] as [number, number])
+      .filter(([lat, lng]: [number, number]) => Math.abs(lat) <= 90 && Math.abs(lng) <= 180);
+
+    if (coords.length < 3) return null;
+
+    const areaHa = Number(feature.properties?.areaHa || feature.properties?.luas_ha || calculateGeodesicAreaHa(coords));
+    const center = calculatePolygonCentroid(coords);
+    const name = feature.properties?.name || proj?.name || 'Batas Kawasan Proyek';
+    const notes = feature.properties?.notes || feature.properties?.deskripsi || feature.properties?.catatan || '';
+
+    return {
+      name,
+      notes,
+      coordinates: coords,
+      areaHa,
+      center,
+    };
+  };
+
+  const saveManualProjectBoundary = async (
+    targetProjId: string,
+    boundary: {
+      name: string;
+      notes?: string;
+      coordinates: [number, number][];
+      areaHa: number;
+      center?: [number, number];
+    }
+  ): Promise<void> => {
+    const projId = targetProjId || activeProjectId;
+    const targetP = projects.find(p => p.id === projId || p.code === projId || String(p.id) === String(projId));
+    const idKey = String(targetP?.id || projId);
+    const codeKey = targetP?.code;
+
+    const ring = boundary.coordinates;
+    const closedCoords = [...ring];
+    const first = closedCoords[0];
+    const last = closedCoords[closedCoords.length - 1];
+    if (first && last && (Math.abs(first[0] - last[0]) > 0.0000001 || Math.abs(first[1] - last[1]) > 0.0000001)) {
+      closedCoords.push([first[0], first[1]]);
+    }
+    const geoJsonRing = closedCoords.map(([lat, lng]) => [lng, lat]);
+
+    const center = boundary.center && isValidPoint(boundary.center) ? boundary.center : calculatePolygonCentroid(ring);
+    const areaHa = boundary.areaHa > 0 ? boundary.areaHa : calculateGeodesicAreaHa(ring);
+
+    const geojson = {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          properties: {
+            type: 'project_boundary',
+            name: boundary.name,
+            notes: boundary.notes || '',
+            areaHa: Number(areaHa.toFixed(2)),
+            luas_ha: Number(areaHa.toFixed(2)),
+            sumber: 'manual',
+            source: 'manual',
+            _fill: '#38bdf8',
+            _stroke: '#0284c7',
+          },
+          geometry: {
+            type: 'Polygon',
+            coordinates: [geoJsonRing],
+          },
+        },
+      ],
+    };
+
+    const boundaryPoly: LandCoverPolygon = {
+      id: `boundary-poly-${idKey}`,
+      code: `${codeKey || idKey}-BND`,
+      name: boundary.name,
+      type: 'lainnya',
+      areaHa: Number(areaHa.toFixed(2)),
+      coordinates: ring,
+      center,
+      activeServices: [],
+      serviceDetails: [],
+      totalValue: 0,
+      fillColor: '#38bdf8',
+      strokeColor: '#0284c7',
+      source: 'manual',
+      properties: {
+        type: 'project_boundary',
+        name: boundary.name,
+        notes: boundary.notes || '',
+        source: 'manual',
+      },
+    };
+
+    const boundaryLayer: MapLayer = {
+      id: `layer-boundary-${idKey}`,
+      projectId: idKey,
+      name: `Batas Kawasan Proyek: ${boundary.name}`,
+      type: 'polygon',
+      featureCount: 1,
+      crs: 'WGS 84 (EPSG:4326)',
+      color: '#0284c7',
+      visible: true,
+      updatedAt: new Date().toISOString().split('T')[0],
+    };
+
+    setProjectLandCovers(prev => {
+      const current = prev[idKey] || prev[projId] || (codeKey ? prev[codeKey] : []) || [];
+      const nonBoundary = current.filter(p => p.id !== boundaryPoly.id && p.properties?.type !== 'project_boundary');
+      return {
+        ...prev,
+        [idKey]: nonBoundary,
+        ...(codeKey ? { [codeKey]: nonBoundary } : {}),
+        [projId]: nonBoundary,
+      };
+    });
+
+    setProjectLayers(prev => {
+      const current = prev[idKey] || prev[projId] || (codeKey ? prev[codeKey] : []) || [];
+      const nonBoundary = current.filter(l => l.id !== boundaryLayer.id);
+      const combined = [boundaryLayer, ...nonBoundary];
+      return {
+        ...prev,
+        [idKey]: combined,
+        ...(codeKey ? { [codeKey]: combined } : {}),
+        [projId]: combined,
+      };
+    });
+
+    setProjects(prev => prev.map(p => {
+      if (p.id === idKey || p.code === codeKey || p.id === projId || p.code === projId) {
+        return {
+          ...p,
+          hasManual: true,
+          geometry: geojson,
+          latitude: center[0],
+          longitude: center[1],
+          luas: Number(areaHa.toFixed(2)),
+          updatedAt: 'Baru saja',
+        };
+      }
+      return p;
+    }));
+
+    try {
+      localStorage.setItem(`pkspl_has_manual_${idKey}`, 'true');
+      if (codeKey) localStorage.setItem(`pkspl_has_manual_${codeKey}`, 'true');
+      if (projId) localStorage.setItem(`pkspl_has_manual_${projId}`, 'true');
+    } catch (e) {
+      console.warn('Failed to set localStorage has_manual flag:', e);
+    }
+
+    try {
+      await saveSpatialToIndexedDB(idKey, {
+        geojson,
+        polygons: [boundaryPoly],
+        indices: projectIndices[idKey] || [],
+        layers: [boundaryLayer],
+        fileName: `Batas_${boundary.name}`,
+      });
+      if (codeKey && codeKey !== idKey) {
+        await saveSpatialToIndexedDB(codeKey, {
+          geojson,
+          polygons: [boundaryPoly],
+          indices: projectIndices[codeKey] || [],
+          layers: [boundaryLayer],
+          fileName: `Batas_${boundary.name}`,
+        });
+      }
+    } catch (err) {
+      console.warn('saveManualProjectBoundary IndexedDB warning:', err);
+    }
+
+    const numericId = Number(idKey);
+    const apiTargetId = (Number.isInteger(numericId) && numericId > 0) ? String(numericId) : (codeKey || idKey);
+    if (apiTargetId) {
+      const payload: Record<string, any> = {
+        geometry: geojson,
+        latitude: center[0],
+        longitude: center[1],
+        luas: Number(areaHa.toFixed(2)),
+        satuan_luas: 'ha',
+      };
+      if (boundary.notes) {
+        payload.deskripsi = boundary.notes;
+      }
+      await updateProyek(apiTargetId, payload);
+    }
+  };
+
+  const deleteManualProjectBoundary = async (
+    targetProjId: string,
+    deleteAssociatedIndices: boolean = true
+  ): Promise<void> => {
+    const projId = targetProjId || activeProjectId;
+    const targetP = projects.find(p => p.id === projId || p.code === projId || String(p.id) === String(projId));
+    const idKey = String(targetP?.id || projId);
+    const codeKey = targetP?.code;
+
+    if (deleteAssociatedIndices) {
+      const currentIndices = projectIndices[idKey] || projectIndices[projId] || [];
+      for (const idx of currentIndices) {
+        if (!isNaN(Number(idx.id)) && Number(idx.id) > 0) {
+          try {
+            await deleteIndexApi(idx.id);
+          } catch (err) {
+            console.warn('[ProjectContext] deleteIndexApi warning during boundary delete:', err);
+          }
+        }
+      }
+
+      setProjectIndices(prev => ({
+        ...prev,
+        [idKey]: [],
+        ...(codeKey ? { [codeKey]: [] } : {}),
+        [projId]: [],
+      }));
+    }
+
+    setProjectLandCovers(prev => {
+      const current = prev[idKey] || prev[projId] || (codeKey ? prev[codeKey] : []) || [];
+      const shpOnly = current.filter(p => !(p.source === 'manual' || p.id.startsWith('manual-poly-') || p.id.startsWith('backend-poly-') || p.id.startsWith('boundary-poly-') || p.id.startsWith('poly-idx-')));
+      return {
+        ...prev,
+        [idKey]: shpOnly,
+        ...(codeKey ? { [codeKey]: shpOnly } : {}),
+        [projId]: shpOnly,
+      };
+    });
+
+    setProjectLayers(prev => {
+      const current = prev[idKey] || prev[projId] || (codeKey ? prev[codeKey] : []) || [];
+      const shpOnly = current.filter(l => !(l.id.includes('manual') || l.id.includes('boundary') || l.id.includes('layer-geo-')));
+      return {
+        ...prev,
+        [idKey]: shpOnly,
+        ...(codeKey ? { [codeKey]: shpOnly } : {}),
+        [projId]: shpOnly,
+      };
+    });
+
+    setProjects(prev => prev.map(p => {
+      if (p.id === idKey || p.code === codeKey || p.id === projId || p.code === projId) {
+        return {
+          ...p,
+          hasManual: false,
+          geometry: null,
+          updatedAt: 'Baru saja',
+        };
+      }
+      return p;
+    }));
+
+    try {
+      localStorage.setItem(`pkspl_has_manual_${idKey}`, 'false');
+      if (codeKey) localStorage.setItem(`pkspl_has_manual_${codeKey}`, 'false');
+      if (projId) localStorage.setItem(`pkspl_has_manual_${projId}`, 'false');
+    } catch (e) {
+      console.warn('localStorage error:', e);
+    }
+
+    const numericId = Number(idKey);
+    const apiTargetId = (Number.isInteger(numericId) && numericId > 0) ? String(numericId) : (codeKey || idKey);
+    if (apiTargetId) {
+      try {
+        await updateProyek(apiTargetId, {
+          geometry: null,
+        });
+      } catch (err) {
+        console.warn('Backend updateProyek clear geometry warning:', err);
+      }
+    }
+  };
+
+  const createManualSpatialIndex = async (
+    targetProjId: string,
+    indexData: {
+      name: string;
+      notes?: string;
+      coordinates: [number, number][];
+      areaHa: number;
+      center?: [number, number];
+      code?: string;
+    }
+  ): Promise<IndexItem> => {
+    const projId = targetProjId || activeProjectId;
+    const targetP = projects.find(p => p.id === projId || p.code === projId || String(p.id) === String(projId));
+    const idKey = String(targetP?.id || projId);
+    const codeKey = targetP?.code;
+
+    const existingIndices = projectIndices[idKey] || projectIndices[projId] || (codeKey ? projectIndices[codeKey] : []) || [];
+    const code = indexData.code || (`IDX-${String(existingIndices.length + 1).padStart(3, '0')}`);
+
+    const ring = indexData.coordinates;
+    const closedCoords = [...ring];
+    const first = closedCoords[0];
+    const last = closedCoords[closedCoords.length - 1];
+    if (first && last && (Math.abs(first[0] - last[0]) > 0.0000001 || Math.abs(first[1] - last[1]) > 0.0000001)) {
+      closedCoords.push([first[0], first[1]]);
+    }
+    const geojsonGeometry = {
+      type: 'Polygon',
+      coordinates: [closedCoords.map(([lat, lng]) => [lng, lat])],
+    };
+
+    const center = indexData.center && isValidPoint(indexData.center) ? indexData.center : calculatePolygonCentroid(ring);
+    const areaHa = Number((indexData.areaHa > 0 ? indexData.areaHa : calculateGeodesicAreaHa(ring)).toFixed(2));
+
+    let createdApiItem: any = null;
+    const numericId = Number(idKey);
+    if (Number.isInteger(numericId) && numericId > 0) {
+      try {
+        createdApiItem = await createIndexApi({
+          id_proyek: numericId,
+          nama_index: indexData.name,
+          kode_index: code,
+          luas: areaHa,
+          satuan_luas: 'ha',
+          deskripsi: indexData.notes || '',
+          geometry: geojsonGeometry,
+        });
+      } catch (err) {
+        console.warn('[ProjectContext] createIndexApi warning:', err);
+      }
+    }
+
+    const newIndexItem: IndexItem = {
+      id: createdApiItem?.id_index ? String(createdApiItem.id_index) : `idx-manual-${idKey}-${Date.now()}`,
+      code: createdApiItem?.kode_index || code,
+      name: createdApiItem?.nama_index || indexData.name,
+      landCoverType: undefined,
+      landCoverName: undefined,
+      areaHa,
+      unit: 'ha',
+      description: createdApiItem?.deskripsi || indexData.notes || '',
+      status: 'Draft',
+      spatialStatus: 'connected',
+      geometry: geojsonGeometry,
+      createdAt: createdApiItem?.created_at || new Date().toISOString().split('T')[0],
+      updatedAt: createdApiItem?.updated_at || new Date().toISOString().split('T')[0],
+    };
+
+    setProjectIndices(prev => ({
+      ...prev,
+      [idKey]: [...(prev[idKey] || []).filter(i => String(i.id) !== String(newIndexItem.id)), newIndexItem],
+      ...(codeKey ? { [codeKey]: [...(prev[codeKey] || []).filter(i => String(i.id) !== String(newIndexItem.id)), newIndexItem] } : {}),
+      [projId]: [...(prev[projId] || []).filter(i => String(i.id) !== String(newIndexItem.id)), newIndexItem],
+    }));
+
+    // CRITICAL: A manual Index polygon is strictly an Index entity with spatial geometry.
+    // It is NOT a land cover. Do NOT inject fake LandCoverPolygon into projectLandCovers.
+    // Clean up any stale or fake polygons for this index from projectLandCovers if present.
+    setProjectLandCovers(prev => {
+      const cur = prev[idKey] || prev[projId] || (codeKey ? prev[codeKey] : []) || [];
+      const clean = cur.filter(
+        p => !p.id.startsWith('poly-idx-') &&
+             p.properties?.id_index !== newIndexItem.id &&
+             p.properties?.type !== 'index_polygon'
+      );
+      return {
+        ...prev,
+        [idKey]: clean,
+        ...(codeKey ? { [codeKey]: clean } : {}),
+        [projId]: clean,
+      };
+    });
+
+    return newIndexItem;
+  };
+
+  const updateManualSpatialIndex = async (
+    targetProjId: string,
+    indexId: string,
+    indexData: {
+      name?: string;
+      notes?: string;
+      coordinates?: [number, number][];
+      areaHa?: number;
+      center?: [number, number];
+    }
+  ): Promise<IndexItem> => {
+    const projId = targetProjId || activeProjectId;
+    const targetP = projects.find(p => p.id === projId || p.code === projId || String(p.id) === String(projId));
+    const idKey = String(targetP?.id || projId);
+    const codeKey = targetP?.code;
+
+    const existingIndices = projectIndices[idKey] || projectIndices[projId] || (codeKey ? projectIndices[codeKey] : []) || [];
+    const targetIdx = existingIndices.find(i => i.id === indexId);
+    if (!targetIdx) {
+      throw new Error(`Index dengan ID ${indexId} tidak ditemukan.`);
+    }
+
+    const newName = indexData.name || targetIdx.name;
+    const newDesc = indexData.notes !== undefined ? indexData.notes : targetIdx.description;
+    let newAreaHa = indexData.areaHa !== undefined ? indexData.areaHa : targetIdx.areaHa;
+    let geojsonGeometry = targetIdx.geometry;
+
+    if (indexData.coordinates && indexData.coordinates.length >= 3) {
+      const ring = indexData.coordinates;
+      const closedCoords = [...ring];
+      const first = closedCoords[0];
+      const last = closedCoords[closedCoords.length - 1];
+      if (first && last && (Math.abs(first[0] - last[0]) > 0.0000001 || Math.abs(first[1] - last[1]) > 0.0000001)) {
+        closedCoords.push([first[0], first[1]]);
+      }
+      geojsonGeometry = {
+        type: 'Polygon',
+        coordinates: [closedCoords.map(([lat, lng]) => [lng, lat])],
+      };
+      if (indexData.areaHa === undefined) {
+        newAreaHa = Number(calculateGeodesicAreaHa(ring).toFixed(2));
+      }
+    }
+
+    if (!isNaN(Number(indexId)) && Number(indexId) > 0) {
+      try {
+        await updateIndexApi(indexId, {
+          nama_index: newName,
+          luas: newAreaHa,
+          deskripsi: newDesc,
+          geometry: geojsonGeometry,
+        });
+      } catch (err) {
+        console.warn('[ProjectContext] updateIndexApi warning:', err);
+      }
+    }
+
+    const updatedItem: IndexItem = {
+      ...targetIdx,
+      name: newName,
+      description: newDesc,
+      areaHa: newAreaHa,
+      geometry: geojsonGeometry,
+      updatedAt: new Date().toISOString().split('T')[0],
+    };
+
+    setProjectIndices(prev => ({
+      ...prev,
+      [idKey]: (prev[idKey] || []).map(i => i.id === indexId ? updatedItem : i),
+      ...(codeKey ? { [codeKey]: (prev[codeKey] || []).map(i => i.id === indexId ? updatedItem : i) } : {}),
+      [projId]: (prev[projId] || []).map(i => i.id === indexId ? updatedItem : i),
+    }));
+
+    // Ensure no fake land cover is created or maintained for this index in projectLandCovers
+    setProjectLandCovers(prev => {
+      const cur = prev[idKey] || prev[projId] || (codeKey ? prev[codeKey] : []) || [];
+      const clean = cur.filter(
+        p => !p.id.startsWith('poly-idx-') &&
+             p.properties?.id_index !== indexId &&
+             p.properties?.type !== 'index_polygon'
+      );
+      return {
+        ...prev,
+        [idKey]: clean,
+        ...(codeKey ? { [codeKey]: clean } : {}),
+        [projId]: clean,
+      };
+    });
+
+    return updatedItem;
+  };
+
+  const deleteManualSpatialIndex = async (
+    targetProjId: string,
+    indexId: string
+  ): Promise<void> => {
+    await deleteIndex(indexId, targetProjId);
   };
 
   const createIndex = (item: Omit<IndexItem, 'id'>): IndexItem => {
@@ -1514,8 +2718,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       id: indexId,
       code: item.code,
       name: item.name,
-      landCoverType: 'Lainnya',
-      landCoverName: item.landCovers[0]?.name || item.name,
+      landCoverType: item.landCovers[0]?.name ? 'Lainnya' : undefined,
+      landCoverName: item.landCovers[0]?.name || undefined,
       areaHa,
       unit: 'ha',
       description: item.description,
@@ -1550,10 +2754,14 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     description: string;
     landCovers: { id?: string; name: string; areaHa: number; description?: string }[];
   }): Promise<void> => {
+    const existingIndex = (projectIndices[activeProjectId] || []).find((i) => i.id === item.id);
+    const totalLandCoverArea = item.landCovers.reduce((total, landCover) => total + (Number(landCover.areaHa) || 0), 0);
+    const resolvedLuas = totalLandCoverArea > 0 ? totalLandCoverArea : (existingIndex?.areaHa || 0);
+
     await updateIndexApi(item.id, {
       nama_index: item.name,
       kode_index: item.code,
-      luas: item.landCovers.reduce((total, landCover) => total + (Number(landCover.areaHa) || 0), 0),
+      luas: resolvedLuas,
       satuan_luas: 'ha',
       deskripsi: item.description,
     });
@@ -1577,9 +2785,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const updatedIndex = {
       code: item.code,
       name: item.name,
-      landCoverType: 'Lainnya',
-      landCoverName: item.landCovers[0]?.name || item.name,
-      areaHa: item.landCovers.reduce((total, landCover) => total + (Number(landCover.areaHa) || 0), 0),
+      landCoverType: item.landCovers[0]?.name ? 'Lainnya' : undefined,
+      landCoverName: item.landCovers[0]?.name || undefined,
+      areaHa: resolvedLuas,
       description: item.description,
       updatedAt: new Date().toISOString(),
     };
@@ -1624,34 +2832,88 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }));
   };
 
-  const deleteIndex = async (id: string) => {
-    try {
-      if (!isNaN(Number(id)) && Number(id) > 0) {
+  const deleteIndex = async (id: string, targetProjId?: string): Promise<void> => {
+    const projId = targetProjId || activeProjectId;
+    const targetP = projects.find(p => p.id === projId || p.code === projId || String(p.id) === String(projId));
+    const idKey = String(targetP?.id || projId);
+    const codeKey = targetP?.code;
+
+    // 1. Delete in backend if it's a numeric DB index
+    if (!isNaN(Number(id)) && Number(id) > 0) {
+      try {
         await deleteIndexApi(id);
+      } catch (err: any) {
+        console.error('[ProjectContext] Gagal delete index di backend:', err);
+        throw err;
       }
-    } catch (err) {
-      console.warn('[ProjectContext] Gagal delete index di backend:', err);
     }
 
-    setProjectIndices(prev => ({
-      ...prev,
-      [activeProjectId]: (prev[activeProjectId] || []).filter(i => i.id !== id)
-    }));
-    // Unlink any polygon attached to this index
-    setProjectLandCovers(prev => ({
-      ...prev,
-      [activeProjectId]: (prev[activeProjectId] || []).map(p => {
-        if (p.indexId === id) {
-          return {
-            ...p,
-            indexId: undefined,
-            indexCode: undefined,
-            indexName: undefined
-          };
+    // 2. Remove index from projectIndices across ALL keys in state
+    setProjectIndices(prev => {
+      const next = { ...prev };
+      for (const k of Object.keys(next)) {
+        next[k] = (next[k] || []).filter(i => String(i.id) !== String(id));
+      }
+      return next;
+    });
+
+    // 3. Two-way deletion with Maps:
+    // If this index is connected to maps (polygons in projectLandCovers, poly-idx-*, or ID matches),
+    // DELETE those connected polygon(s) from the maps as requested:
+    // "jikalau dihalaman indexnya ada yang dihapus maka di mapsnya juga dihapus ... tapi ini hanya yang terhubung dengan mapsnya ya"
+    setProjectLandCovers(prev => {
+      const next = { ...prev };
+      for (const k of Object.keys(next)) {
+        next[k] = (next[k] || []).filter(p => {
+          const isLinkedToThisIndex =
+            String(p.indexId) === String(id) ||
+            String(p.properties?.id_index) === String(id) ||
+            String(p.id) === `poly-idx-${id}` ||
+            String(p.id) === String(id);
+          // Only remove if it was linked to this index; keep unrelated polygons intact
+          return !isLinkedToThisIndex;
+        });
+      }
+      return next;
+    });
+
+    // 4. Remove layers referencing this index
+    setProjectLayers(prev => {
+      const next = { ...prev };
+      for (const k of Object.keys(next)) {
+        next[k] = (next[k] || []).filter(l =>
+          String(l.properties?.id_index) !== String(id) &&
+          l.id !== `layer-idx-${id}`
+        );
+      }
+      return next;
+    });
+
+    // 5. Update IndexedDB if spatial data was stored there
+    try {
+      const currentSpatial = await loadAllSpatialFromIndexedDB();
+      if (currentSpatial) {
+        for (const k of [idKey, codeKey, projId].filter(Boolean) as string[]) {
+          if (currentSpatial[k]) {
+            const item = currentSpatial[k];
+            const updatedIdx = (item.indices || []).filter((i: any) => String(i.id) !== String(id));
+            const updatedPolys = (item.polygons || []).filter(
+              (p: any) => String(p.indexId) !== String(id) &&
+                          String(p.properties?.id_index) !== String(id) &&
+                          p.id !== `poly-idx-${id}` &&
+                          String(p.id) !== String(id)
+            );
+            await saveSpatialToIndexedDB(k, {
+              ...item,
+              indices: updatedIdx,
+              polygons: updatedPolys,
+            });
+          }
         }
-        return p;
-      })
-    }));
+      }
+    } catch (e) {
+      // IndexedDB optional warning
+    }
   };
 
   const linkPolygonToIndex = (polygonId: string, indexId: string) => {
@@ -1832,10 +3094,24 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         addShpLayer,
         uploadProjectShapefile,
         deleteProjectShapefile,
+        saveManualPolygon,
+        saveManualLandCovers,
+        deleteManualPolygon,
+        deleteAllManualPolygons,
+        saveManualProjectBoundary,
+        deleteManualProjectBoundary,
+        getProjectManualBoundary,
+        createManualSpatialIndex,
+        updateManualSpatialIndex,
+        deleteManualSpatialIndex,
         setProjectHasShp,
         getProjectLandCovers,
+        getProjectShpLandCovers,
+        getProjectManualLandCovers,
         getProjectIndices,
         getProjectLayers,
+        getProjectShpLayers,
+        getProjectManualLayers,
         toggleLayerVisibility,
         updateAreaConfig,
         getAreaConfig,

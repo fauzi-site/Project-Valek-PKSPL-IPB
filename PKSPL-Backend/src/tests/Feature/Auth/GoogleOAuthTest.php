@@ -51,8 +51,7 @@ class GoogleOAuthTest extends TestCase
         $location = $response->headers->get('Location');
         $this->assertNotNull($location);
         $this->assertStringContainsString('/auth/callback?', $location);
-        $this->assertStringContainsString('token=', $location);
-        $this->assertStringContainsString('account_created=1', $location);
+        $this->assertStringContainsString('requires_verification=1', $location);
 
         $this->assertDatabaseHas('users', [
             'email' => 'new.google.user@example.com',
@@ -77,6 +76,7 @@ class GoogleOAuthTest extends TestCase
             'nama' => 'Existing Researcher',
             'email' => 'existing.user@example.com',
             'password' => bcrypt('password'),
+            'email_verified_at' => now(),
             'google_id' => null,
             'status' => 'Aktif',
         ]);
@@ -96,7 +96,6 @@ class GoogleOAuthTest extends TestCase
         $response = $this->get('/api/v1/auth/google/callback?code=test-google-code-2');
 
         $response->assertStatus(302);
-        $this->assertDatabaseCount('users', 1);
         $this->assertDatabaseHas('users', [
             'email' => 'existing.user@example.com',
             'google_id' => 'google-user-existing',

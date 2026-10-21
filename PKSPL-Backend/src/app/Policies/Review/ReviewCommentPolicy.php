@@ -4,7 +4,7 @@ namespace App\Policies\Review;
 
 use App\Models\Role;
 use App\Models\User;
-use App\Models\Review\ReviewComment;
+use App\Models\ReviewComment;
 
 class ReviewCommentPolicy
 {

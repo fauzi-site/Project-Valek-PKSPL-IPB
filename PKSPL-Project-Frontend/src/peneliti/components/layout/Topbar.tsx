@@ -281,6 +281,9 @@ export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar, onToggleMobileS
             <div className="hidden sm:block w-px h-6 bg-slate-200 mx-0.5 sm:mx-1"></div>
             <FolderGit2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 shrink-0" />
             <select
+              id="topbar-project-select"
+              name="selectedProjectId"
+              aria-label="Pilih Proyek Aktif"
               value={selectedProjId}
               onChange={handleProjectSelect}
               className="text-xs bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded px-2 py-1 text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 w-[95px] xs:w-[130px] sm:w-[160px] md:w-auto md:max-w-[200px] lg:max-w-xs truncate cursor-pointer shrink"

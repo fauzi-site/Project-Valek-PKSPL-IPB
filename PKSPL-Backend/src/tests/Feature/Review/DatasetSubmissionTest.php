@@ -19,29 +19,29 @@ class DatasetSubmissionTest extends TestCase
         parent::setUp();
         
         // Setup basic roles
-        Role::create(['id_role' => 1, 'nama_role' => 'Peneliti']);
-        Role::create(['id_role' => 2, 'nama_role' => 'Analyst']);
+        Role::firstOrCreate(['id_role' => 1], ['nama_role' => Role::SUPER_ADMIN, 'deskripsi' => 'Super Admin']);
+        Role::firstOrCreate(['id_role' => 2], ['nama_role' => Role::PENELITI, 'deskripsi' => 'Peneliti']);
     }
 
     public function test_researcher_can_submit_own_dataset(): void
     {
-        $peneliti = User::factory()->create(['id_role' => 1]);
-        $proyek = Proyek::factory()->create(['id_user' => $peneliti->id_user, 'status' => 'Draft']);
+        $peneliti = User::factory()->create(['id_role' => 2]);
+        $proyek = Proyek::factory()->create(['id_user' => $peneliti->id_user]);
 
         $response = $this->actingAs($peneliti)->postJson("/api/v1/proyek/{$proyek->id_proyek}/submit");
 
         $response->assertStatus(200);
-        $this->assertDatabaseHas('proyek', [
+        $this->assertDatabaseHas('reviews', [
             'id_proyek' => $proyek->id_proyek,
-            'status' => 'Submitted'
+            'status' => 'Open',
         ]);
     }
 
     public function test_researcher_cannot_submit_another_users_dataset(): void
     {
-        $peneliti1 = User::factory()->create(['id_role' => 1]);
-        $peneliti2 = User::factory()->create(['id_role' => 1]);
-        $proyek = Proyek::factory()->create(['id_user' => $peneliti2->id_user, 'status' => 'Draft']);
+        $peneliti1 = User::factory()->create(['id_role' => 2]);
+        $peneliti2 = User::factory()->create(['id_role' => 2]);
+        $proyek = Proyek::factory()->create(['id_user' => $peneliti2->id_user]);
 
         $response = $this->actingAs($peneliti1)->postJson("/api/v1/proyek/{$proyek->id_proyek}/submit");
 

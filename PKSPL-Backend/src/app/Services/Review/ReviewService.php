@@ -25,53 +25,51 @@ class ReviewService
     public function submit(Proyek $proyek, int $actorId): Proyek
     {
         DB::transaction(function () use ($proyek, $actorId) {
-            $proyek->status = 'Submitted';
-            $proyek->save();
+            $review = Review::where('id_proyek', $proyek->id_proyek)->latest()->first();
+            if (! $review) {
+                $review = new Review();
+                $review->id_proyek = $proyek->id_proyek;
+            }
+            if (! $review->id_reviewer) {
+                $superAdminId = User::whereHas('role', fn($q) => $q->where('nama_role', \App\Models\Role::SUPER_ADMIN))->value('id_user');
+                $review->id_reviewer = $superAdminId ?? $actorId;
+            }
+            $review->status = 'Open';
+            $review->save();
 
             $this->activityLogService->log(
                 userId: $actorId,
                 proyekId: $proyek->id_proyek,
-                reviewId: null,
+                reviewId: $review->id_review,
                 commentId: null,
                 action: 'submit_dataset',
                 description: 'Dataset submitted for review'
             );
         });
 
-        event(new DatasetSubmitted($proyek));
+        $submitter = User::find($actorId);
+        event(new DatasetSubmitted($proyek, $submitter));
         $this->notificationService->notifyDatasetSubmitted($proyek);
 
         return $proyek->refresh();
     }
 
-    public function createReview(Proyek $proyek, User $analyst, array $data): Review
+    public function createReview(Proyek $proyek, User $reviewer, array $data): Review
     {
-        if ($proyek->status !== 'Submitted') {
-            throw new DomainException("Proyek must be in 'Submitted' status to create a review.");
-        }
-
-        $review = DB::transaction(function () use ($proyek, $analyst, $data) {
+        $review = DB::transaction(function () use ($proyek, $reviewer, $data) {
             $decision = $data['decision'] ?? null;
             
             $review = $this->repository->create([
                 'id_proyek' => $proyek->id_proyek,
-                'id_reviewer' => $analyst->id_user,
+                'id_reviewer' => $reviewer->id_user,
                 'status' => 'Open',
                 'decision' => $decision,
                 'notes' => $data['notes'] ?? null,
                 'reviewed_at' => $decision === 'Approved' ? now() : null,
             ]);
 
-            if ($decision === 'Need Revision') {
-                $proyek->status = 'Need Revision';
-                $proyek->save();
-            } elseif ($decision === 'Approved') {
-                $proyek->status = 'Approved';
-                $proyek->save();
-            }
-
             $this->activityLogService->log(
-                userId: $analyst->id_user,
+                userId: $reviewer->id_user,
                 proyekId: $proyek->id_proyek,
                 reviewId: $review->id_review,
                 commentId: null,
@@ -82,7 +80,7 @@ class ReviewService
             return $review;
         });
 
-        event(new ReviewDecisionMade($review, $proyek));
+        event(new ReviewDecisionMade($review, $proyek, $reviewer));
         $this->notificationService->notifyDecision($review, $proyek);
 
         return $review->refresh();
@@ -133,7 +131,7 @@ class ReviewService
             return $updated;
         });
 
-        event(new ReviewResolved($review, $review->proyek));
+        event(new ReviewResolved($review, $review->proyek, $actor));
         $this->notificationService->notifyResolved($review, $review->proyek);
 
         return $review;
@@ -163,7 +161,7 @@ class ReviewService
             return $updated;
         });
 
-        event(new ReviewReopened($review, $review->proyek));
+        event(new ReviewReopened($review, $review->proyek, $actor));
         $this->notificationService->notifyReopened($review, $review->proyek);
 
         return $review;
@@ -192,7 +190,7 @@ class ReviewService
             return $updated;
         });
 
-        event(new ReviewClosed($review, $review->proyek));
+        event(new ReviewClosed($review, $review->proyek, $actor));
         $this->notificationService->notifyClosed($review, $review->proyek);
 
         return $review;

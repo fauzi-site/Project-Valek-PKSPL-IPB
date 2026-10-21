@@ -25,12 +25,55 @@ class UserFactory extends Factory
     public function definition(): array
     {
         return [
+            'id_role' => fn () => \App\Models\Role::firstOrCreate(
+                ['nama_role' => \App\Models\Role::PENELITI],
+                ['deskripsi' => 'Peneliti role']
+            )->id_role,
             'nama' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
         ];
+    }
+
+    /**
+     * State for Super Admin role.
+     */
+    public function superAdmin(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'id_role' => \App\Models\Role::firstOrCreate(
+                ['nama_role' => \App\Models\Role::SUPER_ADMIN],
+                ['deskripsi' => 'Super Admin role']
+            )->id_role,
+        ]);
+    }
+
+    /**
+     * State for Peneliti role.
+     */
+    public function peneliti(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'id_role' => \App\Models\Role::firstOrCreate(
+                ['nama_role' => \App\Models\Role::PENELITI],
+                ['deskripsi' => 'Peneliti role']
+            )->id_role,
+        ]);
+    }
+
+    /**
+     * State for Guest role.
+     */
+    public function guest(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'id_role' => \App\Models\Role::firstOrCreate(
+                ['nama_role' => \App\Models\Role::GUEST],
+                ['deskripsi' => 'Guest role']
+            )->id_role,
+        ]);
     }
 
     /**

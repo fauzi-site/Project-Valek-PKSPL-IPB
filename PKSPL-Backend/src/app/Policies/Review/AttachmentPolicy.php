@@ -4,7 +4,7 @@ namespace App\Policies\Review;
 
 use App\Models\Role;
 use App\Models\User;
-use App\Models\Review\CommentAttachment;
+use App\Models\CommentAttachment;
 
 class AttachmentPolicy
 {

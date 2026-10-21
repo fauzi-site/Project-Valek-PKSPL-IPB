@@ -495,8 +495,10 @@ export const AdminMasterDataPage = () => {
             <div className="flex flex-wrap items-center gap-2.5">
               {/* Provinsi Filter */}
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-semibold text-slate-500">Provinsi:</span>
+                <label htmlFor="admin-filter-provinsi" className="text-xs font-semibold text-slate-500">Provinsi:</label>
                 <select
+                  id="admin-filter-provinsi"
+                  name="selectedProvinsi"
                   value={selectedProvinsi}
                   onChange={(e) => {
                     setSelectedProvinsi(e.target.value);
@@ -516,8 +518,10 @@ export const AdminMasterDataPage = () => {
 
               {/* Kabupaten / Kota Filter */}
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-semibold text-slate-500">Kab/Kota:</span>
+                <label htmlFor="admin-filter-kabupaten" className="text-xs font-semibold text-slate-500">Kab/Kota:</label>
                 <select
+                  id="admin-filter-kabupaten"
+                  name="selectedKabupaten"
                   value={selectedKabupaten}
                   onChange={(e) => {
                     setSelectedKabupaten(e.target.value);
@@ -536,8 +540,10 @@ export const AdminMasterDataPage = () => {
 
               {/* Jenis Jasa Filter */}
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-semibold text-slate-500">Kategori:</span>
+                <label htmlFor="admin-filter-category" className="text-xs font-semibold text-slate-500">Kategori:</label>
                 <select
+                  id="admin-filter-category"
+                  name="selectedCategory"
                   value={selectedCategory}
                   onChange={(e) => {
                     setSelectedCategory(e.target.value);
@@ -569,6 +575,8 @@ export const AdminMasterDataPage = () => {
               <form onSubmit={handleSearchSubmit} className="relative w-full lg:w-72">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
+                  id="admin-search-master"
+                  name="searchTerm"
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -747,6 +755,9 @@ export const AdminMasterDataPage = () => {
               <span className="mx-2 text-slate-300">•</span>
 
               <select
+                id="admin-master-per-page"
+                name="perPage"
+                aria-label="Jumlah Data per Halaman"
                 value={perPage}
                 onChange={(e) => {
                   setPerPage(Number(e.target.value));
@@ -862,10 +873,12 @@ export const AdminMasterDataPage = () => {
               {/* Wilayah Administratif Inputs */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="admin-modal-provinsi" className="block text-xs font-bold text-slate-700 mb-1">
                     Provinsi <span className="text-rose-500">*</span>
                   </label>
                   <select
+                    id="admin-modal-provinsi"
+                    name="id_provinsi"
                     value={formData.id_provinsi}
                     onChange={(e) => {
                       setFormData({
@@ -887,10 +900,12 @@ export const AdminMasterDataPage = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="admin-modal-kabupaten" className="block text-xs font-bold text-slate-700 mb-1">
                     Kabupaten / Kota <span className="text-rose-500">*</span>
                   </label>
                   <select
+                    id="admin-modal-kabupaten"
+                    name="id_kabupaten_kota"
                     value={formData.id_kabupaten_kota}
                     onChange={(e) => setFormData({ ...formData, id_kabupaten_kota: e.target.value })}
                     required
@@ -909,10 +924,12 @@ export const AdminMasterDataPage = () => {
               {/* Tutupan Lahan & TEV Category */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="admin-modal-tutupan" className="block text-xs font-bold text-slate-700 mb-1">
                     Jenis Tutupan Lahan Acuan
                   </label>
                   <select
+                    id="admin-modal-tutupan"
+                    name="id_jenis_tutupan_lahan"
                     value={formData.id_jenis_tutupan_lahan}
                     onChange={(e) => setFormData({ ...formData, id_jenis_tutupan_lahan: e.target.value })}
                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
@@ -927,10 +944,12 @@ export const AdminMasterDataPage = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="admin-modal-kategori-tev" className="block text-xs font-bold text-slate-700 mb-1">
                     Kategori TEV (Total Economic Value)
                   </label>
                   <select
+                    id="admin-modal-kategori-tev"
+                    name="kategori_tev"
                     value={formData.kategori_tev}
                     onChange={(e) => setFormData({ ...formData, kategori_tev: e.target.value })}
                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
@@ -946,10 +965,12 @@ export const AdminMasterDataPage = () => {
 
               {/* Nama Objek / Parameter */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label htmlFor="admin-modal-nama-indonesia" className="block text-xs font-bold text-slate-700 mb-1">
                   Nama Objek / Parameter (Bahasa Indonesia) <span className="text-rose-500">*</span>
                 </label>
                 <input
+                  id="admin-modal-nama-indonesia"
+                  name="nama_indonesia"
                   type="text"
                   required
                   value={formData.nama_indonesia}
@@ -962,10 +983,12 @@ export const AdminMasterDataPage = () => {
               {/* Latin & Daerah */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="admin-modal-nama-latin" className="block text-xs font-bold text-slate-700 mb-1">
                     Nama Latin / Indikator Parameter
                   </label>
                   <input
+                    id="admin-modal-nama-latin"
+                    name="nama_latin"
                     type="text"
                     value={formData.nama_latin}
                     onChange={(e) => setFormData({ ...formData, nama_latin: e.target.value })}
@@ -975,10 +998,12 @@ export const AdminMasterDataPage = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="admin-modal-nama-daerah" className="block text-xs font-bold text-slate-700 mb-1">
                     Nama Daerah / Satuan Pengukuran
                   </label>
                   <input
+                    id="admin-modal-nama-daerah"
+                    name="nama_daerah"
                     type="text"
                     value={formData.nama_daerah}
                     onChange={(e) => setFormData({ ...formData, nama_daerah: e.target.value })}
@@ -990,10 +1015,12 @@ export const AdminMasterDataPage = () => {
 
               {/* Nilai Ekonomi / Harga Acuan */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label htmlFor="admin-modal-nilai" className="block text-xs font-bold text-slate-700 mb-1">
                   Nilai Acuan Valuasi (Rupiah)
                 </label>
                 <input
+                  id="admin-modal-nilai"
+                  name="nilai"
                   type="number"
                   min="0"
                   step="1000"
@@ -1006,10 +1033,12 @@ export const AdminMasterDataPage = () => {
 
               {/* Deskripsi */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label htmlFor="admin-modal-deskripsi" className="block text-xs font-bold text-slate-700 mb-1">
                   Deskripsi / Keterangan Sumber Referensi
                 </label>
                 <textarea
+                  id="admin-modal-deskripsi"
+                  name="deskripsi"
                   rows={2}
                   value={formData.deskripsi}
                   onChange={(e) => setFormData({ ...formData, deskripsi: e.target.value })}
