@@ -83,7 +83,8 @@ interface ProjectContextType {
   ) => Promise<void>;
   deleteManualProjectBoundary: (
     targetProjId: string,
-    deleteAssociatedIndices?: boolean
+    deleteAssociatedIndices?: boolean,
+    explicitIndexIds?: string[]
   ) => Promise<void>;
   getProjectManualBoundary: (
     projectId: string
@@ -2375,81 +2376,192 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const deleteManualProjectBoundary = async (
     targetProjId: string,
-    deleteAssociatedIndices: boolean = true
+    deleteAssociatedIndices: boolean = true,
+    explicitIndexIds?: string[]
   ): Promise<void> => {
     const projId = targetProjId || activeProjectId;
     const targetP = projects.find(p => p.id === projId || p.code === projId || String(p.id) === String(projId));
     const idKey = String(targetP?.id || projId);
     const codeKey = targetP?.code;
+    const numericId = Number(idKey);
+
+    const allProjectKeys = Array.from(new Set([idKey, codeKey, projId, activeProjectId].filter(Boolean) as string[]));
+
+    // 1. Gather all index IDs to delete from all sources (explicit parameter, memory state, and backend database)
+    const allIndexIdsToDelete = new Set<string>();
 
     if (deleteAssociatedIndices) {
-      const currentIndices = projectIndices[idKey] || projectIndices[projId] || [];
-      for (const idx of currentIndices) {
-        if (!isNaN(Number(idx.id)) && Number(idx.id) > 0) {
-          try {
-            await deleteIndexApi(idx.id);
-          } catch (err) {
-            console.warn('[ProjectContext] deleteIndexApi warning during boundary delete:', err);
+      if (Array.isArray(explicitIndexIds)) {
+        explicitIndexIds.forEach(id => {
+          if (id) allIndexIdsToDelete.add(String(id));
+        });
+      }
+
+      for (const k of allProjectKeys) {
+        const list = projectIndices[k];
+        if (Array.isArray(list)) {
+          list.forEach(idx => {
+            if (idx?.id) allIndexIdsToDelete.add(String(idx.id));
+          });
+        }
+      }
+
+      // Query backend database to ensure no orphaned index records survive
+      if (Number.isInteger(numericId) && numericId > 0) {
+        try {
+          const apiIndexes = await getIndexesApi({ id_proyek: numericId, per_page: 100 });
+          const list = Array.isArray(apiIndexes) ? apiIndexes : (apiIndexes?.data || []);
+          if (Array.isArray(list)) {
+            list.forEach((item: any) => {
+              const bId = item.id_index ?? item.id;
+              if (bId) allIndexIdsToDelete.add(String(bId));
+            });
+          }
+        } catch (err) {
+          console.warn('[ProjectContext] getIndexesApi error during boundary deletion:', err);
+        }
+      }
+
+      // Execute backend deletion for every valid database index ID
+      if (allIndexIdsToDelete.size > 0) {
+        for (const idStr of allIndexIdsToDelete) {
+          if (!isNaN(Number(idStr)) && Number(idStr) > 0) {
+            try {
+              await deleteIndexApi(idStr);
+            } catch (err) {
+              console.warn(`[ProjectContext] deleteIndexApi warning for index ${idStr}:`, err);
+            }
           }
         }
       }
 
-      setProjectIndices(prev => ({
-        ...prev,
-        [idKey]: [],
-        ...(codeKey ? { [codeKey]: [] } : {}),
-        [projId]: [],
-      }));
+      // Clean React state for indices across all related project keys
+      setProjectIndices(prev => {
+        const next = { ...prev };
+        for (const k of allProjectKeys) {
+          next[k] = [];
+        }
+        for (const k of Object.keys(next)) {
+          next[k] = (next[k] || []).filter(i => !allIndexIdsToDelete.has(String(i.id)));
+        }
+        return next;
+      });
     }
 
+    // 2. Clean LandCoverPolygons: remove manual polygons, boundaries, and any tied to deleted indices
     setProjectLandCovers(prev => {
-      const current = prev[idKey] || prev[projId] || (codeKey ? prev[codeKey] : []) || [];
-      const shpOnly = current.filter(p => !(p.source === 'manual' || p.id.startsWith('manual-poly-') || p.id.startsWith('backend-poly-') || p.id.startsWith('boundary-poly-') || p.id.startsWith('poly-idx-')));
-      return {
-        ...prev,
-        [idKey]: shpOnly,
-        ...(codeKey ? { [codeKey]: shpOnly } : {}),
-        [projId]: shpOnly,
-      };
+      const next = { ...prev };
+      for (const k of Object.keys(next)) {
+        const current = next[k] || [];
+        next[k] = current.filter(p => {
+          const isManualOrBoundary =
+            p.source === 'manual' ||
+            p.id.startsWith('manual-poly-') ||
+            p.id.startsWith('backend-poly-') ||
+            p.id.startsWith('boundary-poly-') ||
+            p.id.startsWith('poly-idx-');
+          const isLinkedToDeletedIndex =
+            allIndexIdsToDelete.has(String(p.indexId)) ||
+            allIndexIdsToDelete.has(String(p.properties?.id_index)) ||
+            allIndexIdsToDelete.has(String(p.id));
+          return !isManualOrBoundary && !isLinkedToDeletedIndex;
+        });
+      }
+      return next;
     });
 
+    // 3. Clean MapLayers: remove manual layers, boundary layers, and any tied to deleted indices
     setProjectLayers(prev => {
-      const current = prev[idKey] || prev[projId] || (codeKey ? prev[codeKey] : []) || [];
-      const shpOnly = current.filter(l => !(l.id.includes('manual') || l.id.includes('boundary') || l.id.includes('layer-geo-')));
-      return {
-        ...prev,
-        [idKey]: shpOnly,
-        ...(codeKey ? { [codeKey]: shpOnly } : {}),
-        [projId]: shpOnly,
-      };
+      const next = { ...prev };
+      for (const k of Object.keys(next)) {
+        const current = next[k] || [];
+        next[k] = current.filter(l => {
+          const isManualOrBoundary =
+            l.id.includes('manual') ||
+            l.id.includes('boundary') ||
+            l.id.includes('layer-geo-');
+          const isLinkedToDeletedIndex =
+            allIndexIdsToDelete.has(String((l as any).properties?.id_index)) ||
+            allIndexIdsToDelete.has(String(l.id).replace('layer-idx-', ''));
+          return !isManualOrBoundary && !isLinkedToDeletedIndex;
+        });
+      }
+      return next;
     });
 
+    // 4. Update IndexedDB to permanently clear stored indices & boundary across all project keys
+    try {
+      const currentSpatial = await loadAllSpatialFromIndexedDB();
+      if (currentSpatial) {
+        for (const k of allProjectKeys) {
+          if (currentSpatial[k]) {
+            const item = currentSpatial[k];
+            const shpPolys = (item.polygons || []).filter(
+              (p: any) => p.source === 'shp' || (p.source !== 'manual' && p.id?.startsWith('shp-poly-'))
+            );
+            if (shpPolys.length > 0) {
+              await saveSpatialToIndexedDB(k, {
+                ...item,
+                indices: [],
+                polygons: shpPolys,
+                layers: (item.layers || []).filter((l: any) => !l.id.includes('manual') && !l.id.includes('boundary') && !l.id.includes('layer-geo-')),
+              });
+            } else {
+              await deleteSpatialFromIndexedDB(k);
+            }
+          } else {
+            await deleteSpatialFromIndexedDB(k);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('deleteManualProjectBoundary IndexedDB cleanup warning:', err);
+    }
+
+    // 5. Update localStorage for hasManual flags and indices cache
+    try {
+      allProjectKeys.forEach(k => {
+        localStorage.setItem(`pkspl_has_manual_${k}`, 'false');
+      });
+      const storedIndices = loadFromStorage<Record<string, any[]>>(STORAGE_KEYS.PROJECT_INDICES, {});
+      if (storedIndices) {
+        for (const k of allProjectKeys) {
+          storedIndices[k] = [];
+        }
+        for (const k of Object.keys(storedIndices)) {
+          storedIndices[k] = (storedIndices[k] || []).filter((i: any) => !allIndexIdsToDelete.has(String(i.id)));
+        }
+        saveToStorage(STORAGE_KEYS.PROJECT_INDICES, storedIndices);
+      }
+    } catch (e) {
+      console.warn('localStorage cleanup warning during boundary deletion:', e);
+    }
+
+    // 6. Update Project in React state
     setProjects(prev => prev.map(p => {
-      if (p.id === idKey || p.code === codeKey || p.id === projId || p.code === projId) {
+      if (allProjectKeys.includes(String(p.id)) || (p.code && allProjectKeys.includes(p.code))) {
         return {
           ...p,
           hasManual: false,
           geometry: null,
+          latitude: null,
+          longitude: null,
+          luas: 0,
           updatedAt: 'Baru saja',
         };
       }
       return p;
     }));
 
-    try {
-      localStorage.setItem(`pkspl_has_manual_${idKey}`, 'false');
-      if (codeKey) localStorage.setItem(`pkspl_has_manual_${codeKey}`, 'false');
-      if (projId) localStorage.setItem(`pkspl_has_manual_${projId}`, 'false');
-    } catch (e) {
-      console.warn('localStorage error:', e);
-    }
-
-    const numericId = Number(idKey);
+    // 7. Clear backend project geometry in database
     const apiTargetId = (Number.isInteger(numericId) && numericId > 0) ? String(numericId) : (codeKey || idKey);
     if (apiTargetId) {
       try {
         await updateProyek(apiTargetId, {
           geometry: null,
+          latitude: null,
+          longitude: null,
+          luas: null,
         });
       } catch (err) {
         console.warn('Backend updateProyek clear geometry warning:', err);
@@ -2882,7 +2994,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const next = { ...prev };
       for (const k of Object.keys(next)) {
         next[k] = (next[k] || []).filter(l =>
-          String(l.properties?.id_index) !== String(id) &&
+          String((l as any).properties?.id_index) !== String(id) &&
           l.id !== `layer-idx-${id}`
         );
       }
@@ -2913,6 +3025,19 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     } catch (e) {
       // IndexedDB optional warning
+    }
+
+    // 6. Update localStorage cache
+    try {
+      const storedIndices = loadFromStorage<Record<string, any[]>>(STORAGE_KEYS.PROJECT_INDICES, {});
+      if (storedIndices) {
+        for (const k of Object.keys(storedIndices)) {
+          storedIndices[k] = (storedIndices[k] || []).filter((i: any) => String(i.id) !== String(id));
+        }
+        saveToStorage(STORAGE_KEYS.PROJECT_INDICES, storedIndices);
+      }
+    } catch (e) {
+      console.warn('localStorage error in deleteIndex:', e);
     }
   };
 
