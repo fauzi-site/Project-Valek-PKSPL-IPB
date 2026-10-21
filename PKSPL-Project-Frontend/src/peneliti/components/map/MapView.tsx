@@ -245,6 +245,7 @@ export const MapView: React.FC<MapViewProps> = ({
             attribution={tileProvider.attribution || '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}
             url={tileProvider.url}
             maxZoom={tileProvider.maxZoom}
+            maxNativeZoom={tileProvider.maxNativeZoom || 19}
             referrerPolicy="strict-origin-when-cross-origin"
             eventHandlers={{ tileerror: handleTileError }}
           />

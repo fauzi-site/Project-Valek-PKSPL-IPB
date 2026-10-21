@@ -277,6 +277,7 @@ export const ReviewSpatialViewer: React.FC<ReviewSpatialViewerProps> = ({
           attribution={tileProvider.attribution}
           url={tileProvider.url}
           maxZoom={tileProvider.maxZoom}
+          maxNativeZoom={tileProvider.maxNativeZoom || 19}
         />
 
         <MapRecenter center={center} bounds={bounds} zoom={defaultZoom} />

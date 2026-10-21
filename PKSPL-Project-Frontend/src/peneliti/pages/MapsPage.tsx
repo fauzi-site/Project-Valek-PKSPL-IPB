@@ -228,8 +228,8 @@ export const MapsPage: React.FC = () => {
         /* ========================================================================= */
         indices && indices.length > 0 ? (
           /* Sub-case A: Proyek sudah memiliki data Index, namun belum/tidak memiliki SHP */
-          <div className="flex-1 flex items-center justify-center p-2 min-h-[460px]">
-            <div className="w-full max-w-2xl bg-white rounded-xl border border-slate-200 shadow-sm p-6 md:p-8 animate-in fade-in zoom-in-95 duration-150">
+          <div className="flex-1 flex justify-center overflow-y-auto p-4 py-10 min-h-min">
+            <div className="w-full max-w-2xl bg-white rounded-xl border border-slate-200 shadow-sm p-6 md:p-8 animate-in fade-in zoom-in-95 duration-150 h-fit">
               <div className="flex items-start gap-4 pb-5 border-b border-slate-100">
                 <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100 shadow-2xs">
                   <Layers className="w-6 h-6" />
@@ -336,8 +336,8 @@ export const MapsPage: React.FC = () => {
           </div>
         ) : (
           /* Sub-case B: Belum memiliki SHP dan belum memiliki Index */
-          <div className="flex-1 flex items-center justify-center p-2 min-h-[420px]">
-            <div className="w-full max-w-xl bg-white rounded-xl border border-slate-200 shadow-2xs p-8 md:p-10 text-center animate-in fade-in zoom-in-95 duration-150">
+          <div className="flex-1 flex justify-center overflow-y-auto p-4 py-10 min-h-min">
+            <div className="w-full max-w-xl bg-white rounded-xl border border-slate-200 shadow-2xs p-8 md:p-10 text-center animate-in fade-in zoom-in-95 duration-150 h-fit">
               {/* ICON MAP/GIS */}
               <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4 border border-blue-100 shadow-2xs">
                 <MapPin className="w-8 h-8" />

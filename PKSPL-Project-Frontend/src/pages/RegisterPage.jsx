@@ -249,19 +249,20 @@ function RegisterPage() {
           )}
         </div>
 
-        {/* Right Side - Image Placeholder */}
-        <div className="hidden md:flex w-1/2 bg-gradient-to-br from-[#1a56db] to-[#0e3baa] items-center justify-center p-6 relative overflow-hidden">
-          <div className="w-full h-full rounded-xl border-2 border-white/20 bg-white/5 backdrop-blur-sm flex items-center justify-center">
-            <div className="text-center text-white/60">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto mb-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <p className="text-sm font-medium">PKSPL IPB</p>
-              <p className="text-xs mt-1 opacity-70">Valuasi Ekonomi Ekosistem Pesisir</p>
+        {/* Right Side - Coastal Ecosystem Image (Full Bleed) */}
+        <div className="hidden md:block w-1/2 relative overflow-hidden">
+          <img
+            src="/images/coastal-beach.jpg"
+            alt="PKSPL IPB - Valuasi Ekonomi Ekosistem Pesisir"
+            className="w-full h-full object-cover"
+          />
+          {/* Subtle gradient overlay at the bottom for branding text */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent flex flex-col justify-end p-8">
+            <div className="text-white drop-shadow-md">
+              <p className="text-xl font-bold tracking-wide">PKSPL IPB</p>
+              <p className="text-sm text-white/90 font-medium mt-1">Valuasi Ekonomi Ekosistem Pesisir</p>
             </div>
           </div>
-          <div className="absolute -top-20 -right-20 w-40 h-40 bg-white/5 rounded-full"></div>
-          <div className="absolute -bottom-16 -left-16 w-32 h-32 bg-white/5 rounded-full"></div>
         </div>
       </div>
     </div>

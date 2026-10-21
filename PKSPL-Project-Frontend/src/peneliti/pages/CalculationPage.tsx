@@ -1164,7 +1164,7 @@ const CalculationPageContent: React.FC = () => {
       )}
 
       {/* 4. Main Grand TEV Hero Banner */}
-      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-xl p-6 md:p-8 shadow-md relative overflow-hidden">
+      <div className="bg-slate-900 text-slate-100 rounded-xl p-6 md:p-8 shadow-md relative overflow-hidden border border-slate-800">
         <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-white/5 skew-x-12 pointer-events-none"></div>
         <div className="relative z-10 space-y-4">
           <div className="flex items-center justify-between">
@@ -1223,13 +1223,8 @@ const CalculationPageContent: React.FC = () => {
             {calculationCards.map((card, idx) => (
               <React.Fragment key={card.id}>
                 {idx > 0 && <span>+</span>}
-                <span className={`px-2 py-0.5 rounded ${
-                  card.id === 'provisioning' ? 'bg-cyan-500/20 text-cyan-200' :
-                  card.id === 'regulating'   ? 'bg-blue-500/20 text-blue-200' :
-                  card.id === 'supporting'   ? 'bg-purple-500/20 text-purple-200' :
-                                              'bg-amber-500/20 text-amber-200'
-                }`}>
-                  {card.category} ({formatIDR(card.subtotal)})
+                <span className="px-2.5 py-1 rounded-md bg-slate-800 border border-slate-700 text-slate-300 shadow-xs">
+                  <span className="font-medium text-slate-200">{card.category}</span> <span className="opacity-80">({formatIDR(card.subtotal)})</span>
                 </span>
               </React.Fragment>
             ))}

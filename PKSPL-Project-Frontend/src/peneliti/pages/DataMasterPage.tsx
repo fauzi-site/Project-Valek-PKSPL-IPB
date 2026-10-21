@@ -1001,7 +1001,7 @@ export const DataMasterPage: React.FC = () => {
       </div>
 
       {/* ── Context Info Banner (Wilayah & Proyek Aktif) ──────────────────── */}
-      <div className="bg-gradient-to-r from-blue-900/95 via-slate-900 to-indigo-950 text-white rounded-xl p-4 md:p-5 border border-blue-800/60 shadow-md">
+      <div className="bg-slate-900 text-slate-100 rounded-xl p-4 md:p-5 border border-slate-800 shadow-md relative overflow-hidden">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">

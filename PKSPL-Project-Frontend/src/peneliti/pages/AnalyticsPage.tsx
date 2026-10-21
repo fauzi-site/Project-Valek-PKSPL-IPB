@@ -766,18 +766,18 @@ const AnalyticsPageContent: React.FC = () => {
           return (
             <div
               key={s.id}
-              className={`p-4 rounded-lg border ${s.bgClass} ${s.borderClass} shadow-2xs transition-all duration-300 hover:shadow-md hover:-translate-y-1 hover:brightness-105 cursor-default group`}
+              className="p-4 rounded-lg border bg-slate-900 border-slate-800 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-1 hover:brightness-110 cursor-default group"
             >
               <div className="flex items-center justify-between">
-                <span className={`text-[10px] uppercase font-bold tracking-wider ${s.labelClass}`}>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 group-hover:text-slate-300 transition-colors">
                   {s.code}. {s.short}
                 </span>
-                <Icon className={`w-4 h-4 ${s.labelClass} transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6`} />
+                <Icon className="w-4 h-4 text-slate-400 transition-all duration-300 group-hover:scale-110 group-hover:rotate-6 group-hover:text-slate-300" />
               </div>
-              <div className={`text-base font-bold font-mono mt-1.5 ${s.textClass} transition-colors`}>
+              <div className="text-base font-bold font-mono mt-1.5 text-white tracking-tight">
                 {formatIDR(s.nominal)}
               </div>
-              <div className={`text-[10px] mt-1 ${s.labelClass} font-medium`}>
+              <div className="text-[10px] mt-1 text-slate-400 font-medium">
                 {totalTEV > 0 ? formatNumber(s.percentage, 1) : 0}% dari TEV
               </div>
               <div className="text-[10px] text-slate-500 mt-0.5 leading-tight truncate" title={s.desc}>
@@ -788,7 +788,7 @@ const AnalyticsPageContent: React.FC = () => {
         })}
 
         {/* TEV card */}
-        <div className="p-4 rounded-lg border border-blue-400 bg-gradient-to-br from-blue-600 to-indigo-700 shadow-sm lg:col-span-1 col-span-2 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:brightness-110 cursor-default group">
+        <div className="p-4 rounded-lg border border-slate-800 bg-slate-900 shadow-sm lg:col-span-1 col-span-2 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:brightness-110 cursor-default group">
           <div className="flex items-center justify-between">
             <span className="text-[10px] uppercase font-bold tracking-wider text-blue-100">Total TEV</span>
             <Calculator className="w-4 h-4 text-blue-100 transition-transform duration-300 group-hover:scale-125 group-hover:rotate-12" />
