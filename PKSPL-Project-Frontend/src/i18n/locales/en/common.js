@@ -8,7 +8,17 @@ export default {
     contact: "Help / Contact",
     loginRegister: "Register / Log in",
     adminDashboard: "Admin Dashboard",
+    researcherDashboard: "Researcher Dashboard",
+    myDashboard: "Open Dashboard",
     loggedInAs: "Logged in as:"
+  },
+  profile: {
+    myProfile: "My Profile",
+    editProfile: "Edit Profile",
+    changePassword: "Change Password",
+    logout: "Log Out",
+    logoutAccount: "Log Out of Account",
+    dashboard: "Open Dashboard"
   },
   actions: {
     save: "Save",

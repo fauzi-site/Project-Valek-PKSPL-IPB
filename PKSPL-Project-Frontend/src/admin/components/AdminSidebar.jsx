@@ -174,7 +174,9 @@ export const AdminSidebar = ({
           {isMobileOpen && (
             <button
               onClick={onMobileClose}
-              className="md:hidden p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Tutup navigasi"
+              className="md:hidden w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              aria-label="Tutup navigasi"
             >
               <X className="w-5 h-5" />
             </button>
@@ -208,12 +210,13 @@ export const AdminSidebar = ({
               <NavLink
                 key={item.path}
                 to={item.path}
+                onClick={() => onMobileClose?.()}
                 title={collapsed && !isMobileOpen ? item.title : undefined}
                 className={`
-                  relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-150 group cursor-pointer
+                  relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs min-h-[42px] font-medium transition-all duration-150 group cursor-pointer
                   ${
                     isActive
-                      ? 'bg-[#2563EA] text-white shadow-sm font-semibold'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-900/30 font-semibold'
                       : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
                   }
                   ${collapsed && !isMobileOpen ? 'justify-center px-0' : ''}

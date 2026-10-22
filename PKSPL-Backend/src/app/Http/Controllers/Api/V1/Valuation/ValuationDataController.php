@@ -215,6 +215,7 @@ class ValuationDataController extends Controller
 
         foreach ($validated['rows'] as $r) {
             $rowData = $r['row_data'] ?? [];
+            $clientRowId = $r['client_id'] ?? ($rowData['id'] ?? null);
             $totalNilai = (float) ($r['total_nilai'] ?? ($rowData['totalNilai'] ?? 0));
             $rowOrder = (int) ($r['row_order'] ?? ($rowData['no'] ?? count($createdRows)));
 
@@ -228,11 +229,18 @@ class ValuationDataController extends Controller
                 'total_nilai'            => $totalNilai,
             ]);
 
-            $resultRows[] = [
-                'clientId'  => $clientRowId,
-                'backendId' => $row->id,
-                'row'       => $row,
-            ];
+            $rawItem = trim((string) ($rowData['item'] ?? ''));
+            if ($rawItem !== '') {
+                $syncService->syncRow(
+                    $landCoverId,
+                    $validated['service_id'],
+                    $validated['biota'] ?? null,
+                    $rowData,
+                    $totalNilai
+                );
+            }
+
+            $createdRows[] = $row;
         }
 
         return response()->json([

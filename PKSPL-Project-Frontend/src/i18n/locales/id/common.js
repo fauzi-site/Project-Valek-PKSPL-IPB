@@ -8,7 +8,17 @@ export default {
     contact: "Bantuan / Kontak",
     loginRegister: "Daftar / Masuk",
     adminDashboard: "Dashboard Admin",
-    loggedInAs: "Login sebagai:"
+    researcherDashboard: "Dashboard Peneliti",
+    myDashboard: "Buka Dashboard",
+    loggedInAs: "Masuk sebagai:"
+  },
+  profile: {
+    myProfile: "Profil Saya",
+    editProfile: "Edit Profil",
+    changePassword: "Ganti Password",
+    logout: "Keluar",
+    logoutAccount: "Keluar dari Akun",
+    dashboard: "Buka Dashboard"
   },
   actions: {
     save: "Simpan",

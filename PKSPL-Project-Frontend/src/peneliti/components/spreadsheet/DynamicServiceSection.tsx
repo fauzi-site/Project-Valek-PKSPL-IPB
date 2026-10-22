@@ -4,7 +4,7 @@ import { useProject } from '../../context/ProjectContext';
 import { getMethodSchema, ColumnDefinition, CustomColumnDefinition, CustomColumnType } from '../../types/methodSchemas';
 import { ECOSYSTEM_SERVICES_CONFIG } from '../../mock/valuationMock';
 import { PROVISIONING_DATA } from '../../mock/dataMasterMock';
-import { downloadContextTemplate } from '../../utils/excelEngine';
+import { downloadContextTemplate, TemplateFileFormat } from '../../utils/excelEngine';
 import { formatIDR } from '../../utils/formatter';
 import { getProjectDataMaster } from '../../../services/dataMasterService';
 import { CustomColumnModal } from './CustomColumnModal';
@@ -19,7 +19,10 @@ import {
   Trash2,
   Columns3,
   Pencil,
-  Lock
+  Lock,
+  FileSpreadsheet,
+  FileText,
+  FileCode
 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 
@@ -236,35 +239,21 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
     return (calc && typeof calc.total === 'number' && !isNaN(calc.total)) ? calc.total : 0;
   };
 
-  // Compute category totals across all vertical method cards
-  const { categoryTotal, categoryItemCount } = useMemo(() => {
-    let tot = 0;
+  // Compute category item count across all vertical method cards
+  const categoryItemCount = useMemo(() => {
     let count = 0;
-
     methodsToRender.forEach(mId => {
       if (serviceId === 'provisioning') {
         const fl = getRows(currentProjId, areaId, serviceId, mId, 'flora');
         const fa = getRows(currentProjId, areaId, serviceId, mId, 'fauna');
-        const flTot = fl.reduce((acc, r) => acc + getRowTotal(r, 'flora', mId), 0);
-        const faTot = fa.reduce((acc, r) => acc + getRowTotal(r, 'fauna', mId), 0);
-        tot += (flTot + faTot);
         count += (fl.length + fa.length);
       } else {
         const r = getRows(currentProjId, areaId, serviceId, mId, 'none');
-        const rTot = r.reduce((acc, row) => acc + getRowTotal(row, undefined, mId), 0);
-        tot += rTot;
         count += r.length;
       }
     });
-
-    return { categoryTotal: tot, categoryItemCount: count };
+    return count;
   }, [methodsToRender, serviceId, currentProjId, areaId, getRows]);
-
-  const serviceCategoryTitle =
-    serviceId === 'provisioning' ? 'PROVISIONING SERVICES' :
-    serviceId === 'regulating' ? 'REGULATING SERVICES' :
-    serviceId === 'supporting' ? 'SUPPORTING SERVICES' :
-    'CULTURAL SERVICES';
 
   // Custom Column Handlers
   const handleSaveCustomColumn = (data: { label: string; type: CustomColumnType; required?: boolean }) => {
@@ -316,11 +305,12 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
     updateCell(currentProjId, areaId, serviceId, targetMethodId, b, rowId, colKey, val);
   };
 
-  const handleDownloadTemplate = (targetMethodId: string) => {
+  const handleDownloadTemplate = (targetMethodId: string, format: TemplateFileFormat = 'xlsx') => {
     downloadContextTemplate(
       serviceId,
       targetMethodId,
-      serviceId === 'provisioning' ? (biota === 'fauna' ? 'Fauna' : 'Flora') : 'General'
+      serviceId === 'provisioning' ? (biota === 'fauna' ? 'Fauna' : 'Flora') : 'General',
+      format
     );
   };
 
@@ -608,7 +598,7 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
               </>
             )}
 
-            {/* Import Excel */}
+            {/* Import Data (Excel, CSV, JSON) */}
             {serviceId === 'provisioning' ? (
               <div className="relative inline-block text-left">
                 <button
@@ -617,25 +607,28 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                     setImportDropdownOpen(prev => ({ ...prev, [mId]: !prev[mId] }));
                     setDownloadDropdownOpen(prev => ({ ...prev, [mId]: false }));
                   }}
-                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer"
-                  title="Import Excel untuk Flora atau Fauna"
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                  title="Import data (Excel .xlsx, CSV, JSON) untuk Flora atau Fauna"
                 >
                   <Upload className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Import Excel</span>
+                  <span>Import Data</span>
                   <ChevronDown className="w-3 h-3 text-slate-400" />
                 </button>
                 {isImportOpen && (
-                  <div className="absolute right-0 mt-1 w-44 bg-white rounded-md shadow-lg border border-slate-200 py-1 z-30 animate-in fade-in-50 duration-100">
+                  <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-slate-200 py-1 z-30 animate-in fade-in-50 duration-100">
                     <button
                       type="button"
                       onClick={() => {
                         setImportDropdownOpen(prev => ({ ...prev, [mId]: false }));
                         onOpenImportModal(serviceId, mId, 'Flora');
                       }}
-                      className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 flex items-center gap-2 cursor-pointer"
+                      className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 flex items-center gap-2 cursor-pointer"
                     >
                       <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
-                      Import Data Flora
+                      <div>
+                        <div className="font-semibold">Import Data Flora</div>
+                        <div className="text-[10px] text-slate-400">Excel, CSV, atau JSON</div>
+                      </div>
                     </button>
                     <button
                       type="button"
@@ -643,10 +636,13 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                         setImportDropdownOpen(prev => ({ ...prev, [mId]: false }));
                         onOpenImportModal(serviceId, mId, 'Fauna');
                       }}
-                      className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-amber-50 hover:text-amber-800 flex items-center gap-2 cursor-pointer"
+                      className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-amber-50 hover:text-amber-800 flex items-center gap-2 cursor-pointer border-t border-slate-100"
                     >
                       <span className="w-2 h-2 rounded-full bg-amber-600"></span>
-                      Import Data Fauna
+                      <div>
+                        <div className="font-semibold">Import Data Fauna</div>
+                        <div className="text-[10px] text-slate-400">Excel, CSV, atau JSON</div>
+                      </div>
                     </button>
                   </div>
                 )}
@@ -655,15 +651,15 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
               <button
                 type="button"
                 onClick={() => onOpenImportModal(serviceId, mId, 'General')}
-                className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer"
-                title={`Import Excel khusus template ${schema.templateFileName}`}
+                className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                title={`Import data (Excel, CSV, JSON) sesuai skema ${schema.methodName}`}
               >
                 <Upload className="w-3.5 h-3.5 text-blue-600" />
-                <span>Import Excel</span>
+                <span>Import Data</span>
               </button>
             )}
 
-            {/* Download Template */}
+            {/* Download Template (Excel, CSV, JSON) */}
             {serviceId === 'provisioning' ? (
               <div className="relative inline-block text-left">
                 <button
@@ -672,50 +668,142 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                     setDownloadDropdownOpen(prev => ({ ...prev, [mId]: !prev[mId] }));
                     setImportDropdownOpen(prev => ({ ...prev, [mId]: false }));
                   }}
-                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer"
-                  title="Download template Excel resmi Flora atau Fauna"
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                  title="Download template resmi (Excel, CSV, JSON) untuk Flora atau Fauna"
                 >
                   <Download className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Download Template</span>
                   <ChevronDown className="w-3 h-3 text-slate-400" />
                 </button>
                 {isDownloadOpen && (
-                  <div className="absolute right-0 mt-1 w-44 bg-white rounded-md shadow-lg border border-slate-200 py-1 z-30 animate-in fade-in-50 duration-100">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDownloadDropdownOpen(prev => ({ ...prev, [mId]: false }));
-                        downloadContextTemplate(serviceId, mId, 'Flora');
-                      }}
-                      className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 flex items-center gap-2 cursor-pointer"
-                    >
-                      <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                  <div className="absolute right-0 mt-1 w-52 bg-white rounded-md shadow-lg border border-slate-200 py-1.5 z-30 animate-in fade-in-50 duration-100 text-xs">
+                    <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                       Template Flora
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDownloadDropdownOpen(prev => ({ ...prev, [mId]: false }));
-                        downloadContextTemplate(serviceId, mId, 'Fauna');
-                      }}
-                      className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-amber-50 hover:text-amber-800 flex items-center gap-2 cursor-pointer"
-                    >
-                      <span className="w-2 h-2 rounded-full bg-amber-600"></span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1 px-2 pb-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDownloadDropdownOpen(prev => ({ ...prev, [mId]: false }));
+                          downloadContextTemplate(serviceId, mId, 'Flora', 'xlsx');
+                        }}
+                        className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded font-semibold text-[11px] text-center border border-emerald-200 cursor-pointer"
+                      >
+                        .xlsx
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDownloadDropdownOpen(prev => ({ ...prev, [mId]: false }));
+                          downloadContextTemplate(serviceId, mId, 'Flora', 'csv');
+                        }}
+                        className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded font-semibold text-[11px] text-center border border-amber-200 cursor-pointer"
+                      >
+                        .csv
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDownloadDropdownOpen(prev => ({ ...prev, [mId]: false }));
+                          downloadContextTemplate(serviceId, mId, 'Flora', 'json');
+                        }}
+                        className="px-2 py-1 bg-purple-50 hover:bg-purple-100 text-purple-800 rounded font-semibold text-[11px] text-center border border-purple-200 cursor-pointer"
+                      >
+                        .json
+                      </button>
+                    </div>
+
+                    <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-t border-slate-100 mt-1">
                       Template Fauna
-                    </button>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1 px-2 pb-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDownloadDropdownOpen(prev => ({ ...prev, [mId]: false }));
+                          downloadContextTemplate(serviceId, mId, 'Fauna', 'xlsx');
+                        }}
+                        className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded font-semibold text-[11px] text-center border border-emerald-200 cursor-pointer"
+                      >
+                        .xlsx
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDownloadDropdownOpen(prev => ({ ...prev, [mId]: false }));
+                          downloadContextTemplate(serviceId, mId, 'Fauna', 'csv');
+                        }}
+                        className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded font-semibold text-[11px] text-center border border-amber-200 cursor-pointer"
+                      >
+                        .csv
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDownloadDropdownOpen(prev => ({ ...prev, [mId]: false }));
+                          downloadContextTemplate(serviceId, mId, 'Fauna', 'json');
+                        }}
+                        className="px-2 py-1 bg-purple-50 hover:bg-purple-100 text-purple-800 rounded font-semibold text-[11px] text-center border border-purple-200 cursor-pointer"
+                      >
+                        .json
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => handleDownloadTemplate(mId)}
-                className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer"
-                title={`Download template resmi ${schema.templateFileName}`}
-              >
-                <Download className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Download Template</span>
-              </button>
+              <div className="relative inline-block text-left">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDownloadDropdownOpen(prev => ({ ...prev, [mId]: !prev[mId] }));
+                    setImportDropdownOpen(prev => ({ ...prev, [mId]: false }));
+                  }}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                  title={`Download template resmi (${schema.templateFileName})`}
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Download Template</span>
+                  <ChevronDown className="w-3 h-3 text-slate-400" />
+                </button>
+                {isDownloadOpen && (
+                  <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-slate-200 py-1 z-30 animate-in fade-in-50 duration-100">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDownloadDropdownOpen(prev => ({ ...prev, [mId]: false }));
+                        handleDownloadTemplate(mId, 'xlsx');
+                      }}
+                      className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 flex items-center gap-2 cursor-pointer"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                      Excel Spreadsheet (.xlsx)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDownloadDropdownOpen(prev => ({ ...prev, [mId]: false }));
+                        handleDownloadTemplate(mId, 'csv');
+                      }}
+                      className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-amber-50 hover:text-amber-800 flex items-center gap-2 cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-amber-600" />
+                      CSV / Delimited (.csv)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDownloadDropdownOpen(prev => ({ ...prev, [mId]: false }));
+                        handleDownloadTemplate(mId, 'json');
+                      }}
+                      className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-purple-50 hover:text-purple-800 flex items-center gap-2 cursor-pointer"
+                    >
+                      <FileCode className="w-3.5 h-3.5 text-purple-600" />
+                      JSON Dataset (.json)
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -1039,29 +1127,6 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
         <div className="p-4 space-y-6 bg-slate-50/40 animate-in slide-in-from-top-1 duration-150">
           {/* Vertical Stack of Method Cards */}
           {methodsToRender.map((mId, mIndex) => renderMethodCard(mId, mIndex))}
-
-          {/* Category Summary Total Banner */}
-          <div className="p-4 bg-[#0f284e] text-white rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm border border-slate-800">
-            <div className="flex items-center gap-3">
-              <span className={`w-8 h-8 rounded-lg flex items-center justify-center font-extrabold text-sm ${accent.badgeBg} ${accent.badgeText} shadow-xs`}>
-                {prefixLetter}
-              </span>
-              <div>
-                <h4 className="font-bold text-xs sm:text-sm tracking-tight text-white uppercase">
-                  TOTAL NILAI EKONOMI ({serviceCategoryTitle})
-                </h4>
-                <p className="text-[11px] text-slate-300 mt-0.5">
-                  Akumulasi {methodsToRender.length} metode valuasi aktif pada {serviceName} ({categoryItemCount} total item)
-                </p>
-              </div>
-            </div>
-            <div className="text-left sm:text-right border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-700/80">
-              <div className="text-xs text-slate-400 font-medium mb-0.5">Total nominal ekonomi per tahun:</div>
-              <div className="text-base sm:text-lg font-mono font-extrabold text-amber-300 bg-slate-800/80 px-3 py-1 rounded border border-slate-700 inline-block">
-                {formatIDR(categoryTotal)}
-              </div>
-            </div>
-          </div>
         </div>
       )}
 

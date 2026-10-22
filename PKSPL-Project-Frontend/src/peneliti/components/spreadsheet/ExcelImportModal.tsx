@@ -1,5 +1,11 @@
 import React, { useState } from 'react';
-import { validateAndParseExcel, ParseResult, DetectedCustomColumn } from '../../utils/excelEngine';
+import {
+  validateAndParseSpreadsheet,
+  downloadContextTemplate,
+  TemplateFileFormat,
+  ParseResult,
+  DetectedCustomColumn
+} from '../../utils/excelEngine';
 import { SpreadsheetRow } from '../../types/spreadsheet';
 import { getMethodSchema } from '../../types/methodSchemas';
 import { formatIDR } from '../../utils/formatter';
@@ -11,7 +17,11 @@ import {
   X,
   AlertCircle,
   Info,
-  Columns3
+  Columns3,
+  Download,
+  FileText,
+  FileCode,
+  Sparkles
 } from 'lucide-react';
 
 interface ExcelImportModalProps {
@@ -48,6 +58,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
 
   const schema = getMethodSchema(resolvedService, resolvedMethod, resolvedCategory.toLowerCase());
   const expectedTemplateName = schema?.templateFileName || `${serviceName}_${methodName}_${resolvedCategory}.xlsx`;
+  const baseTemplateName = expectedTemplateName.replace(/\.(xlsx|xls|csv|json)$/i, '');
   const systemCols = (schema?.columns || []).filter(c => c.key !== 'no');
 
   const handleProcessFile = async (uploadedFile: File) => {
@@ -57,7 +68,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
     setResult(null);
 
     try {
-      const parseRes = await validateAndParseExcel(
+      const parseRes = await validateAndParseSpreadsheet(
         uploadedFile,
         resolvedService,
         resolvedMethod,
@@ -65,7 +76,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
       );
       setResult(parseRes);
     } catch (err: any) {
-      setGeneralError(err.message || 'Gagal membaca berkas spreadsheet.');
+      setGeneralError(err.message || 'Gagal membaca berkas spreadsheet/data.');
     } finally {
       setLoading(false);
     }
@@ -76,16 +87,22 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
     if (f) handleProcessFile(f);
   };
 
-  // Demo Simulation: simulate correct template upload using current method schema + custom columns
-  const handleSimulateValidImport = () => {
+  const handleDownload = (format: TemplateFileFormat) => {
+    downloadContextTemplate(resolvedService, resolvedMethod, resolvedCategory, format);
+  };
+
+  // Demo Simulation helper for Excel, CSV, or JSON
+  const handleSimulateValidImport = (simFormat: 'xlsx' | 'csv' | 'json' = 'xlsx') => {
     setLoading(true);
+    setGeneralError(null);
+    setResult(null);
+
     setTimeout(() => {
       const detectedCustomColumns: DetectedCustomColumn[] = [
         { key: 'c_lokasi_sampel', label: 'Lokasi Sampel', type: 'text' },
         { key: 'c_tanggal_survei', label: 'Tanggal Survei', type: 'date' }
       ];
 
-      // Base rows from schema initial rows or generated rows
       const baseSamples = (schema?.initialRows && schema.initialRows.length > 0)
         ? schema.initialRows
         : [
@@ -107,7 +124,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
 
         const row: Record<string, any> = {
           ...baseRow,
-          id: `IMP-SIM-${i}`,
+          id: `IMP-SIM-${simFormat.toUpperCase()}-${i}`,
           no: i,
           item: isErr14 ? '' : (baseRow.item ? `${baseRow.item} #${i}` : `Data Komponen ${i}`),
           luasHa: baseRow.luasHa ?? 79.86,
@@ -119,7 +136,9 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
         };
 
         const calc = schema.calculateRow(row);
-        row.totalNilai = isErr14 ? 0 : calc.total;
+        row.total = isErr14 ? 0 : calc.total;
+        row.totalNilai = row.total;
+        row.nilaiEkonomi = row.total;
         if (calc.quantity !== undefined) {
           row.jumlah = calc.quantity;
         }
@@ -132,8 +151,16 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
         }
       }
 
+      const simExt = simFormat === 'xlsx' ? 'xlsx' : simFormat === 'csv' ? 'csv' : 'json';
+      const simMime = simFormat === 'xlsx'
+        ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        : simFormat === 'csv'
+        ? 'text/csv'
+        : 'application/json';
+
       setResult({
         isCompatible: true,
+        detectedFormat: simFormat,
         totalRows: totalSimRows,
         validRowsCount: validRows.length,
         errorRowsCount: errors.length,
@@ -143,18 +170,21 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
         systemColumnsCount: systemCols.length,
         detectedCustomColumns
       });
-      setFile(new File([''], expectedTemplateName, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+      setFile(new File([''], `${baseTemplateName}.${simExt}`, { type: simMime }));
       setLoading(false);
-    }, 600);
+    }, 500);
   };
 
-  // Demo Simulation: simulate wrong template upload
   const handleSimulateMismatchImport = () => {
     setLoading(true);
+    setGeneralError(null);
+    setResult(null);
+
     setTimeout(() => {
       setResult({
         isCompatible: false,
-        mismatchReason: `File ini terdeteksi bukan untuk metode "${schema?.methodName || methodName}". Silakan gunakan template resmi "${expectedTemplateName}".`,
+        detectedFormat: 'xlsx',
+        mismatchReason: `Berkas ini terdeteksi bukan untuk metode "${schema?.methodName || methodName}". Silakan gunakan template resmi "${expectedTemplateName}" atau unduh template terkait di atas.`,
         totalRows: 0,
         validRowsCount: 0,
         errorRowsCount: 0,
@@ -166,13 +196,40 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
       });
       setFile(new File([''], 'File_Metode_Lain.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
       setLoading(false);
-    }, 500);
+    }, 400);
   };
 
   const handleConfirm = () => {
     if (result && result.validRows.length > 0) {
       onConfirmImport(result.validRows, result.detectedCustomColumns);
       onClose();
+    }
+  };
+
+  const renderFormatBadge = (fmt?: string) => {
+    switch (fmt) {
+      case 'csv':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+            <FileText className="w-3 h-3" />
+            CSV (Comma / Semicolon)
+          </span>
+        );
+      case 'json':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-300">
+            <FileCode className="w-3 h-3" />
+            JSON Dataset
+          </span>
+        );
+      case 'xlsx':
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+            <FileSpreadsheet className="w-3 h-3" />
+            Excel (.xlsx / .xls)
+          </span>
+        );
     }
   };
 
@@ -183,8 +240,11 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
         <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="font-bold text-slate-800 text-sm">Import Data Spreadsheet Excel</h3>
-              <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+              <h3 className="font-bold text-slate-800 text-sm">Import Data Valuasi</h3>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                Excel • CSV • JSON
+              </span>
+              <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-800 border border-slate-200">
                 {schema?.methodName || methodName}
               </span>
             </div>
@@ -196,18 +256,23 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
               {categoryName && categoryName !== 'General' && (
                 <>
                   <span className="text-slate-300">•</span>
-                  <span className={`px-1.5 py-0.2 rounded font-semibold text-[10px] ${
-                    categoryName.toLowerCase() === 'fauna'
-                      ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                      : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                  }`}>
+                  <span
+                    className={`px-1.5 py-0.2 rounded font-semibold text-[10px] ${
+                      categoryName.toLowerCase() === 'fauna'
+                        ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                        : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                    }`}
+                  >
                     {categoryName}
                   </span>
                 </>
               )}
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded transition-colors cursor-pointer">
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 p-1 rounded transition-colors cursor-pointer"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -216,7 +281,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
         <div className="p-5 flex-1 overflow-y-auto space-y-4">
           {/* Method Context Card */}
           <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-lg text-xs space-y-2">
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
               <div className="flex items-start gap-2.5">
                 <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                 <div>
@@ -228,16 +293,42 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                   </div>
                 </div>
               </div>
-              <div className="text-right shrink-0">
-                <span className="text-[10px] text-slate-500 block">Template Resmi:</span>
-                <span className="font-mono bg-white px-2 py-0.5 rounded border border-blue-200 font-bold text-blue-900 text-[11px]">
-                  {expectedTemplateName}
-                </span>
+
+              {/* Template Download Buttons */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-slate-500 font-semibold">Unduh Template:</span>
+                <button
+                  type="button"
+                  onClick={() => handleDownload('xlsx')}
+                  className="px-2 py-1 rounded bg-white hover:bg-emerald-50 border border-emerald-300 text-emerald-800 font-medium text-[10px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                  title="Unduh Template Excel (.xlsx)"
+                >
+                  <FileSpreadsheet className="w-3 h-3 text-emerald-600" />
+                  .xlsx
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownload('csv')}
+                  className="px-2 py-1 rounded bg-white hover:bg-amber-50 border border-amber-300 text-amber-800 font-medium text-[10px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                  title="Unduh Template CSV (.csv)"
+                >
+                  <FileText className="w-3 h-3 text-amber-600" />
+                  .csv
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownload('json')}
+                  className="px-2 py-1 rounded bg-white hover:bg-purple-50 border border-purple-300 text-purple-800 font-medium text-[10px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                  title="Unduh Template JSON (.json)"
+                >
+                  <FileCode className="w-3 h-3 text-purple-600" />
+                  .json
+                </button>
               </div>
             </div>
 
             {schema?.formulaDescription && (
-              <div className="pt-2 border-t border-blue-200/80 text-[11px] text-blue-900 flex items-center gap-1.5">
+              <div className="pt-2 border-t border-blue-200/80 text-[11px] text-blue-900 flex items-center gap-1.5 flex-wrap">
                 <span className="font-semibold text-blue-950">Rumus Kalkulasi:</span>
                 <code className="bg-white/80 px-2 py-0.5 rounded border border-blue-200/60 font-mono text-blue-800 text-[10px]">
                   {schema.formulaDescription}
@@ -251,7 +342,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                 Struktur Kolom Sesuai Metode ({systemCols.length} Kolom):
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {systemCols.map((c) => (
+                {systemCols.map(c => (
                   <span
                     key={c.key}
                     className={`px-2 py-0.5 rounded text-[10px] border ${
@@ -271,37 +362,60 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
           <div className="border-2 border-dashed border-slate-300 rounded-lg p-5 text-center hover:border-blue-400 transition-colors bg-slate-50/50">
             <input
               type="file"
-              accept=".xlsx,.xls"
-              id="excel-file-input"
+              accept=".xlsx,.xls,.csv,.tsv,.json,application/json,text/csv,text/plain"
+              id="spreadsheet-file-input"
               onChange={handleFileChange}
               className="hidden"
             />
-            <label htmlFor="excel-file-input" className="cursor-pointer flex flex-col items-center">
+            <label htmlFor="spreadsheet-file-input" className="cursor-pointer flex flex-col items-center">
               <UploadCloud className="w-9 h-9 text-blue-600 mb-1.5" />
               <span className="text-xs font-semibold text-slate-800">
-                Pilih atau seret berkas {expectedTemplateName} ke sini
+                Pilih atau seret berkas {baseTemplateName} (.xlsx, .csv, .json) ke sini
               </span>
-              <span className="text-[11px] text-slate-500 mt-0.5">
-                Format didukung: spreadsheet Excel (.xlsx) dengan baris metadata resmi
+              <span className="text-[11px] text-slate-500 mt-1 flex items-center justify-center gap-2 flex-wrap">
+                <span>Format didukung:</span>
+                <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-700">.xlsx / .xls</span>
+                <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-700">.csv / .tsv</span>
+                <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-700">.json</span>
               </span>
             </label>
 
             {/* Quick Demo Test Helpers */}
-            <div className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-center gap-2">
-              <span className="text-[10px] text-slate-400 font-semibold uppercase">Uji Coba Demo:</span>
+            <div className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-center gap-1.5 flex-wrap">
+              <span className="text-[10px] text-slate-400 font-semibold uppercase flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-amber-500" />
+                Uji Coba Demo:
+              </span>
               <button
                 type="button"
-                onClick={handleSimulateValidImport}
-                className="px-2.5 py-1 rounded bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-[11px] font-medium transition-colors flex items-center gap-1 cursor-pointer"
+                onClick={() => handleSimulateValidImport('xlsx')}
+                className="px-2 py-0.8 rounded bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-[10px] font-medium transition-colors flex items-center gap-1 cursor-pointer"
               >
-                Simulasi File Sesuai Metode
+                <FileSpreadsheet className="w-3 h-3" />
+                Simulasi Excel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSimulateValidImport('csv')}
+                className="px-2 py-0.8 rounded bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-[10px] font-medium transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                <FileText className="w-3 h-3" />
+                Simulasi CSV
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSimulateValidImport('json')}
+                className="px-2 py-0.8 rounded bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-800 text-[10px] font-medium transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                <FileCode className="w-3 h-3" />
+                Simulasi JSON
               </button>
               <button
                 type="button"
                 onClick={handleSimulateMismatchImport}
-                className="px-2.5 py-1 rounded bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 text-[11px] font-medium transition-colors flex items-center gap-1 cursor-pointer"
+                className="px-2 py-0.8 rounded bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 text-[10px] font-medium transition-colors flex items-center gap-1 cursor-pointer"
               >
-                Simulasi Mismatch Metode
+                Simulasi Mismatch
               </button>
             </div>
           </div>
@@ -309,7 +423,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
           {loading && (
             <div className="p-4 bg-slate-50 border border-slate-200 rounded text-center text-xs text-slate-600 flex items-center justify-center gap-2">
               <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-              <span>Menganalisis metadata template, tipe data, dan mencocokkan rumus metode {schema?.methodName}...</span>
+              <span>Menganalisis berkas, format data, dan memverifikasi kesesuaian metode {schema?.methodName}...</span>
             </div>
           )}
 
@@ -323,15 +437,41 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
           {/* If Incompatible Template */}
           {result && !result.isCompatible && (
             <div className="p-4 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 space-y-2 animate-in fade-in duration-150">
-              <div className="flex items-center gap-2 font-bold text-rose-900 text-sm">
-                <AlertCircle className="w-4 h-4 text-rose-600" />
-                Template Tidak Sesuai
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 font-bold text-rose-900 text-sm">
+                  <AlertCircle className="w-4 h-4 text-rose-600" />
+                  Format atau Metadata Tidak Sesuai
+                </div>
+                {renderFormatBadge(result.detectedFormat)}
               </div>
               <p className="text-rose-700 leading-relaxed">
                 {result.mismatchReason}
               </p>
-              <div className="text-[11px] text-rose-600 pt-1 border-t border-rose-200/60">
-                Silakan gunakan tombol <strong>"Download Template"</strong> di lembar kerja ini untuk memperoleh file dengan format yang tepat.
+              <div className="text-[11px] text-rose-600 pt-1 border-t border-rose-200/60 flex items-center gap-2 flex-wrap">
+                <span>Gunakan tombol unduh template di atas untuk memperoleh format yang sesuai:</span>
+                <button
+                  type="button"
+                  onClick={() => handleDownload('xlsx')}
+                  className="font-bold underline text-rose-800 hover:text-rose-950 cursor-pointer"
+                >
+                  Excel (.xlsx)
+                </button>
+                <span>•</span>
+                <button
+                  type="button"
+                  onClick={() => handleDownload('csv')}
+                  className="font-bold underline text-rose-800 hover:text-rose-950 cursor-pointer"
+                >
+                  CSV (.csv)
+                </button>
+                <span>•</span>
+                <button
+                  type="button"
+                  onClick={() => handleDownload('json')}
+                  className="font-bold underline text-rose-800 hover:text-rose-950 cursor-pointer"
+                >
+                  JSON (.json)
+                </button>
               </div>
             </div>
           )}
@@ -345,6 +485,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                   <div className="flex items-center gap-2">
                     <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
                     <span>Preview Import: {file?.name}</span>
+                    {renderFormatBadge(result.detectedFormat)}
                   </div>
                   <span className="text-[11px] text-slate-500 font-mono">
                     {result.totalRows} baris ditemukan
@@ -364,11 +505,11 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                   {result.detectedCustomColumns && result.detectedCustomColumns.length > 0 ? (
                     <span className="text-purple-700 font-semibold bg-purple-50 border border-purple-200 px-2 py-0.5 rounded text-[11px] flex items-center gap-1">
                       <Columns3 className="w-3 h-3" />
-                      {result.detectedCustomColumns.length} kolom tambahan ditemukan: {result.detectedCustomColumns.map(c => c.label).join(', ')}
+                      {result.detectedCustomColumns.length} kolom tambahan terdeteksi: {result.detectedCustomColumns.map(c => c.label).join(', ')}
                     </span>
                   ) : (
                     <span className="text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[11px]">
-                      Tidak ada kolom tambahan
+                      Tidak ada kolom kustom baru
                     </span>
                   )}
 
@@ -383,7 +524,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                 {result.detectedCustomColumns && result.detectedCustomColumns.length > 0 && (
                   <div className="p-2 bg-purple-50/70 border border-purple-200/80 rounded text-[11px] text-purple-800 flex items-center gap-1.5">
                     <span>
-                      Kolom tambahan (<strong>{result.detectedCustomColumns.map(c => c.label).join(', ')}</strong>) akan dibuat otomatis sebagai kolom Custom pada spreadsheet setelah Anda mengklik Import.
+                      Kolom tambahan (<strong>{result.detectedCustomColumns.map(c => `${c.label} [${c.type}]`).join(', ')}</strong>) akan dibuat secara dinamis pada spreadsheet setelah Anda mengklik Import Data.
                     </span>
                   </div>
                 )}
@@ -419,48 +560,61 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                       <thead className="bg-slate-100 text-slate-700 sticky top-0 font-semibold border-b border-slate-200 text-[11px]">
                         <tr>
                           <th className="py-2 px-2.5 w-12 text-center">No</th>
-                          {previewCols.map((c) => (
+                          {previewCols.map(c => (
                             <th
                               key={c.key}
-                              className={`py-2 px-2.5 ${c.align === 'right' ? 'text-right' : c.align === 'center' ? 'text-center' : 'text-left'}`}
+                              className={`py-2 px-2.5 ${
+                                c.align === 'right' ? 'text-right' : c.align === 'center' ? 'text-center' : 'text-left'
+                              }`}
                             >
                               {c.label}
                             </th>
                           ))}
-                          {result.detectedCustomColumns?.map((col) => (
+                          {result.detectedCustomColumns?.map(col => (
                             <th key={col.key} className="py-2 px-2.5 bg-purple-50 text-purple-900">
-                              {col.label} <span className="text-[9px] font-normal text-purple-600">(Custom)</span>
+                              {col.label}{' '}
+                              <span className="text-[9px] font-normal text-purple-600">({col.type})</span>
                             </th>
                           ))}
                           <th className="py-2 px-2.5 text-center w-20">Status</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {result.allRowsPreview.slice(0, 15).map((r) => (
+                        {result.allRowsPreview.slice(0, 15).map(r => (
                           <tr key={r.id} className={r.hasError ? 'bg-rose-50/70 text-rose-900' : 'hover:bg-slate-50'}>
                             <td className="py-1.5 px-2.5 text-center font-mono text-slate-500">{r.no}</td>
-                            {previewCols.map((c) => {
+                            {previewCols.map(c => {
                               const val = (r as any)[c.key];
                               let displayVal: any = val ?? '-';
-                              if (c.key === 'totalNilai' || c.type === 'readonly_calculated') {
+                              if (c.key === 'totalNilai' || c.key === 'total' || c.type === 'readonly_calculated') {
                                 displayVal = val ? formatIDR(val) : 'Rp 0';
-                              } else if (c.key.toLowerCase().includes('harga') || c.key.toLowerCase().includes('nilai')) {
-                                displayVal = typeof val === 'number' ? formatIDR(val) : (val || '-');
+                              } else if (
+                                c.key.toLowerCase().includes('harga') ||
+                                c.key.toLowerCase().includes('nilai') ||
+                                c.key.toLowerCase().includes('biaya')
+                              ) {
+                                displayVal = typeof val === 'number' ? formatIDR(val) : val || '-';
                               }
                               return (
                                 <td
                                   key={c.key}
                                   className={`py-1.5 px-2.5 ${
-                                    c.align === 'right' ? 'text-right font-mono' :
-                                    c.align === 'center' ? 'text-center' :
-                                    'font-medium'
+                                    c.align === 'right'
+                                      ? 'text-right font-mono'
+                                      : c.align === 'center'
+                                      ? 'text-center'
+                                      : 'font-medium'
                                   }`}
                                 >
-                                  {c.key === 'item' && !val ? <em className="text-rose-500">(Kosong)</em> : String(displayVal)}
+                                  {c.key === 'item' && !val ? (
+                                    <em className="text-rose-500">(Kosong)</em>
+                                  ) : (
+                                    String(displayVal)
+                                  )}
                                 </td>
                               );
                             })}
-                            {result.detectedCustomColumns?.map((col) => (
+                            {result.detectedCustomColumns?.map(col => (
                               <td key={col.key} className="py-1.5 px-2.5 bg-purple-50/20 text-slate-700">
                                 {String(r[col.key] || '-')}
                               </td>

@@ -31,8 +31,8 @@ export default function Sidebar({ activePrompt, onSelectPrompt, onClearAll, isMo
         }`}
       >
         {/* Header Row */}
-        <div className="flex items-center justify-between px-4 pt-4 pb-2 border-b lg:border-b-0 border-slate-100">
-          <h2 className="text-sm font-bold text-slate-700">Your analysis</h2>
+        <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-100">
+          <h2 className="text-sm font-bold text-slate-800">Your analysis</h2>
           <div className="flex items-center gap-2">
             <button
               onClick={onClearAll}
@@ -44,7 +44,7 @@ export default function Sidebar({ activePrompt, onSelectPrompt, onClearAll, isMo
               <button
                 type="button"
                 onClick={onMobileClose}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg lg:hidden transition-colors cursor-pointer"
+                className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg lg:hidden transition-colors cursor-pointer"
                 aria-label="Tutup menu prompts"
               >
                 <X size={18} />
@@ -54,7 +54,7 @@ export default function Sidebar({ activePrompt, onSelectPrompt, onClearAll, isMo
         </div>
 
         {/* Prompt List */}
-        <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1.5 mt-2 scrollbar-thin">
+        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1.5 scrollbar-thin">
           {prompts.map((prompt, index) => {
             const isActive = activePrompt === index
             return (
@@ -64,10 +64,10 @@ export default function Sidebar({ activePrompt, onSelectPrompt, onClearAll, isMo
                   onSelectPrompt(index)
                   onMobileClose?.()
                 }}
-                className={`w-full text-left p-3 rounded-lg text-xs font-medium transition-all duration-200 cursor-pointer leading-relaxed ${
+                className={`w-full text-left px-3.5 py-3 rounded-xl text-xs font-medium transition-all duration-200 cursor-pointer leading-relaxed min-h-[44px] flex items-center ${
                   isActive
-                    ? 'bg-blue-600 text-white shadow-xs shadow-blue-200'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20 font-semibold'
+                    : 'text-slate-700 hover:bg-slate-100/80 hover:text-slate-900'
                 }`}
               >
                 {prompt}

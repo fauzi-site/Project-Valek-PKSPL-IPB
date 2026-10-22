@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { User, Edit3, Lock, LogOut, ChevronDown } from 'lucide-react';
+import { User, Edit3, Lock, LogOut, ChevronDown, LayoutDashboard } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
@@ -17,6 +17,14 @@ const ProfileDropdown = ({ isScrolled = false }) => {
   const [showChangePassword, setShowChangePassword] = useState(false);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
+
+  const roleName = user?.role?.nama_role || (typeof user?.role === 'string' ? user?.role : '');
+  const normalizedRole = roleName.toLowerCase();
+  const isAdminRole = ['super admin', 'admin', 'administrator'].includes(normalizedRole);
+  const dashboardPath = isAdminRole ? '/admin' : '/peneliti/projects';
+  const dashboardLabel = isAdminRole
+    ? t('nav.adminDashboard', { ns: 'common', defaultValue: 'Dashboard Admin' })
+    : t('nav.researcherDashboard', { ns: 'common', defaultValue: 'Dashboard Peneliti' });
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -126,26 +134,35 @@ const ProfileDropdown = ({ isScrolled = false }) => {
 
             {/* Menu Items */}
             <div className="py-1.5">
+              {dashboardPath && (
+                <button
+                  onClick={() => { setIsOpen(false); navigate(dashboardPath); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-blue-600 hover:bg-blue-50 transition-colors border-b border-slate-100 text-left cursor-pointer"
+                >
+                  <LayoutDashboard size={16} className="text-blue-600" />
+                  <span>{dashboardLabel}</span>
+                </button>
+              )}
               <button
                 onClick={() => { setIsOpen(false); setShowProfile(true); }}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
               >
                 <User size={16} className="text-slate-400" />
-                <span>{t('myProfile')}</span>
+                <span>{t('myProfile', { defaultValue: 'Profil Saya' })}</span>
               </button>
               <button
                 onClick={() => { setIsOpen(false); setShowEditProfile(true); }}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
               >
                 <Edit3 size={16} className="text-slate-400" />
-                <span>{t('editProfile')}</span>
+                <span>{t('editProfile', { defaultValue: 'Edit Profil' })}</span>
               </button>
               <button
                 onClick={() => { setIsOpen(false); setShowChangePassword(true); }}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
               >
                 <Lock size={16} className="text-slate-400" />
-                <span>{t('changePassword')}</span>
+                <span>{t('changePassword', { defaultValue: 'Ganti Kata Sandi' })}</span>
               </button>
             </div>
 
@@ -153,10 +170,10 @@ const ProfileDropdown = ({ isScrolled = false }) => {
             <div className="border-t border-slate-100 py-1.5">
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
               >
                 <LogOut size={16} className="text-red-400" />
-                <span>{t('logout')}</span>
+                <span>{t('logout', { defaultValue: 'Keluar dari Akun' })}</span>
               </button>
             </div>
           </div>

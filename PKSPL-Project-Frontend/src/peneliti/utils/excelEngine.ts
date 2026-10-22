@@ -20,6 +20,8 @@ const getXLSX = () => {
 
 import { CustomColumnType } from '../types/methodSchemas';
 
+export type TemplateFileFormat = 'xlsx' | 'csv' | 'json';
+
 export interface DetectedCustomColumn {
   key: string;
   label: string;
@@ -29,6 +31,7 @@ export interface DetectedCustomColumn {
 export interface ParseResult {
   isCompatible: boolean;
   mismatchReason?: string;
+  detectedFormat?: 'xlsx' | 'csv' | 'json' | 'spreadsheet';
   totalRows: number;
   validRowsCount: number;
   errorRowsCount: number;
@@ -40,23 +43,21 @@ export interface ParseResult {
 }
 
 /**
- * Generate dan unduh template resmi Excel terikat konteks
+ * Generate dan unduh template resmi terikat konteks (Excel, CSV, atau JSON)
  */
 export const downloadContextTemplate = (
   service: string,
   method: string,
-  category: string = 'Flora'
+  category: string = 'Flora',
+  format: TemplateFileFormat = 'xlsx'
 ): void => {
-  const XLSX = getXLSX();
   const schema = getMethodSchema(service, method, category.toLowerCase());
-  const fileName = schema?.templateFileName || `${service}_${method}_${category}.xlsx`;
+  const rawBaseName = schema?.templateFileName ? schema.templateFileName.replace(/\.(xlsx|xls|csv|json)$/i, '') : `${service}_${method}_${category}`;
   const sheetName = 'Template_Input';
 
-  // Metadata headers to strictly identify the template context
   const cols = schema?.columns || [];
   const headers = cols.map(c => c.label);
 
-  // Sample data rows from schema initial rows
   const sampleData = (schema?.initialRows || []).map((r, idx) => {
     return cols.map(c => {
       if (c.key === 'no') return idx + 1;
@@ -70,16 +71,79 @@ export const downloadContextTemplate = (
     ...sampleData
   ];
 
-  if (!XLSX) {
-    // CSV fallback download
-    const csvContent = wsData.map(e => e.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute("download", fileName.replace(/\.xlsx$/, '.csv'));
+  // Helper trigger browser download
+  const triggerDownload = (blob: Blob, fileName: string) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', fileName);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // 1. FORMAT CSV
+  if (format === 'csv') {
+    const csvContent = wsData.map(row =>
+      row.map(cell => {
+        const str = String(cell ?? '');
+        if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes(';')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      }).join(',')
+    ).join('\r\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    triggerDownload(blob, `${rawBaseName}.csv`);
+    return;
+  }
+
+  // 2. FORMAT JSON
+  if (format === 'json') {
+    const jsonTemplate = {
+      $schema: 'https://pkspl.ipb.ac.id/schemas/ecosystem-valuation-template-v1.json',
+      metadata: {
+        service,
+        method,
+        category,
+        version: '1.0',
+        generatedAt: new Date().toISOString(),
+        description: `Template data valuasi untuk ${service} - ${schema?.methodName || method} (${category})`
+      },
+      columns: cols.map(c => ({
+        key: c.key,
+        label: c.label,
+        type: c.type,
+        unit: c.unit || null,
+        required: c.key === 'item',
+        isCalculated: Boolean(c.isTotal || c.type === 'readonly_calculated')
+      })),
+      rows: (schema?.initialRows || []).map((r, idx) => {
+        const rowObj: Record<string, any> = { no: idx + 1 };
+        cols.forEach(c => {
+          if (c.key !== 'no') {
+            rowObj[c.key] = r[c.key] ?? '';
+          }
+        });
+        return rowObj;
+      })
+    };
+
+    const jsonContent = JSON.stringify(jsonTemplate, null, 2);
+    const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
+    triggerDownload(blob, `${rawBaseName}.json`);
+    return;
+  }
+
+  // 3. FORMAT EXCEL (.xlsx)
+  const XLSX = getXLSX();
+  if (!XLSX) {
+    // Fallback ke CSV jika XLSX belum siap
+    const csvContent = wsData.map(row => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    triggerDownload(blob, `${rawBaseName}.csv`);
     return;
   }
 
@@ -89,44 +153,795 @@ export const downloadContextTemplate = (
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
 
-  // Guarantee explicit .xlsx extension
-  const safeFileName = fileName.endsWith('.xlsx') ? fileName : `${fileName}.xlsx`;
+  const safeFileName = `${rawBaseName}.xlsx`;
 
   try {
     const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     const blob = new Blob([excelBuffer], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', safeFileName);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    triggerDownload(blob, safeFileName);
   } catch (err) {
     XLSX.writeFile(wb, safeFileName);
   }
 };
 
 /**
- * Validasi dan parse file Excel yang diunggah
+ * Parser deterministik CSV & TSV dengan deteksi otomatis pemisah (, ; \t)
+ * serta mendukung kutip ganda RFC 4180.
  */
-export const validateAndParseExcel = async (
+export const parseCSVToAoa = (csvText: string): any[][] => {
+  let cleanText = csvText;
+  if (cleanText.charCodeAt(0) === 0xfeff) {
+    cleanText = cleanText.slice(1);
+  }
+
+  const lines = cleanText.split(/\r?\n/).filter(l => l.trim().length > 0);
+  if (lines.length === 0) return [];
+
+  // Hitung pemisah kandidat di luar tanda kutip
+  const sample = lines.slice(0, 8).join('\n');
+  const countChar = (char: string) => {
+    let count = 0;
+    let inQuotes = false;
+    for (let i = 0; i < sample.length; i++) {
+      if (sample[i] === '"') inQuotes = !inQuotes;
+      else if (!inQuotes && sample[i] === char) count++;
+    }
+    return count;
+  };
+
+  const commaCount = countChar(',');
+  const semiCount = countChar(';');
+  const tabCount = countChar('\t');
+
+  let delimiter = ',';
+  if (tabCount > commaCount && tabCount > semiCount) {
+    delimiter = '\t';
+  } else if (semiCount > commaCount) {
+    delimiter = ';';
+  }
+
+  const rows: any[][] = [];
+  let currentRow: string[] = [];
+  let currentVal = '';
+  let insideQuotes = false;
+
+  for (let i = 0; i < cleanText.length; i++) {
+    const char = cleanText[i];
+    const nextChar = cleanText[i + 1];
+
+    if (char === '"') {
+      if (insideQuotes && nextChar === '"') {
+        currentVal += '"';
+        i++;
+      } else {
+        insideQuotes = !insideQuotes;
+      }
+    } else if (char === delimiter && !insideQuotes) {
+      currentRow.push(currentVal.trim());
+      currentVal = '';
+    } else if ((char === '\r' || char === '\n') && !insideQuotes) {
+      if (char === '\r' && nextChar === '\n') {
+        i++;
+      }
+      currentRow.push(currentVal.trim());
+      if (currentRow.some(cell => String(cell).trim().length > 0)) {
+        rows.push(currentRow);
+      }
+      currentRow = [];
+      currentVal = '';
+    } else {
+      currentVal += char;
+    }
+  }
+
+  if (currentVal.length > 0 || currentRow.length > 0) {
+    currentRow.push(currentVal.trim());
+    if (currentRow.some(cell => String(cell).trim().length > 0)) {
+      rows.push(currentRow);
+    }
+  }
+
+  return rows;
+};
+
+// Helper normalisasi string untuk pencocokan toleran
+const normalizeStr = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const checkContextCompatibility = (
+  detectedService: string,
+  detectedMethod: string,
+  detectedCategory: string,
+  expectedService: string,
+  expectedMethod: string,
+  expectedCategory: string
+): { isCompatible: boolean; mismatchReason?: string } => {
+  const normExpectedServ = normalizeStr(expectedService);
+  const normExpectedMeth = normalizeStr(expectedMethod);
+  const normExpectedCat = normalizeStr(expectedCategory);
+
+  if (detectedService) {
+    const normDetServ = normalizeStr(detectedService);
+    const isServiceMatch =
+      normDetServ === normExpectedServ ||
+      normExpectedServ.includes(normDetServ) ||
+      normDetServ.includes(normExpectedServ);
+
+    if (!isServiceMatch) {
+      return {
+        isCompatible: false,
+        mismatchReason: `File ini terdeteksi untuk data "${detectedService}", sedangkan halaman ini membutuhkan data "${expectedService}". Silakan periksa kembali file atau gunakan tombol "Download Template".`
+      };
+    }
+  }
+
+  if (detectedMethod) {
+    const normDetMeth = normalizeStr(detectedMethod);
+    const isMethodMatch =
+      normDetMeth === normExpectedMeth ||
+      normExpectedMeth.includes(normDetMeth) ||
+      normDetMeth.includes(normExpectedMeth);
+
+    if (!isMethodMatch) {
+      return {
+        isCompatible: false,
+        mismatchReason: `File ini terdeteksi untuk metode "${detectedMethod}", sedangkan metode aktif yang dipilih adalah "${expectedMethod}". Silakan gunakan template metode yang sesuai.`
+      };
+    }
+  }
+
+  if (normExpectedServ.includes('provisioning') && detectedCategory) {
+    const normDetCat = normalizeStr(detectedCategory);
+    if (normDetCat && (normDetCat === 'flora' || normDetCat === 'fauna') && normDetCat !== normExpectedCat) {
+      return {
+        isCompatible: false,
+        mismatchReason: `File ini berisi data "${detectedCategory}", sedangkan Anda sedang membuka modal import untuk "${expectedCategory}". Silakan gunakan opsi import yang sesuai.`
+      };
+    }
+  }
+
+  return { isCompatible: true };
+};
+
+const inferCustomColumnType = (values: any[]): CustomColumnType => {
+  const nonEmpties = values.filter(v => v !== undefined && v !== null && String(v).trim() !== '');
+  if (nonEmpties.length === 0) return 'text';
+
+  let allInteger = true;
+  let allNumber = true;
+  let allBoolean = true;
+  let allDate = true;
+
+  for (const v of nonEmpties) {
+    const s = String(v).trim().toLowerCase();
+    if (s !== 'true' && s !== 'false' && s !== '1' && s !== '0' && s !== 'ya' && s !== 'tidak') {
+      allBoolean = false;
+    }
+    const num = parseIndonesianNumber(v);
+    if (num === null || isNaN(num)) {
+      allNumber = false;
+      allInteger = false;
+    } else if (!Number.isInteger(num)) {
+      allInteger = false;
+    }
+    const dateParsed = Date.parse(String(v));
+    if (isNaN(dateParsed) || !String(v).match(/^\d{4}[-/]\d{1,2}[-/]\d{1,2}/)) {
+      allDate = false;
+    }
+  }
+
+  if (allBoolean) return 'boolean';
+  if (allInteger) return 'integer';
+  if (allNumber) return 'decimal';
+  if (allDate) return 'date';
+  return 'text';
+};
+
+/**
+ * Memproses matriks 2D (Array-of-Arrays) yang berasal dari Excel, CSV, TSV, atau JSON
+ */
+const processRawAoa = (
+  rawAoa: any[][],
+  expectedService: string,
+  expectedMethod: string,
+  expectedCategory: string,
+  format: 'xlsx' | 'csv' | 'json' | 'spreadsheet',
+  fileName: string
+): ParseResult => {
+  if (rawAoa.length < 2) {
+    return {
+      isCompatible: false,
+      mismatchReason: 'File tidak memiliki baris data yang cukup untuk diproses.',
+      detectedFormat: format,
+      totalRows: 0,
+      validRowsCount: 0,
+      errorRowsCount: 0,
+      errors: [],
+      validRows: [],
+      allRowsPreview: [],
+      systemColumnsCount: 0,
+      detectedCustomColumns: []
+    };
+  }
+
+  let detectedService = '';
+  let detectedMethod = '';
+  let detectedCategory = '';
+
+  const metaLine = String(rawAoa[0]?.[0] || '');
+  if (metaLine.startsWith('#CONTEXT:')) {
+    const matchService = metaLine.match(/SERVICE=([^;]+)/);
+    const matchMethod = metaLine.match(/METHOD=([^;]+)/);
+    const matchCat = metaLine.match(/CATEGORY=([^;]+)/);
+    if (matchService) detectedService = matchService[1];
+    if (matchMethod) detectedMethod = matchMethod[1];
+    if (matchCat) detectedCategory = matchCat[1];
+  } else {
+    const fname = fileName.toLowerCase();
+    if (fname.includes('regulating') || fname.includes('replacement')) {
+      detectedService = 'Regulating';
+      detectedMethod = 'ReplacementCost';
+    } else if (fname.includes('cultural') || fname.includes('travelcost')) {
+      detectedService = 'Cultural';
+      detectedMethod = 'TravelCost';
+    } else if (fname.includes('supporting') || fname.includes('habitat')) {
+      detectedService = 'Supporting';
+      detectedMethod = 'HabitatRefugium';
+    } else if (fname.includes('provisioning') || fname.includes('marketprice')) {
+      detectedService = 'Provisioning';
+      detectedMethod = 'MarketPrice';
+    }
+  }
+
+  const compat = checkContextCompatibility(
+    detectedService,
+    detectedMethod,
+    detectedCategory,
+    expectedService,
+    expectedMethod,
+    expectedCategory
+  );
+
+  if (!compat.isCompatible) {
+    return {
+      isCompatible: false,
+      mismatchReason: compat.mismatchReason,
+      detectedFormat: format,
+      totalRows: 0,
+      validRowsCount: 0,
+      errorRowsCount: 0,
+      errors: [],
+      validRows: [],
+      allRowsPreview: [],
+      systemColumnsCount: 0,
+      detectedCustomColumns: []
+    };
+  }
+
+  const headerRowIndex = metaLine.startsWith('#CONTEXT:') ? 1 : 0;
+  const headerRow: any[] = rawAoa[headerRowIndex] || [];
+  const schema = getMethodSchema(expectedService, expectedMethod, expectedCategory.toLowerCase());
+
+  if (!schema) {
+    return {
+      isCompatible: false,
+      mismatchReason: `Skema untuk metode ${expectedMethod} tidak ditemukan.`,
+      detectedFormat: format,
+      totalRows: 0,
+      validRowsCount: 0,
+      errorRowsCount: 0,
+      errors: [],
+      validRows: [],
+      allRowsPreview: [],
+      systemColumnsCount: 0,
+      detectedCustomColumns: []
+    };
+  }
+
+  const allSchemaCols = schema.columns;
+  const systemCols = allSchemaCols.filter(c => !c.isTotal && c.type !== 'readonly_calculated' && c.key !== 'totalNilai');
+  const systemColumnsCount = systemCols.length;
+
+  const headerIndexToColKey: Record<number, string> = {};
+  const matchedSchemaKeys = new Set<string>();
+
+  for (let c = 0; c < headerRow.length; c++) {
+    const rawHeader = String(headerRow[c] || '').trim();
+    if (!rawHeader) continue;
+    const normH = normalizeStr(rawHeader);
+
+    const matchedCol = allSchemaCols.find(sc => {
+      const normLabel = normalizeStr(sc.label);
+      const normKey = normalizeStr(sc.key);
+      return normLabel === normH || normKey === normH || normH.includes(normLabel) || normLabel.includes(normH);
+    });
+
+    if (matchedCol) {
+      headerIndexToColKey[c] = matchedCol.key;
+      matchedSchemaKeys.add(matchedCol.key);
+    }
+  }
+
+  if (matchedSchemaKeys.size === 0) {
+    allSchemaCols.forEach((sc, idx) => {
+      headerIndexToColKey[idx] = sc.key;
+    });
+  }
+
+  const detectedCustomColumns: DetectedCustomColumn[] = [];
+  const customColHeaderIndices: { headerIdx: number; colDef: DetectedCustomColumn }[] = [];
+
+  for (let c = 0; c < headerRow.length; c++) {
+    const rawHeader = String(headerRow[c] || '').trim();
+    if (!rawHeader) continue;
+
+    const normH = normalizeStr(rawHeader);
+    const isSystem = allSchemaCols.some(sc => {
+      const normLabel = normalizeStr(sc.label);
+      const normKey = normalizeStr(sc.key);
+      return normLabel === normH || normKey === normH || normH.includes(normLabel) || normLabel.includes(normH);
+    });
+
+    const isLegacySatuan = (normH === 'satuan' || normH === 'unit') && expectedService.toLowerCase().includes('provisioning');
+
+    if (!isSystem && !isLegacySatuan && c >= 1) {
+      const values = rawAoa.slice(headerRowIndex + 1).map(r => r[c]);
+      const inferredType = inferCustomColumnType(values);
+
+      const rawKey = rawHeader.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+      const key = `c_${rawKey || 'col'}_${c}`;
+      const customCol: DetectedCustomColumn = {
+        key,
+        label: rawHeader,
+        type: inferredType
+      };
+      detectedCustomColumns.push(customCol);
+      customColHeaderIndices.push({ headerIdx: c, colDef: customCol });
+    }
+  }
+
+  const startRowIndex = metaLine.startsWith('#CONTEXT:') ? 2 : 1;
+  const rowsToProcess = rawAoa.slice(startRowIndex).filter(r => r.some((c: any) => String(c).trim() !== ''));
+
+  const errors: { row: number; column: string; message: string }[] = [];
+  const validRows: SpreadsheetRow[] = [];
+  const allRowsPreview: (SpreadsheetRow & { hasError: boolean; errorMsg?: string })[] = [];
+
+  rowsToProcess.forEach((r, idx) => {
+    const rowNum = idx + 1;
+    const partialRow: Record<string, any> = schema.defaultNewRow ? schema.defaultNewRow(rowNum, 79.86) : {
+      id: `IMP-${Date.now()}-${idx}`,
+      no: rowNum,
+      item: '',
+      luasHa: 79.86
+    };
+    partialRow.id = `IMP-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`;
+    partialRow.no = rowNum;
+
+    Object.entries(headerIndexToColKey).forEach(([cIdxStr, colKey]) => {
+      const cIdx = Number(cIdxStr);
+      const rawVal = r[cIdx];
+      if (rawVal === undefined || rawVal === '') return;
+
+      const colDef = allSchemaCols.find(c => c.key === colKey);
+      if (colDef && colDef.type === 'number') {
+        const numVal = parseIndonesianNumber(rawVal);
+        if (numVal !== null && !isNaN(numVal)) {
+          partialRow[colKey] = numVal;
+        } else if (String(rawVal).trim() !== '') {
+          errors.push({
+            row: rowNum,
+            column: colDef.label,
+            message: `Nilai "${rawVal}" tidak valid sebagai angka.`
+          });
+        }
+      } else {
+        partialRow[colKey] = String(rawVal).trim();
+      }
+    });
+
+    customColHeaderIndices.forEach(({ headerIdx, colDef }) => {
+      const rawVal = r[headerIdx];
+      if (rawVal !== undefined && rawVal !== '') {
+        if (colDef.type === 'integer' || colDef.type === 'decimal') {
+          const num = parseIndonesianNumber(rawVal);
+          partialRow[colDef.key] = num !== null && !isNaN(num) ? num : 0;
+        } else {
+          partialRow[colDef.key] = String(rawVal).trim();
+        }
+      }
+    });
+
+    let rowError: string | null = null;
+
+    const itemCol = allSchemaCols.find(c => c.key === 'item');
+    const itemName = String(partialRow.item || '').trim();
+    if (!itemName) {
+      rowError = `${itemCol?.label || 'Nama Item'} tidak boleh kosong`;
+      errors.push({ row: rowNum, column: itemCol?.label || 'Item/Komoditas', message: rowError });
+    }
+
+    if (!rowError) {
+      for (const col of allSchemaCols) {
+        if (col.type === 'number' && !col.isTotal && col.key !== 'no' && col.key !== 'jumlah') {
+          const val = partialRow[col.key];
+          if (val !== null && val !== undefined && typeof val === 'number') {
+            if (isNaN(val) || val < 0) {
+              rowError = `Nilai ${col.label} tidak valid (${val})`;
+              errors.push({ row: rowNum, column: col.label, message: rowError });
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    const calc: any = schema.calculateRow(partialRow);
+    const computedTotal = (partialRow.totalNilai !== undefined && partialRow.totalNilai !== null && !isNaN(Number(partialRow.totalNilai)) && Number(partialRow.totalNilai) > 0)
+      ? Number(partialRow.totalNilai)
+      : calc.total;
+
+    partialRow.total = isNaN(computedTotal) ? 0 : computedTotal;
+    partialRow.totalNilai = partialRow.total;
+    partialRow.nilaiEkonomi = calc?.nilaiEkonomi !== undefined && !isNaN(calc.nilaiEkonomi)
+      ? calc.nilaiEkonomi
+      : partialRow.total;
+
+    if (calc?.quantity !== undefined && (partialRow.jumlah === undefined || partialRow.jumlah === null)) {
+      partialRow.jumlah = calc.quantity;
+    }
+
+    partialRow.status = rowError ? 'invalid' : 'valid';
+    partialRow.validationError = rowError || undefined;
+
+    const finalRow = partialRow as SpreadsheetRow;
+
+    if (rowError) {
+      allRowsPreview.push({ ...finalRow, hasError: true, errorMsg: rowError });
+    } else {
+      validRows.push(finalRow);
+      allRowsPreview.push({ ...finalRow, hasError: false });
+    }
+  });
+
+  return {
+    isCompatible: true,
+    detectedFormat: format,
+    totalRows: rowsToProcess.length,
+    validRowsCount: validRows.length,
+    errorRowsCount: errors.length,
+    errors,
+    validRows,
+    allRowsPreview,
+    systemColumnsCount,
+    detectedCustomColumns
+  };
+};
+
+/**
+ * Memproses struktur data JSON (Array of Objects atau { metadata, rows })
+ */
+const processRawJsonObjects = (
+  rawObjects: Record<string, any>[],
+  metadata: any,
+  expectedService: string,
+  expectedMethod: string,
+  expectedCategory: string,
+  fileName: string
+): ParseResult => {
+  let detectedService = metadata?.service || '';
+  let detectedMethod = metadata?.method || '';
+  let detectedCategory = metadata?.category || '';
+
+  if (!detectedService && !detectedMethod) {
+    const fname = fileName.toLowerCase();
+    if (fname.includes('regulating') || fname.includes('replacement')) {
+      detectedService = 'Regulating';
+      detectedMethod = 'ReplacementCost';
+    } else if (fname.includes('cultural') || fname.includes('travelcost')) {
+      detectedService = 'Cultural';
+      detectedMethod = 'TravelCost';
+    } else if (fname.includes('supporting') || fname.includes('habitat')) {
+      detectedService = 'Supporting';
+      detectedMethod = 'HabitatRefugium';
+    } else if (fname.includes('provisioning') || fname.includes('marketprice')) {
+      detectedService = 'Provisioning';
+      detectedMethod = 'MarketPrice';
+    }
+  }
+
+  const compat = checkContextCompatibility(
+    detectedService,
+    detectedMethod,
+    detectedCategory,
+    expectedService,
+    expectedMethod,
+    expectedCategory
+  );
+
+  if (!compat.isCompatible) {
+    return {
+      isCompatible: false,
+      mismatchReason: compat.mismatchReason,
+      detectedFormat: 'json',
+      totalRows: 0,
+      validRowsCount: 0,
+      errorRowsCount: 0,
+      errors: [],
+      validRows: [],
+      allRowsPreview: [],
+      systemColumnsCount: 0,
+      detectedCustomColumns: []
+    };
+  }
+
+  const schema = getMethodSchema(expectedService, expectedMethod, expectedCategory.toLowerCase());
+  if (!schema) {
+    return {
+      isCompatible: false,
+      mismatchReason: `Skema untuk metode ${expectedMethod} tidak ditemukan.`,
+      detectedFormat: 'json',
+      totalRows: 0,
+      validRowsCount: 0,
+      errorRowsCount: 0,
+      errors: [],
+      validRows: [],
+      allRowsPreview: [],
+      systemColumnsCount: 0,
+      detectedCustomColumns: []
+    };
+  }
+
+  const allSchemaCols = schema.columns;
+  const knownKeys = new Set(allSchemaCols.map(c => c.key));
+  const ignoredKeys = new Set(['id', 'status', 'validationError', 'hasError', 'errorMsg']);
+
+  const customKeyCandidates: { [key: string]: any[] } = {};
+  rawObjects.forEach(obj => {
+    Object.entries(obj).forEach(([k, v]) => {
+      const isSystem = allSchemaCols.some(sc => {
+        const normK = normalizeStr(k);
+        return normK === normalizeStr(sc.key) || normK === normalizeStr(sc.label);
+      });
+      if (!isSystem && !ignoredKeys.has(k)) {
+        if (!customKeyCandidates[k]) customKeyCandidates[k] = [];
+        customKeyCandidates[k].push(v);
+      }
+    });
+  });
+
+  const detectedCustomColumns: DetectedCustomColumn[] = [];
+  Object.entries(customKeyCandidates).forEach(([k, sampleVals]) => {
+    detectedCustomColumns.push({
+      key: k,
+      label: k.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+      type: inferCustomColumnType(sampleVals)
+    });
+  });
+
+  const errors: { row: number; column: string; message: string }[] = [];
+  const validRows: SpreadsheetRow[] = [];
+  const allRowsPreview: (SpreadsheetRow & { hasError: boolean; errorMsg?: string })[] = [];
+
+  rawObjects.forEach((obj, idx) => {
+    const rowNum = idx + 1;
+    let rowError: string | null = null;
+    const partialRow: Partial<SpreadsheetRow> & Record<string, any> = schema.defaultNewRow
+      ? schema.defaultNewRow(rowNum, 79.86)
+      : { id: `IMP-${Date.now()}-${idx}`, no: rowNum, item: '', luasHa: 79.86 };
+
+    partialRow.id = `IMP-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`;
+    partialRow.no = rowNum;
+
+    allSchemaCols.forEach(sc => {
+      let rawVal = obj[sc.key];
+      if (rawVal === undefined) {
+        const found = Object.entries(obj).find(
+          ([k]) => normalizeStr(k) === normalizeStr(sc.label) || normalizeStr(k) === normalizeStr(sc.key)
+        );
+        if (found) rawVal = found[1];
+      }
+
+      if (sc.type === 'number') {
+        const num = parseIndonesianNumber(rawVal);
+        if (rawVal !== undefined && rawVal !== null && rawVal !== '' && (num === null || isNaN(num))) {
+          errors.push({
+            row: rowNum,
+            column: sc.label,
+            message: `Nilai "${rawVal}" tidak valid sebagai angka.`
+          });
+          rowError = `Kolom ${sc.label} berisi angka tidak valid.`;
+        } else {
+          partialRow[sc.key] = num !== null && !isNaN(num) ? num : (partialRow[sc.key] ?? 0);
+        }
+      } else {
+        partialRow[sc.key] = rawVal !== undefined && rawVal !== null ? String(rawVal).trim() : (partialRow[sc.key] ?? '');
+      }
+    });
+
+    detectedCustomColumns.forEach(cc => {
+      let rawVal = obj[cc.key];
+      if (rawVal === undefined) {
+        const found = Object.entries(obj).find(
+          ([k]) => normalizeStr(k) === normalizeStr(cc.label) || normalizeStr(k) === normalizeStr(cc.key)
+        );
+        if (found) rawVal = found[1];
+      }
+      if (cc.type === 'integer' || cc.type === 'decimal') {
+        const num = parseIndonesianNumber(rawVal);
+        partialRow[cc.key] = num !== null && !isNaN(num) ? num : 0;
+      } else {
+        partialRow[cc.key] = rawVal !== undefined && rawVal !== null ? String(rawVal).trim() : '';
+      }
+    });
+
+    if (!partialRow.item || String(partialRow.item).trim() === '') {
+      errors.push({
+        row: rowNum,
+        column: 'Komponen / Objek Biaya / Ekosistem',
+        message: 'Nama komponen/item wajib diisi.'
+      });
+      rowError = rowError || 'Nama komponen tidak boleh kosong.';
+    }
+
+    allSchemaCols.forEach(sc => {
+      if (sc.type === 'number' && !sc.isTotal) {
+        const val = partialRow[sc.key];
+        if (typeof val === 'number' && val < 0) {
+          errors.push({
+            row: rowNum,
+            column: sc.label,
+            message: `Nilai tidak boleh negatif (${val}).`
+          });
+          rowError = rowError || `Kolom ${sc.label} tidak boleh bernilai negatif.`;
+        }
+      }
+    });
+
+    const calc: any = schema.calculateRow(partialRow);
+    const computedTotal = (partialRow.totalNilai !== undefined && partialRow.totalNilai !== null && !isNaN(Number(partialRow.totalNilai)) && Number(partialRow.totalNilai) > 0)
+      ? Number(partialRow.totalNilai)
+      : calc.total;
+
+    partialRow.total = isNaN(computedTotal) ? 0 : computedTotal;
+    partialRow.totalNilai = partialRow.total;
+    partialRow.nilaiEkonomi = calc?.nilaiEkonomi !== undefined && !isNaN(calc.nilaiEkonomi)
+      ? calc.nilaiEkonomi
+      : partialRow.total;
+
+    if (calc?.quantity !== undefined && (partialRow.jumlah === undefined || partialRow.jumlah === null)) {
+      partialRow.jumlah = calc.quantity;
+    }
+
+    partialRow.status = rowError ? 'invalid' : 'valid';
+    partialRow.validationError = rowError || undefined;
+
+    const finalRow = partialRow as SpreadsheetRow;
+
+    if (rowError) {
+      allRowsPreview.push({ ...finalRow, hasError: true, errorMsg: rowError });
+    } else {
+      validRows.push(finalRow);
+      allRowsPreview.push({ ...finalRow, hasError: false });
+    }
+  });
+
+  return {
+    isCompatible: true,
+    detectedFormat: 'json',
+    totalRows: rawObjects.length,
+    validRowsCount: validRows.length,
+    errorRowsCount: errors.length,
+    errors,
+    validRows,
+    allRowsPreview,
+    systemColumnsCount: allSchemaCols.length,
+    detectedCustomColumns
+  };
+};
+
+/**
+ * Validasi dan parse file spreadsheet (Excel .xlsx/.xls, CSV .csv/.tsv, atau JSON .json) yang diunggah
+ */
+export const validateAndParseSpreadsheet = async (
   file: File,
   expectedService: string,
   expectedMethod: string,
   expectedCategory: string = 'Flora'
 ): Promise<ParseResult> => {
+  const fileName = file.name.toLowerCase();
+
+  // 1. FORMAT JSON (.json)
+  if (fileName.endsWith('.json') || file.type === 'application/json') {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const content = String(e.target?.result || '');
+          const parsed = JSON.parse(content);
+
+          if (Array.isArray(parsed)) {
+            if (parsed.length > 0 && Array.isArray(parsed[0])) {
+              return resolve(
+                processRawAoa(parsed, expectedService, expectedMethod, expectedCategory, 'json', file.name)
+              );
+            }
+            return resolve(
+              processRawJsonObjects(parsed, null, expectedService, expectedMethod, expectedCategory, file.name)
+            );
+          } else if (typeof parsed === 'object' && parsed !== null) {
+            const rows = parsed.rows || parsed.data || parsed.items;
+            if (Array.isArray(rows)) {
+              if (rows.length > 0 && Array.isArray(rows[0])) {
+                return resolve(
+                  processRawAoa(rows, expectedService, expectedMethod, expectedCategory, 'json', file.name)
+                );
+              }
+              return resolve(
+                processRawJsonObjects(
+                  rows,
+                  parsed.metadata || parsed,
+                  expectedService,
+                  expectedMethod,
+                  expectedCategory,
+                  file.name
+                )
+              );
+            }
+          }
+
+          resolve({
+            isCompatible: false,
+            mismatchReason: 'Format struktur file JSON tidak dikenali. Pastikan file berisi array baris data.',
+            detectedFormat: 'json',
+            totalRows: 0,
+            validRowsCount: 0,
+            errorRowsCount: 0,
+            errors: [],
+            validRows: [],
+            allRowsPreview: [],
+            systemColumnsCount: 0,
+            detectedCustomColumns: []
+          });
+        } catch (err: any) {
+          reject(new Error('Gagal memproses file JSON: ' + err.message));
+        }
+      };
+      reader.onerror = () => reject(new Error('Gagal membaca file JSON dari sistem.'));
+      reader.readAsText(file, 'utf-8');
+    });
+  }
+
+  // 2. FORMAT CSV / TSV (.csv, .tsv, .txt)
+  if (fileName.endsWith('.csv') || fileName.endsWith('.tsv') || fileName.endsWith('.txt') || file.type === 'text/csv') {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const content = String(e.target?.result || '');
+          const aoa = parseCSVToAoa(content);
+          resolve(processRawAoa(aoa, expectedService, expectedMethod, expectedCategory, 'csv', file.name));
+        } catch (err: any) {
+          reject(new Error('Gagal memproses file CSV: ' + err.message));
+        }
+      };
+      reader.onerror = () => reject(new Error('Gagal membaca file CSV dari sistem.'));
+      reader.readAsText(file, 'utf-8');
+    });
+  }
+
+  // 3. FORMAT EXCEL (.xlsx, .xls)
   return new Promise((resolve, reject) => {
     const XLSX = getXLSX();
     if (!XLSX) {
-      return reject(new Error('Library SheetJS belum selesai dimuat. Silakan tunggu sesaat atau periksa koneksi internet.'));
+      return reject(
+        new Error('Library SheetJS belum selesai dimuat. Silakan tunggu sesaat atau periksa koneksi internet.')
+      );
     }
     const reader = new FileReader();
 
-    reader.onload = (e) => {
+    reader.onload = e => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
@@ -135,301 +950,22 @@ export const validateAndParseExcel = async (
           return resolve({
             isCompatible: false,
             mismatchReason: 'File spreadsheet tidak memiliki lembar kerja (worksheet).',
+            detectedFormat: 'xlsx',
             totalRows: 0,
             validRowsCount: 0,
             errorRowsCount: 0,
             errors: [],
             validRows: [],
-            allRowsPreview: []
+            allRowsPreview: [],
+            systemColumnsCount: 0,
+            detectedCustomColumns: []
           });
         }
 
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const rawAoa: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
 
-        if (rawAoa.length < 2) {
-          return resolve({
-            isCompatible: false,
-            mismatchReason: 'File tidak memiliki baris data yang cukup untuk diproses.',
-            totalRows: 0,
-            validRowsCount: 0,
-            errorRowsCount: 0,
-            errors: [],
-            validRows: [],
-            allRowsPreview: []
-          });
-        }
-
-        // Cek context baris 1 atau nama file
-        let detectedService = '';
-        let detectedMethod = '';
-        let detectedCategory = '';
-
-        const metaLine = String(rawAoa[0]?.[0] || '');
-        if (metaLine.startsWith('#CONTEXT:')) {
-          const matchService = metaLine.match(/SERVICE=([^;]+)/);
-          const matchMethod = metaLine.match(/METHOD=([^;]+)/);
-          const matchCat = metaLine.match(/CATEGORY=([^;]+)/);
-          if (matchService) detectedService = matchService[1];
-          if (matchMethod) detectedMethod = matchMethod[1];
-          if (matchCat) detectedCategory = matchCat[1];
-        } else {
-          // Cek dari nama file jika baris metadata hilang
-          const fname = file.name.toLowerCase();
-          if (fname.includes('regulating') || fname.includes('replacement')) {
-            detectedService = 'Regulating';
-            detectedMethod = 'ReplacementCost';
-          } else if (fname.includes('cultural') || fname.includes('travelcost')) {
-            detectedService = 'Cultural';
-            detectedMethod = 'TravelCost';
-          }
-        }
-
-        // Helper normalisasi string untuk perbandingan fleksibel
-        const normalizeStr = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-        const normExpectedServ = normalizeStr(expectedService);
-        const normExpectedMeth = normalizeStr(expectedMethod);
-        const normExpectedCat = normalizeStr(expectedCategory);
-
-        // Validasi kecocokan service jika terdeteksi
-        if (detectedService) {
-          const normDetServ = normalizeStr(detectedService);
-          const isServiceMatch =
-            normDetServ === normExpectedServ ||
-            normExpectedServ.includes(normDetServ) ||
-            normDetServ.includes(normExpectedServ);
-
-          if (!isServiceMatch) {
-            return resolve({
-              isCompatible: false,
-              mismatchReason: `File ini terdeteksi untuk data "${detectedService}", sedangkan halaman ini membutuhkan data "${expectedService}". Silakan periksa kembali file atau gunakan tombol "Download Template".`,
-              totalRows: 0,
-              validRowsCount: 0,
-              errorRowsCount: 0,
-              errors: [],
-              validRows: [],
-              allRowsPreview: [],
-              systemColumnsCount: 0,
-              detectedCustomColumns: []
-            });
-          }
-        }
-
-        // Validasi kecocokan method jika terdeteksi
-        if (detectedMethod) {
-          const normDetMeth = normalizeStr(detectedMethod);
-          const isMethodMatch =
-            normDetMeth === normExpectedMeth ||
-            normExpectedMeth.includes(normDetMeth) ||
-            normDetMeth.includes(normExpectedMeth);
-
-          if (!isMethodMatch) {
-            return resolve({
-              isCompatible: false,
-              mismatchReason: `File ini terdeteksi untuk metode "${detectedMethod}", sedangkan metode aktif yang dipilih adalah "${expectedMethod}". Silakan gunakan template metode yang sesuai.`,
-              totalRows: 0,
-              validRowsCount: 0,
-              errorRowsCount: 0,
-              errors: [],
-              validRows: [],
-              allRowsPreview: [],
-              systemColumnsCount: 0,
-              detectedCustomColumns: []
-            });
-          }
-        }
-
-        // Validasi kecocokan category jika provisioning (flora vs fauna)
-        if (normExpectedServ.includes('provisioning') && detectedCategory) {
-          const normDetCat = normalizeStr(detectedCategory);
-          if (normDetCat && (normDetCat === 'flora' || normDetCat === 'fauna') && normDetCat !== normExpectedCat) {
-            return resolve({
-              isCompatible: false,
-              mismatchReason: `File ini berisi data "${detectedCategory}", sedangkan Anda sedang membuka modal import untuk "${expectedCategory}". Silakan gunakan opsi import yang sesuai.`,
-              totalRows: 0,
-              validRowsCount: 0,
-              errorRowsCount: 0,
-              errors: [],
-              validRows: [],
-              allRowsPreview: [],
-              systemColumnsCount: 0,
-              detectedCustomColumns: []
-            });
-          }
-        }
-
-        // Identify header row and schema system columns
-        const headerRowIndex = metaLine.startsWith('#CONTEXT:') ? 1 : 0;
-        const headerRow: any[] = rawAoa[headerRowIndex] || [];
-        const schema = getMethodSchema(expectedService, expectedMethod, expectedCategory.toLowerCase());
-        const allSchemaCols = schema.columns;
-        const systemCols = allSchemaCols.filter(c => !c.isTotal && c.type !== 'readonly_calculated' && c.key !== 'totalNilai');
-        const systemColumnsCount = systemCols.length;
-
-        // Buat pemetaan index kolom Excel -> key kolom skema
-        const headerIndexToColKey: Record<number, string> = {};
-        const matchedSchemaKeys = new Set<string>();
-
-        // 1. Cocokkan header Excel dengan definisi kolom di skema
-        for (let c = 0; c < headerRow.length; c++) {
-          const rawHeader = String(headerRow[c] || '').trim();
-          if (!rawHeader) continue;
-          const normH = normalizeStr(rawHeader);
-
-          // Coba cari kecocokan persis atau parsial dengan label skema
-          const matchedCol = allSchemaCols.find(sc => {
-            const normLabel = normalizeStr(sc.label);
-            return normLabel === normH || normH.includes(normLabel) || normLabel.includes(normH);
-          });
-
-          if (matchedCol) {
-            headerIndexToColKey[c] = matchedCol.key;
-            matchedSchemaKeys.add(matchedCol.key);
-          }
-        }
-
-        // Fallback jika header tidak cocok sama sekali (misal user edit label), gunakan posisi default skema
-        if (matchedSchemaKeys.size === 0) {
-          allSchemaCols.forEach((sc, idx) => {
-            headerIndexToColKey[idx] = sc.key;
-          });
-        }
-
-        // Deteksi kolom custom tambahan
-        const detectedCustomColumns: DetectedCustomColumn[] = [];
-        const customColHeaderIndices: { headerIdx: number; colDef: DetectedCustomColumn }[] = [];
-
-        for (let c = 0; c < headerRow.length; c++) {
-          const rawHeader = String(headerRow[c] || '').trim();
-          if (!rawHeader) continue;
-
-          const normH = normalizeStr(rawHeader);
-          const isSystem = allSchemaCols.some(sc => {
-            const normLabel = normalizeStr(sc.label);
-            return normLabel === normH || normH.includes(normLabel) || normLabel.includes(normH);
-          });
-
-          const isLegacySatuan = (normH === 'satuan' || normH === 'unit') && expectedService.toLowerCase().includes('provisioning');
-
-          if (!isSystem && !isLegacySatuan && c >= 1) { // Skip index 0 (No)
-            const rawKey = rawHeader.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
-            const key = `c_${rawKey || 'col'}_${c}`;
-            const customCol: DetectedCustomColumn = {
-              key,
-              label: rawHeader,
-              type: 'text',
-            };
-            detectedCustomColumns.push(customCol);
-            customColHeaderIndices.push({ headerIdx: c, colDef: customCol });
-          }
-        }
-
-        // Start reading data rows (skip meta if present, skip headers)
-        const startRowIndex = metaLine.startsWith('#CONTEXT:') ? 2 : 1;
-        const rowsToProcess = rawAoa.slice(startRowIndex).filter(r => r.some((c: any) => String(c).trim() !== ''));
-
-        const errors: { row: number; column: string; message: string }[] = [];
-        const validRows: SpreadsheetRow[] = [];
-        const allRowsPreview: (SpreadsheetRow & { hasError: boolean; errorMsg?: string })[] = [];
-
-        rowsToProcess.forEach((r, idx) => {
-          const rowNum = idx + 1;
-
-          // Buat template row default dari skema
-          const partialRow: Record<string, any> = schema.defaultNewRow ? schema.defaultNewRow(rowNum, 79.86) : {
-            id: `IMP-${Date.now()}-${idx}`,
-            no: rowNum,
-            item: '',
-            luasHa: 79.86,
-          };
-          partialRow.id = `IMP-${Date.now()}-${idx}`;
-          partialRow.no = rowNum;
-
-          // Isi field berdasarkan pemetaan kolom header
-          Object.entries(headerIndexToColKey).forEach(([cIdxStr, colKey]) => {
-            const cIdx = Number(cIdxStr);
-            const rawVal = r[cIdx];
-            if (rawVal === undefined || rawVal === '') return;
-
-            const colDef = allSchemaCols.find(c => c.key === colKey);
-            if (colDef && colDef.type === 'number') {
-              const numVal = parseIndonesianNumber(rawVal);
-              if (numVal !== null) {
-                partialRow[colKey] = numVal;
-              }
-            } else {
-              partialRow[colKey] = String(rawVal).trim();
-            }
-          });
-
-          // Extract values for detected custom columns
-          customColHeaderIndices.forEach(({ headerIdx, colDef }) => {
-            const rawVal = r[headerIdx];
-            if (rawVal !== undefined && rawVal !== '') {
-              partialRow[colDef.key] = rawVal;
-            }
-          });
-
-          let rowError: string | null = null;
-
-          // 1. Validasi: Kolom Nama / Item utama wajib diisi
-          const itemCol = allSchemaCols.find(c => c.key === 'item');
-          const itemName = String(partialRow.item || '').trim();
-          if (!itemName) {
-            rowError = `${itemCol?.label || 'Nama Item'} tidak boleh kosong`;
-            errors.push({ row: rowNum, column: itemCol?.label || 'Item/Komoditas', message: rowError });
-          }
-
-          // 2. Validasi kolom numerik utama (jika ada nilai yang diinput negatif atau tidak valid)
-          if (!rowError) {
-            for (const col of allSchemaCols) {
-              if (col.type === 'number' && !col.isTotal && col.key !== 'no' && col.key !== 'jumlah') {
-                const val = partialRow[col.key];
-                if (val !== null && val !== undefined && typeof val === 'number') {
-                  if (isNaN(val) || val < 0) {
-                    rowError = `Nilai ${col.label} tidak valid (${val})`;
-                    errors.push({ row: rowNum, column: col.label, message: rowError });
-                    break;
-                  }
-                }
-              }
-            }
-          }
-
-          // Hitung otomatis quantity & total nilai menggunakan skema kalkulator metode terkait
-          const calc = schema.calculateRow(partialRow);
-          partialRow.totalNilai = (partialRow.totalNilai !== undefined && partialRow.totalNilai !== null && !isNaN(Number(partialRow.totalNilai)) && Number(partialRow.totalNilai) > 0)
-            ? Number(partialRow.totalNilai)
-            : calc.total;
-          if (calc.quantity !== undefined && (partialRow.jumlah === undefined || partialRow.jumlah === null)) {
-            partialRow.jumlah = calc.quantity;
-          }
-
-          partialRow.status = rowError ? 'invalid' : 'valid';
-          partialRow.validationError = rowError || undefined;
-
-          const finalRow = partialRow as SpreadsheetRow;
-
-          if (rowError) {
-            allRowsPreview.push({ ...finalRow, hasError: true, errorMsg: rowError });
-          } else {
-            validRows.push(finalRow);
-            allRowsPreview.push({ ...finalRow, hasError: false });
-          }
-        });
-
-        resolve({
-          isCompatible: true,
-          totalRows: rowsToProcess.length,
-          validRowsCount: validRows.length,
-          errorRowsCount: errors.length,
-          errors,
-          validRows,
-          allRowsPreview,
-          systemColumnsCount,
-          detectedCustomColumns
-        });
+        resolve(processRawAoa(rawAoa, expectedService, expectedMethod, expectedCategory, 'xlsx', file.name));
       } catch (err: any) {
         reject(new Error('Gagal memproses file Excel: ' + err.message));
       }
@@ -439,6 +975,11 @@ export const validateAndParseExcel = async (
     reader.readAsArrayBuffer(file);
   });
 };
+
+/**
+ * Alias backward compatibility untuk validateAndParseExcel
+ */
+export const validateAndParseExcel = validateAndParseSpreadsheet;
 
 export interface WorkbookExportOptions {
   indices?: IndexItem[];

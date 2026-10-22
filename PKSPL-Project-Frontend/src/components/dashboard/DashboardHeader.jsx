@@ -10,7 +10,7 @@ export default function DashboardHeader({ onBackToHome, onToggleMobileSidebar })
           <button
             type="button"
             onClick={onToggleMobileSidebar}
-            className="p-1.5 -ml-1 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg lg:hidden transition-colors cursor-pointer"
+            className="w-10 h-10 flex items-center justify-center -ml-1 text-slate-700 hover:text-blue-700 hover:bg-blue-50 border border-slate-200/80 rounded-xl lg:hidden transition-colors shadow-2xs cursor-pointer"
             aria-label="Buka menu prompts"
           >
             <Menu size={20} />

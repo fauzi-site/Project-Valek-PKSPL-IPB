@@ -8,9 +8,17 @@ import {
   CheckCircle2,
   AlertTriangle,
   Info,
-  ChevronDown
+  ChevronDown,
+  User,
+  Edit3,
+  Lock,
+  LogOut
 } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
+import ProfileModal from '../../components/ProfileModal';
+import EditProfileModal from '../../components/EditProfileModal';
+import ChangePasswordModal from '../../components/ChangePasswordModal';
 import { notificationService } from '../../services/notificationService';
 import { getEcho } from '../../lib/echo';
 
@@ -69,13 +77,21 @@ export const AdminTopbar = ({
   subtitle = 'Overview sistem valuasi ekonomi PKSPL',
 }) => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const notifRef = useRef(null);
 
+  // Profile dropdown and modal states
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const profileRef = useRef(null);
+
   const userName = user?.nama || 'Administrator';
+  const userEmail = user?.email || 'admin@pkspl.ipb.ac.id';
   const userRole = user?.role?.nama_role || 'Super Admin';
   const userInitials = userName
     .split(' ')
@@ -145,10 +161,26 @@ export const AdminTopbar = ({
       if (notifRef.current && !notifRef.current.contains(event.target)) {
         setNotificationsOpen(false);
       }
+      if (profileRef.current && !profileRef.current.contains(event.target)) {
+        setProfileOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const handleLogout = async () => {
+    try {
+      setProfileOpen(false);
+      if (logout) {
+        await logout();
+      }
+      toast.success('Berhasil keluar dari sistem');
+      navigate('/login');
+    } catch {
+      toast.error('Gagal keluar dari sistem');
+    }
+  };
 
   const markAllRead = async () => {
     try {
@@ -191,6 +223,7 @@ export const AdminTopbar = ({
   };
 
   return (
+    <>
     <header className="h-16 bg-white border-b border-slate-200/90 px-4 md:px-8 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
       {/* Left Area: Mobile Hamburger + Title & Subtitle */}
       <div className="flex items-center gap-3 md:gap-4 min-w-0">
@@ -198,7 +231,8 @@ export const AdminTopbar = ({
         <button
           onClick={onToggleMobileSidebar}
           title="Buka menu navigasi"
-          className="md:hidden p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+          className="w-10 h-10 flex items-center justify-center -ml-1 text-slate-700 hover:text-blue-700 hover:bg-blue-50 border border-slate-200/80 rounded-xl md:hidden shrink-0 transition-colors shadow-2xs cursor-pointer"
+          aria-label="Buka menu navigasi"
         >
           <Menu className="w-5 h-5" />
         </button>
@@ -327,17 +361,132 @@ export const AdminTopbar = ({
         </div>
 
         {/* User Profile Avatar in Topbar */}
-        <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs ring-2 ring-slate-100">
-            {userInitials}
-          </div>
-          <div className="hidden xl:block text-left leading-tight">
-            <div className="text-xs font-bold text-slate-800 truncate max-w-[120px]">{userName}</div>
-            <div className="text-[10px] text-slate-400 font-medium">{userRole}</div>
-          </div>
+        <div className="relative pl-2 border-l border-slate-200" ref={profileRef}>
+          <button
+            type="button"
+            onClick={() => {
+              setProfileOpen(!profileOpen);
+              setNotificationsOpen(false);
+            }}
+            className={`flex items-center gap-2 p-1 rounded-xl transition-all cursor-pointer ${
+              profileOpen ? 'bg-blue-50 ring-2 ring-blue-300' : 'hover:bg-slate-100'
+            }`}
+            title="Menu Akun & Profil"
+            aria-label="Menu Akun & Profil"
+          >
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs ring-1 ring-slate-200 shadow-2xs">
+              {userInitials}
+            </div>
+            <div className="hidden xl:block text-left leading-tight">
+              <div className="text-xs font-bold text-slate-800 truncate max-w-[120px]">{userName}</div>
+              <div className="text-[10px] text-slate-500 font-medium">{userRole}</div>
+            </div>
+          </button>
+
+          {/* Profile Dropdown Popover */}
+          {profileOpen && (
+            <div className="fixed sm:absolute inset-x-2 sm:inset-x-auto sm:right-0 top-16 sm:top-auto sm:mt-2 w-auto sm:w-72 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
+              {/* Profile Card Header */}
+              <div className="p-4 bg-gradient-to-br from-slate-900 to-slate-800 text-white flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-500 to-indigo-500 flex items-center justify-center text-white font-bold text-sm shadow-md ring-2 ring-white/20 shrink-0">
+                  {userInitials}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-xs font-bold truncate text-white leading-tight">
+                    {userName}
+                  </h4>
+                  <p className="text-[11px] text-slate-300 truncate mt-0.5">
+                    {userEmail}
+                  </p>
+                  <span className="inline-block mt-1 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-md bg-blue-500/20 text-blue-300 border border-blue-400/30">
+                    {userRole}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action items */}
+              <div className="p-1.5 space-y-0.5 bg-white">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileOpen(false);
+                    setShowProfileModal(true);
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer group"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-700 transition-colors shrink-0">
+                    <User size={14} />
+                  </div>
+                  <span>Profil Saya</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileOpen(false);
+                    setShowEditProfileModal(true);
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer group"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-700 transition-colors shrink-0">
+                    <Edit3 size={14} />
+                  </div>
+                  <span>Edit Profil</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileOpen(false);
+                    setShowChangePasswordModal(true);
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer group"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-700 transition-colors shrink-0">
+                    <Lock size={14} />
+                  </div>
+                  <span>Ganti Password</span>
+                </button>
+              </div>
+
+              {/* Logout Button */}
+              <div className="p-2 border-t border-slate-100 bg-slate-50">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 bg-rose-50/70 hover:bg-rose-100 border border-rose-200/60 transition-colors cursor-pointer"
+                >
+                  <LogOut size={14} />
+                  <span>Keluar dari Sistem</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </header>
+
+    {/* Profile Modals */}
+    {showProfileModal && (
+      <ProfileModal
+        onClose={() => setShowProfileModal(false)}
+        onEditProfile={() => {
+          setShowProfileModal(false);
+          setShowEditProfileModal(true);
+        }}
+        onChangePassword={() => {
+          setShowProfileModal(false);
+          setShowChangePasswordModal(true);
+        }}
+      />
+    )}
+    {showEditProfileModal && (
+      <EditProfileModal onClose={() => setShowEditProfileModal(false)} />
+    )}
+    {showChangePasswordModal && (
+      <ChangePasswordModal onClose={() => setShowChangePasswordModal(false)} />
+    )}
+    </>
   );
 };
 

@@ -17,10 +17,18 @@ import {
   WifiOff,
   AlertTriangle,
   FileText,
-  Menu
+  Menu,
+  User,
+  Edit3,
+  Lock,
+  LogOut
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
 import { useAuth } from '../../../contexts/AuthContext';
+import ProfileModal from '../../../components/ProfileModal';
+import EditProfileModal from '../../../components/EditProfileModal';
+import ChangePasswordModal from '../../../components/ChangePasswordModal';
 import {
   notificationCenterService,
   ResearcherNotification,
@@ -41,7 +49,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar, onToggleMobileS
   const { totalUnreadCount: chatUnreadCount } = useChat();
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useAuth() || {};
+  const { user, logout } = useAuth() || {};
 
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'all' | 'status' | 'messages' | 'emails'>('all');
@@ -51,9 +59,40 @@ export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar, onToggleMobileS
   const [incomingBellAlert, setIncomingBellAlert] = useState<ResearcherNotification | null>(null);
   const [isBellRinging, setIsBellRinging] = useState<boolean>(false);
 
+  // Profile dropdown and modal states
+  const [showProfileDropdown, setShowProfileDropdown] = useState<boolean>(false);
+  const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
+  const [showEditProfileModal, setShowEditProfileModal] = useState<boolean>(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState<boolean>(false);
+
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const profileDropdownRef = useRef<HTMLDivElement>(null);
   const prevTopNotifIdRef = useRef<string | null>(null);
   const bellTimerRef = useRef<any>(null);
+
+  // Outside click handler for profile dropdown
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target as Node)) {
+        setShowProfileDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      setShowProfileDropdown(false);
+      if (logout) {
+        await logout();
+      }
+      toast.success('Berhasil keluar dari sistem');
+      navigate('/login');
+    } catch {
+      toast.error('Gagal keluar dari sistem');
+    }
+  };
 
   // Sync notifications, presence, and dispatched emails
   const loadData = useCallback(() => {
@@ -252,6 +291,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar, onToggleMobileS
   };
 
   return (
+    <>
     <header className="h-16 bg-white border-b border-slate-200 px-3 sm:px-4 md:px-6 flex items-center justify-between gap-2 sm:gap-3 sticky top-0 z-30 shadow-xs">
       {/* Left: Hamburger (Mobile) + Breadcrumbs & Project Selector */}
       <div className="flex items-center gap-2 sm:gap-3 flex-nowrap whitespace-nowrap min-w-0">
@@ -259,7 +299,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar, onToggleMobileS
         <button
           type="button"
           onClick={onToggleMobileSidebar}
-          className="p-1.5 -ml-1 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg md:hidden shrink-0 transition-colors cursor-pointer"
+          className="w-10 h-10 flex items-center justify-center -ml-1 text-slate-700 hover:text-blue-700 hover:bg-blue-50 border border-slate-200/80 rounded-xl md:hidden shrink-0 transition-colors shadow-2xs cursor-pointer"
           aria-label="Buka menu navigasi"
         >
           <Menu className="w-5 h-5" />
@@ -672,20 +712,135 @@ export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar, onToggleMobileS
           )}
         </div>
 
-        {/* User Peneliti Profile Avatar & Role */}
-        <div className="flex items-center gap-2.5 pl-2 border-l border-slate-200 shrink-0">
-          <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shadow-2xs">
-            {user?.nama ? user.nama.split(' ').filter(Boolean).map((w: string) => w[0]).slice(0, 2).join('').toUpperCase() : 'RW'}
-          </div>
-          <div className="hidden md:block text-left leading-tight">
-            <div className="text-xs font-semibold text-slate-800">{user?.nama || 'Dr. Ir. Retno Wulandari'}</div>
-            <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1">
-              <span className={`w-1.5 h-1.5 rounded-full ${isResearcherOnline ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
-              <span>{user?.role?.nama_role || (typeof user?.role === 'string' ? user.role : 'Peneliti Utama')}</span>
+        {/* User Peneliti Profile Avatar & Dropdown */}
+        <div className="relative pl-2 border-l border-slate-200 shrink-0" ref={profileDropdownRef}>
+          <button
+            type="button"
+            onClick={() => {
+              setShowProfileDropdown((prev) => !prev);
+              setShowNotifications(false);
+            }}
+            className={`flex items-center gap-2.5 p-1 rounded-xl transition-all cursor-pointer ${
+              showProfileDropdown ? 'bg-blue-50 ring-2 ring-blue-300' : 'hover:bg-slate-100'
+            }`}
+            title="Menu Akun & Profil"
+            aria-label="Menu Akun & Profil"
+          >
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-2xs ring-1 ring-slate-200">
+              {user?.nama ? user.nama.split(' ').filter(Boolean).map((w: string) => w[0]).slice(0, 2).join('').toUpperCase() : 'RW'}
             </div>
-          </div>
+            <div className="hidden md:block text-left leading-tight">
+              <div className="text-xs font-semibold text-slate-800 truncate max-w-[140px]">{user?.nama || 'Dr. Ir. Retno Wulandari'}</div>
+              <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1">
+                <span className={`w-1.5 h-1.5 rounded-full ${isResearcherOnline ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+                <span className="truncate max-w-[120px]">{user?.role?.nama_role || (typeof user?.role === 'string' ? user.role : 'Peneliti Utama')}</span>
+              </div>
+            </div>
+          </button>
+
+          {/* Profile Dropdown Popover */}
+          {showProfileDropdown && (
+            <div className="fixed sm:absolute inset-x-2 sm:inset-x-auto sm:right-0 top-16 sm:top-auto sm:mt-2 w-auto sm:w-72 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
+              {/* Profile Card Header */}
+              <div className="p-4 bg-gradient-to-br from-slate-900 to-slate-800 text-white flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-500 to-indigo-500 flex items-center justify-center text-white font-bold text-sm shadow-md ring-2 ring-white/20 shrink-0">
+                  {user?.nama ? user.nama.split(' ').filter(Boolean).map((w: string) => w[0]).slice(0, 2).join('').toUpperCase() : 'RW'}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-xs font-bold truncate text-white leading-tight">
+                    {user?.nama || 'Dr. Ir. Retno Wulandari'}
+                  </h4>
+                  <p className="text-[11px] text-slate-300 truncate mt-0.5">
+                    {user?.email || 'peneliti@pkspl.ipb.ac.id'}
+                  </p>
+                  <span className="inline-block mt-1 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-md bg-blue-500/20 text-blue-300 border border-blue-400/30">
+                    {user?.role?.nama_role || (typeof user?.role === 'string' ? user.role : 'Peneliti Utama')}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action items */}
+              <div className="p-1.5 space-y-0.5 bg-white">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProfileDropdown(false);
+                    setShowProfileModal(true);
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer group"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-700 transition-colors shrink-0">
+                    <User size={14} />
+                  </div>
+                  <span>Profil Saya</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProfileDropdown(false);
+                    setShowEditProfileModal(true);
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer group"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-700 transition-colors shrink-0">
+                    <Edit3 size={14} />
+                  </div>
+                  <span>Edit Profil</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProfileDropdown(false);
+                    setShowChangePasswordModal(true);
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer group"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-700 transition-colors shrink-0">
+                    <Lock size={14} />
+                  </div>
+                  <span>Ganti Password</span>
+                </button>
+              </div>
+
+              {/* Logout Button */}
+              <div className="p-2 border-t border-slate-100 bg-slate-50">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 bg-rose-50/70 hover:bg-rose-100 border border-rose-200/60 transition-colors cursor-pointer"
+                >
+                  <LogOut size={14} />
+                  <span>Keluar dari Sistem</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </header>
+
+    {/* Profile Modals */}
+    {showProfileModal && (
+      <ProfileModal
+        onClose={() => setShowProfileModal(false)}
+        onEditProfile={() => {
+          setShowProfileModal(false);
+          setShowEditProfileModal(true);
+        }}
+        onChangePassword={() => {
+          setShowProfileModal(false);
+          setShowChangePasswordModal(true);
+        }}
+      />
+    )}
+    {showEditProfileModal && (
+      <EditProfileModal onClose={() => setShowEditProfileModal(false)} />
+    )}
+    {showChangePasswordModal && (
+      <ChangePasswordModal onClose={() => setShowChangePasswordModal(false)} />
+    )}
+    </>
   );
 };
