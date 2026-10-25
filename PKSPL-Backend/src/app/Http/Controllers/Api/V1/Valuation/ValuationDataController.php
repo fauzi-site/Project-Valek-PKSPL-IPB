@@ -170,10 +170,27 @@ class ValuationDataController extends Controller
             'total_nilai' => ['nullable', 'numeric'],
         ]);
 
-        $row = ValuationRow::query()->create(array_merge(
-            $validated,
-            ['id_jenis_tutupan_lahan' => $landCoverId]
-        ));
+        $clientRowId = $validated['row_data']['id'] ?? null;
+        $row = null;
+
+        if ($clientRowId) {
+            $row = ValuationRow::query()
+                ->where('id_jenis_tutupan_lahan', $landCoverId)
+                ->where('service_id', $validated['service_id'])
+                ->where('method_id', $validated['method_id'])
+                ->when($validated['biota'] ?? null, fn($q, $b) => $q->where('biota', $b))
+                ->whereRaw("row_data->>'id' = ?", [$clientRowId])
+                ->first();
+        }
+
+        if ($row) {
+            $row->update($validated);
+        } else {
+            $row = ValuationRow::query()->create(array_merge(
+                $validated,
+                ['id_jenis_tutupan_lahan' => $landCoverId]
+            ));
+        }
 
         // Sinkronisasi otomatis ke Data Master
         app(\App\Services\Valuation\ValuationDataMasterSyncService::class)->syncRow(
@@ -276,6 +293,7 @@ class ValuationDataController extends Controller
             $serviceId = $sec['service_id'];
             $methodId = $sec['method_id'];
             $biota = $sec['biota'] ?? null;
+            $keptRowIds = [];
 
             foreach ($sec['rows'] as $index => $rowData) {
                 if (!is_array($rowData)) continue;
@@ -328,6 +346,8 @@ class ValuationDataController extends Controller
                     ]);
                 }
 
+                $keptRowIds[] = $row->id;
+
                 if ($rawItem !== '') {
                     $syncService->syncRow(
                         $landCoverId,
@@ -343,6 +363,25 @@ class ValuationDataController extends Controller
                 }
                 $totalSynced++;
             }
+
+            // Hapus baris di database untuk section ini yang sudah dihapus oleh pengguna di frontend
+            if (!empty($keptRowIds)) {
+                $orphans = ValuationRow::where('id_jenis_tutupan_lahan', $landCoverId)
+                    ->where('service_id', $serviceId)
+                    ->where('method_id', $methodId)
+                    ->when($biota, fn($q) => $q->where('biota', $biota))
+                    ->whereNotIn('id', $keptRowIds)
+                    ->get();
+
+                foreach ($orphans as $orphan) {
+                    $syncService->deleteRowSync(
+                        $landCoverId,
+                        $orphan->service_id,
+                        $orphan->row_data ?? []
+                    );
+                    $orphan->delete();
+                }
+            }
         }
 
         return response()->json([
@@ -357,23 +396,47 @@ class ValuationDataController extends Controller
      *
      * Memperbarui row_data dan total_nilai pada baris valuasi serta menyinkronkannya ke Data Master.
      */
-    public function updateRow(Request $request, int $landCoverId, int $rowId): JsonResponse
+    public function updateRow(Request $request, int $landCoverId, string|int $rowId): JsonResponse
     {
         $this->findLandCover($landCoverId);
 
-        /** @var ValuationRow $row */
-        $row = ValuationRow::query()
-            ->where('id_jenis_tutupan_lahan', $landCoverId)
-            ->where('id', $rowId)
-            ->firstOrFail();
+        $query = ValuationRow::query()->where('id_jenis_tutupan_lahan', $landCoverId);
+
+        $strId = (string) $rowId;
+        if (is_numeric($strId)) {
+            $query->where(function ($q) use ($strId) {
+                $q->where('id', (int) $strId)
+                  ->orWhereRaw("row_data->>'id' = ?", [$strId]);
+            });
+        } else {
+            $query->whereRaw("row_data->>'id' = ?", [$strId]);
+        }
+
+        $row = $query->first();
 
         $validated = $request->validate([
+            'service_id'  => ['nullable', 'string', 'max:50'],
+            'method_id'   => ['nullable', 'string', 'max:100'],
+            'biota'       => ['nullable', 'string', 'in:flora,fauna', 'max:20'],
             'row_order'   => ['nullable', 'integer', 'min:0'],
             'row_data'    => ['nullable', 'array'],
             'total_nilai' => ['nullable', 'numeric'],
         ]);
 
-        $row->update($validated);
+        if (!$row) {
+            $rowData = $validated['row_data'] ?? [];
+            $row = ValuationRow::query()->create([
+                'id_jenis_tutupan_lahan' => $landCoverId,
+                'service_id'             => $validated['service_id'] ?? ($request->input('service_id') ?? 'provisioning'),
+                'method_id'              => $validated['method_id'] ?? ($request->input('method_id') ?? 'market-price'),
+                'biota'                  => $validated['biota'] ?? $request->input('biota'),
+                'row_order'              => (int) ($validated['row_order'] ?? 0),
+                'row_data'               => $rowData,
+                'total_nilai'            => (float) ($validated['total_nilai'] ?? 0),
+            ]);
+        } else {
+            $row->update($validated);
+        }
 
         // Sinkronisasi otomatis ke Data Master
         app(\App\Services\Valuation\ValuationDataMasterSyncService::class)->syncRow(
@@ -393,26 +456,37 @@ class ValuationDataController extends Controller
     /**
      * DELETE /v1/jenis-tutupan-lahan/{landCoverId}/valuation/rows/{rowId}
      *
-     * Menghapus satu baris data valuasi dan menghapus entri master terkait tutupan lahan tersebut.
+     * Menghapus baris data valuasi berdasarkan database ID maupun client row ID,
+     * serta membersihkan entri master terkait tutupan lahan tersebut.
+     * Mengembalikan 204 No Content secara idempoten bahkan jika baris sudah terhapus.
      */
-    public function deleteRow(int $landCoverId, int $rowId): Response
+    public function deleteRow(int $landCoverId, string|int $rowId): Response
     {
         $this->findLandCover($landCoverId);
 
-        /** @var ValuationRow $row */
-        $row = ValuationRow::query()
-            ->where('id_jenis_tutupan_lahan', $landCoverId)
-            ->where('id', $rowId)
-            ->firstOrFail();
+        $query = ValuationRow::query()->where('id_jenis_tutupan_lahan', $landCoverId);
 
-        // Hapus entri Data Master terkait tutupan lahan ini
-        app(\App\Services\Valuation\ValuationDataMasterSyncService::class)->deleteRowSync(
-            $landCoverId,
-            $row->service_id,
-            $row->row_data ?? []
-        );
+        $strId = (string) $rowId;
+        if (is_numeric($strId)) {
+            $query->where(function ($q) use ($strId) {
+                $q->where('id', (int) $strId)
+                  ->orWhereRaw("row_data->>'id' = ?", [$strId]);
+            });
+        } else {
+            $query->whereRaw("row_data->>'id' = ?", [$strId]);
+        }
 
-        $row->delete();
+        $rows = $query->get();
+
+        $syncService = app(\App\Services\Valuation\ValuationDataMasterSyncService::class);
+        foreach ($rows as $row) {
+            $syncService->deleteRowSync(
+                $landCoverId,
+                $row->service_id,
+                $row->row_data ?? []
+            );
+            $row->delete();
+        }
 
         return response()->noContent();
     }
@@ -514,10 +588,18 @@ class ValuationDataController extends Controller
             'col_order'   => ['nullable', 'integer', 'min:0'],
         ]);
 
-        $column = ValuationCustomColumn::query()->create(array_merge(
-            $validated,
-            ['id_jenis_tutupan_lahan' => $landCoverId]
-        ));
+        $column = ValuationCustomColumn::query()->updateOrCreate(
+            [
+                'id_jenis_tutupan_lahan' => $landCoverId,
+                'service_id'             => $validated['service_id'],
+                'method_id'              => $validated['method_id'],
+                'column_key'             => $validated['column_key'],
+            ],
+            array_merge(
+                $validated,
+                ['id_jenis_tutupan_lahan' => $landCoverId]
+            )
+        );
 
         return response()->json([
             'data'    => $column,
@@ -528,17 +610,32 @@ class ValuationDataController extends Controller
     /**
      * PUT /v1/jenis-tutupan-lahan/{landCoverId}/valuation/custom-columns/{colId}
      *
-     * Memperbarui definisi kolom custom.
+     * Memperbarui definisi kolom custom berdasarkan database ID maupun column_key.
      */
-    public function updateCustomColumn(Request $request, int $landCoverId, int $colId): JsonResponse
+    public function updateCustomColumn(Request $request, int $landCoverId, string|int $colId): JsonResponse
     {
         $this->findLandCover($landCoverId);
 
-        /** @var ValuationCustomColumn $column */
-        $column = ValuationCustomColumn::query()
-            ->where('id_jenis_tutupan_lahan', $landCoverId)
-            ->where('id', $colId)
-            ->firstOrFail();
+        $strId = (string) $colId;
+        $query = ValuationCustomColumn::query()
+            ->where('id_jenis_tutupan_lahan', $landCoverId);
+
+        if (is_numeric($strId)) {
+            $query->where(function ($q) use ($strId) {
+                $q->where('id', (int) $strId)
+                  ->orWhere('column_key', $strId);
+            });
+        } else {
+            $query->where('column_key', $strId);
+        }
+
+        /** @var ValuationCustomColumn|null $column */
+        $column = $query->first();
+        if (!$column) {
+            return response()->json([
+                'message' => 'Kolom custom tidak ditemukan.',
+            ], Response::HTTP_NOT_FOUND);
+        }
 
         $validated = $request->validate([
             'label'       => ['nullable', 'string', 'max:200'],
@@ -558,17 +655,32 @@ class ValuationDataController extends Controller
     /**
      * DELETE /v1/jenis-tutupan-lahan/{landCoverId}/valuation/custom-columns/{colId}
      *
-     * Menghapus definisi kolom custom.
+     * Menghapus definisi kolom custom berdasarkan database ID maupun column_key secara idempoten.
      */
-    public function deleteCustomColumn(int $landCoverId, int $colId): Response
+    public function deleteCustomColumn(Request $request, int $landCoverId, string|int $colId): Response
     {
         $this->findLandCover($landCoverId);
 
-        ValuationCustomColumn::query()
-            ->where('id_jenis_tutupan_lahan', $landCoverId)
-            ->where('id', $colId)
-            ->firstOrFail()
-            ->delete();
+        $columnKey = $request->query('column_key', $request->input('column_key'));
+
+        $query = ValuationCustomColumn::query()
+            ->where('id_jenis_tutupan_lahan', $landCoverId);
+
+        $query->where(function ($q) use ($colId, $columnKey) {
+            $strId = (string) $colId;
+            if (is_numeric($strId)) {
+                $q->where('id', (int) $strId)
+                  ->orWhere('column_key', $strId);
+            } else {
+                $q->where('column_key', $strId);
+            }
+
+            if (!empty($columnKey)) {
+                $q->orWhere('column_key', (string) $columnKey);
+            }
+        });
+
+        $query->delete();
 
         return response()->noContent();
     }

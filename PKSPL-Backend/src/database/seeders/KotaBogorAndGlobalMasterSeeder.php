@@ -109,7 +109,6 @@ class KotaBogorAndGlobalMasterSeeder extends Seeder
                 'luas' => 180.50,
                 'satuan_luas' => 'Ha',
                 'tahun' => 2026,
-                'status' => 'Proses',
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);

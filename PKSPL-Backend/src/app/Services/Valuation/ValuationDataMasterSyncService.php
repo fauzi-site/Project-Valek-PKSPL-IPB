@@ -219,12 +219,15 @@ class ValuationDataMasterSyncService
     ): bool {
         [$namaLatin, $namaDaerah] = $this->parseItemNames($rawItem, $rowData);
 
-        $produktivitas = (float) ($rowData['produktivitas'] ?? 1.0);
+        $produktivitas = (float) ($rowData['produktivitas'] ?? 0.0);
+        $volume = (float) ($rowData['jumlah'] ?? ($rowData['volume'] ?? 0.0));
         $hargaPasar = (float) ($rowData['hargaUnit'] ?? ($rowData['harga_pasar'] ?? 0.0));
-        $luasHa = (float) ($rowData['luasHa'] ?? ($rowData['luas_pemanfaatan'] ?? 1.0));
+        $luasHa = (float) ($rowData['luasHa'] ?? ($rowData['luas_pemanfaatan'] ?? 0.0));
         $source = trim((string) ($rowData['source'] ?? ($rowData['referensi'] ?? 'Survei Valuasi Lapangan')));
 
-        if ($totalNilai <= 0 && $produktivitas > 0 && $hargaPasar > 0) {
+        if ($totalNilai <= 0 && $volume > 0 && $hargaPasar > 0) {
+            $totalNilai = round($volume * $hargaPasar);
+        } elseif ($totalNilai <= 0 && $produktivitas > 0 && $hargaPasar > 0 && $luasHa > 0) {
             $totalNilai = round($produktivitas * $luasHa * $hargaPasar);
         }
 
@@ -256,7 +259,7 @@ class ValuationDataMasterSyncService
             'nama_objek' => $rawItem,
             'nama_latin' => $namaLatin ?: $rawItem,
             'nama_daerah' => $namaDaerah,
-            'produktivitas' => $produktivitas > 0 ? $produktivitas : 1.0,
+            'produktivitas' => $produktivitas > 0 ? $produktivitas : 0.0,
             'harga_pasar' => $hargaPasar,
             'luas_pemanfaatan' => $luasHa > 0 ? $luasHa : 1.0,
             'satuan_luas' => 'Hektar',
@@ -388,7 +391,6 @@ class ValuationDataMasterSyncService
         ?int $idKecamatan,
         ?int $idDesaKelurahan
     ): bool {
-        $deskripsi = trim((string) ($rowData['deskripsi'] ?? 'Aktivitas pariwisata dan rekreasi'));
         $jumlahPengunjung = (float) ($rowData['jumlahPengunjung'] ?? ($rowData['pengunjung'] ?? 1000.0));
         $biayaPerjalanan = (float) ($rowData['biayaPerjalanan'] ?? ($rowData['biaya'] ?? 0.0));
         $source = trim((string) ($rowData['source'] ?? ($rowData['referensi'] ?? 'Survei Valuasi Lapangan')));
@@ -403,7 +405,6 @@ class ValuationDataMasterSyncService
                 'nilai' => $totalNilai > 0 ? $totalNilai : $existing->nilai,
                 'jumlah_pengunjung' => $jumlahPengunjung > 0 ? $jumlahPengunjung : $existing->jumlah_pengunjung,
                 'biaya_perjalanan' => $biayaPerjalanan > 0 ? $biayaPerjalanan : $existing->biaya_perjalanan,
-                'deskripsi' => $deskripsi ?: $existing->deskripsi,
                 'referensi' => $source ?: $existing->referensi,
                 'id_provinsi' => $idProvinsi ?: $existing->id_provinsi,
                 'id_kabupaten_kota' => $idKabupatenKota ?: $existing->id_kabupaten_kota,
@@ -416,7 +417,6 @@ class ValuationDataMasterSyncService
         CulturalService::create([
             'id_jenis_tutupan_lahan' => $landCoverId,
             'nama_aktivitas' => $rawItem,
-            'deskripsi' => $deskripsi ?: 'Aktivitas pariwisata dan rekreasi',
             'jumlah_pengunjung' => $jumlahPengunjung > 0 ? $jumlahPengunjung : 1000.0,
             'biaya_perjalanan' => $biayaPerjalanan,
             'frekuensi' => 1,

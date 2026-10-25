@@ -205,7 +205,10 @@ const INITIAL_PROJECT_LAYERS: Record<string, MapLayer[]> = {
 // Hanya proyek dengan ID di sini yang boleh mendapat fallback index dari registry.
 const KNOWN_MOCK_PROJECT_IDS = new Set<string>(Object.keys(ALL_PROJECT_INDICES));
 
-const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
+// Ensure React Context survives Vite HMR so consumers don't disconnect from Provider
+const ProjectContext =
+  (globalThis as any).__PKSPL_ProjectContext ||
+  ((globalThis as any).__PKSPL_ProjectContext = createContext<ProjectContextType | undefined>(undefined));
 
 const toProjectStatus = (status: string | undefined): ProjectStatus => {
   const normalized = (status || '').toLowerCase().trim();
@@ -620,18 +623,20 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const getProjectLandCovers = (projectId: string): LandCoverPolygon[] => {
+    const found = projects.find(p => p.id === projectId || p.code === projectId);
     const rawStored = (() => {
-      if (projectLandCovers[projectId] && projectLandCovers[projectId].length > 0) {
-        return projectLandCovers[projectId];
-      }
-      const found = projects.find(p => p.id === projectId || p.code === projectId);
-      if (found) {
-        if (found.code && projectLandCovers[found.code] && projectLandCovers[found.code].length > 0) {
-          return projectLandCovers[found.code];
-        }
-        if (found.id && projectLandCovers[found.id] && projectLandCovers[found.id].length > 0) {
-          return projectLandCovers[found.id];
-        }
+      const byId = projectLandCovers[projectId] || [];
+      const byCode = (found?.code && projectLandCovers[found.code]) || [];
+      const byFoundId = (found?.id && projectLandCovers[found.id]) || [];
+
+      const all = [...byId, ...byCode, ...byFoundId];
+      if (all.length > 0) {
+        const seen = new Set<string>();
+        return all.filter(p => {
+          if (!p.id || seen.has(p.id)) return false;
+          seen.add(p.id);
+          return true;
+        });
       }
       return null;
     })();
@@ -642,12 +647,11 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
           (p) =>
             !p.id.startsWith('poly-idx-') &&
             !p.id.startsWith('boundary-poly-') &&
+            !p.id.startsWith('backend-poly-') &&
             p.properties?.type !== 'index_polygon' &&
             p.properties?.type !== 'project_boundary'
         )
       : null;
-
-    const found = projects.find(p => p.id === projectId || p.code === projectId);
 
     // Proyek real (dari API) — jangan inject land cover mock jika belum ada data real
     const isMockProject =

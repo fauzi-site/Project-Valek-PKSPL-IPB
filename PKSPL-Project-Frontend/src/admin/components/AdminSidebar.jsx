@@ -58,8 +58,12 @@ export const AdminSidebar = ({
       }
     }
 
-    // 15 seconds polling fallback
-    const interval = setInterval(fetchUnread, 15000);
+    // 30 seconds polling fallback if tab is visible
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchUnread();
+      }
+    }, 30000);
 
     return () => {
       isMounted = false;

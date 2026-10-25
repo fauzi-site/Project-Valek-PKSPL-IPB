@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import { useProject } from '../context/ProjectContext';
 import { useSpreadsheet } from '../context/SpreadsheetContext';
@@ -43,7 +43,7 @@ const DataValuationPageContent: React.FC = () => {
     updateAreaConfig,
   } = useProject();
 
-  const { importRows, addMultipleCustomColumns, syncProjectToBackend } = useSpreadsheet();
+  const { importRows, addMultipleCustomColumns, syncProjectToBackend, hydrateAreaFromBackend } = useSpreadsheet();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
@@ -51,9 +51,17 @@ const DataValuationPageContent: React.FC = () => {
   const routeProjId = params.projectId || activeProjectId;
   const currentProject = projects.find(p => p.id === routeProjId || p.code === routeProjId) || activeProject;
 
-  const landCovers = useMemo(() => {
+  const rawLandCovers = useMemo(() => {
     return (getProjectLandCovers ? getProjectLandCovers(routeProjId) : defaultLandCovers) || defaultLandCovers || [];
   }, [getProjectLandCovers, routeProjId, defaultLandCovers]);
+
+  // Exclude project boundary polygons (e.g. backend-poly-, boundary-poly-, poly-idx-) from valuation land covers
+  const landCovers = useMemo(() => {
+    return rawLandCovers.filter(lc => {
+      const idStr = String(lc.id || '');
+      return !idStr.startsWith('backend-poly-') && !idStr.startsWith('boundary-poly-') && !idStr.startsWith('poly-idx-');
+    });
+  }, [rawLandCovers]);
 
   const indices = useMemo(() => {
     return (getProjectIndices ? getProjectIndices(routeProjId) : defaultIndices) || defaultIndices || [];
@@ -61,20 +69,42 @@ const DataValuationPageContent: React.FC = () => {
 
   const indexLabelMap = useMemo(() => buildIndexLabelMap(indices), [indices]);
 
-  // Selected area from query param or first land cover
+  // Selected area from query param or first valid land cover
   const queryArea = searchParams.get('area');
-  const selectedAreaId = (queryArea && landCovers.some(lc => lc.id === queryArea))
-    ? queryArea
+  const isQueryAreaValid = Boolean(
+    queryArea &&
+    !queryArea.startsWith('backend-poly-') &&
+    !queryArea.startsWith('boundary-poly-') &&
+    landCovers.some(lc => lc.id === queryArea)
+  );
+  const selectedAreaId = isQueryAreaValid
+    ? queryArea!
     : (landCovers[0]?.id || '');
   const highlightParam = searchParams.get('highlight');
 
-  // Auto-sync existing local valuation rows to backend and Data Master
+  // Automatically normalize URL query param if it points to an invalid or boundary polygon
+  useEffect(() => {
+    if (queryArea && (!isQueryAreaValid || queryArea.startsWith('backend-poly-')) && selectedAreaId) {
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.set('area', selectedAreaId);
+        return next;
+      }, { replace: true });
+    }
+  }, [queryArea, isQueryAreaValid, selectedAreaId, setSearchParams]);
+
+  // Hydrate valuation rows from backend once per project+area
+  const hydratedAreasRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     const projId = currentProject?.id || routeProjId;
     if (projId && selectedAreaId) {
-      syncProjectToBackend(String(projId), String(selectedAreaId));
+      const areaKey = `${projId}_${selectedAreaId}`;
+      if (!hydratedAreasRef.current.has(areaKey)) {
+        hydratedAreasRef.current.add(areaKey);
+        hydrateAreaFromBackend(String(projId), String(selectedAreaId));
+      }
     }
-  }, [currentProject?.id, routeProjId, selectedAreaId, syncProjectToBackend]);
+  }, [currentProject?.id, routeProjId, selectedAreaId, hydrateAreaFromBackend]);
 
   const currentArea = landCovers.find(lc => lc.id === selectedAreaId) || landCovers[0];
   const areaConfig = getAreaConfig(selectedAreaId);

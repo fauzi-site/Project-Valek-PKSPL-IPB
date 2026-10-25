@@ -166,6 +166,10 @@ class AuthController extends Controller
 
         $user->load('role');
 
+        if (! $user->role || ! in_array($user->role->nama_role, Role::names(), true)) {
+            return redirect()->away($frontendUrl . '/login?error=' . urlencode('Role akun Anda tidak valid atau telah dinonaktifkan.'));
+        }
+
         $token = $user->createToken('auth-token')->plainTextToken;
 
         return redirect()->away($frontendUrl . '/auth/callback?' . http_build_query([
@@ -234,7 +238,7 @@ class AuthController extends Controller
             $query->whereRaw('LOWER(nama) = ?', [strtolower($identity)]);
         }
 
-        $user = $query->first();
+        $user = $query->with('role')->first();
 
         if (! $user) {
             return response()->json(['message' => 'Kombinasi email dan password salah.'], Response::HTTP_UNAUTHORIZED);
@@ -253,16 +257,24 @@ class AuthController extends Controller
             ], Response::HTTP_FORBIDDEN);
         }
 
+        // Check if role is valid and active in the system
+        if (! $user->role || ! in_array($user->role->nama_role, Role::names(), true)) {
+            return response()->json([
+                'message' => 'Role akun Anda tidak valid atau telah dinonaktifkan.',
+            ], Response::HTTP_FORBIDDEN);
+        }
+
         $user->update([
             'last_online_at' => now(),
             'last_seen_at' => now(),
         ]);
-        $user->load('role');
 
         // codingan untuk menghasilkan token akses Sanctum jika login berhasil.
+        $token = $user->createToken('auth-token')->plainTextToken;
+
         return response()->json([
             'user' => new UserResource($user),
-            'access_token' => $user->createToken('auth-token')->plainTextToken,
+            'access_token' => $token,
             'token_type' => 'Bearer',
         ]);
     }
@@ -434,8 +446,16 @@ class AuthController extends Controller
         $user = $request->user();
 
         if ($user) {
-            $user->update(['last_seen_at' => now()]);
             $user->load('role');
+
+            if (! $user->role || ! in_array($user->role->nama_role, Role::names(), true)) {
+                $user->currentAccessToken()?->delete();
+                return response()->json([
+                    'message' => 'Role akun Anda tidak valid atau telah dinonaktifkan.',
+                ], Response::HTTP_FORBIDDEN);
+            }
+
+            $user->update(['last_seen_at' => now()]);
         }
 
         return response()->json([

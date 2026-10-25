@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useSpreadsheet } from '../../context/SpreadsheetContext';
 import { useProject } from '../../context/ProjectContext';
-import { getMethodSchema, ColumnDefinition, CustomColumnDefinition, CustomColumnType } from '../../types/methodSchemas';
+import { getMethodSchema, ColumnDefinition, CustomColumnDefinition, CustomColumnType, getFaunaRowUnits } from '../../types/methodSchemas';
 import { ECOSYSTEM_SERVICES_CONFIG } from '../../mock/valuationMock';
 import { PROVISIONING_DATA } from '../../mock/dataMasterMock';
 import { downloadContextTemplate, TemplateFileFormat } from '../../utils/excelEngine';
@@ -22,9 +22,11 @@ import {
   Lock,
   FileSpreadsheet,
   FileText,
-  FileCode
+  FileCode,
+  FileQuestion
 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
+import { SurveyRespondentModal } from './SurveyRespondentModal';
 
 interface DynamicServiceSectionProps {
   projectId?: string;
@@ -180,6 +182,10 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
   const [editingColumn, setEditingColumn] = useState<CustomColumnDefinition | null>(null);
   const [deletingColumn, setDeletingColumn] = useState<CustomColumnDefinition | null>(null);
 
+  // Survey Questionnaire & Respondent Modal State (TCM & CVM)
+  const [isSurveyModalOpen, setIsSurveyModalOpen] = useState(false);
+  const [surveyModalMethod, setSurveyModalMethod] = useState<'tcm' | 'cvm'>('tcm');
+
   // Modal states for import/download dropdowns in provisioning per method card
   const [importDropdownOpen, setImportDropdownOpen] = useState<Record<string, boolean>>({});
   const [downloadDropdownOpen, setDownloadDropdownOpen] = useState<Record<string, boolean>>({});
@@ -259,16 +265,22 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
   const handleSaveCustomColumn = (data: { label: string; type: CustomColumnType; required?: boolean }) => {
     const targetMethodId = activeModalMethodId || methodsToRender[0];
     if (editingColumn) {
+      const colIdentifier = editingColumn.key || editingColumn.id;
       if (serviceId === 'provisioning') {
-        updateCustomColumn(currentProjId, areaId, serviceId, targetMethodId, 'flora', editingColumn.id, data);
-        updateCustomColumn(currentProjId, areaId, serviceId, targetMethodId, 'fauna', editingColumn.id, data);
+        updateCustomColumn(currentProjId, areaId, serviceId, targetMethodId, 'flora', colIdentifier, data);
+        updateCustomColumn(currentProjId, areaId, serviceId, targetMethodId, 'fauna', colIdentifier, data);
       } else {
-        updateCustomColumn(currentProjId, areaId, serviceId, targetMethodId, undefined, editingColumn.id, data);
+        updateCustomColumn(currentProjId, areaId, serviceId, targetMethodId, undefined, colIdentifier, data);
       }
     } else {
       if (serviceId === 'provisioning') {
-        addCustomColumn(currentProjId, areaId, serviceId, targetMethodId, 'flora', data);
-        addCustomColumn(currentProjId, areaId, serviceId, targetMethodId, 'fauna', data);
+        const rawKey = data.label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+        const sharedKey = `c_${rawKey || 'col'}_${Date.now().toString(36)}`;
+        const sharedId = `col-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+        const colPayload = { ...data, key: sharedKey, id: sharedId };
+
+        addCustomColumn(currentProjId, areaId, serviceId, targetMethodId, 'flora', colPayload);
+        addCustomColumn(currentProjId, areaId, serviceId, targetMethodId, 'fauna', colPayload);
       } else {
         addCustomColumn(currentProjId, areaId, serviceId, targetMethodId, undefined, data);
       }
@@ -280,11 +292,12 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
   const handleConfirmDeleteColumn = () => {
     const targetMethodId = activeModalMethodId || methodsToRender[0];
     if (deletingColumn) {
+      const colIdOrKey = deletingColumn.id || deletingColumn.key;
       if (serviceId === 'provisioning') {
-        deleteCustomColumn(currentProjId, areaId, serviceId, targetMethodId, 'flora', deletingColumn.id);
-        deleteCustomColumn(currentProjId, areaId, serviceId, targetMethodId, 'fauna', deletingColumn.id);
+        deleteCustomColumn(currentProjId, areaId, serviceId, targetMethodId, 'flora', colIdOrKey, deletingColumn.key);
+        deleteCustomColumn(currentProjId, areaId, serviceId, targetMethodId, 'fauna', colIdOrKey, deletingColumn.key);
       } else {
-        deleteCustomColumn(currentProjId, areaId, serviceId, targetMethodId, undefined, deletingColumn.id);
+        deleteCustomColumn(currentProjId, areaId, serviceId, targetMethodId, undefined, colIdOrKey, deletingColumn.key);
       }
       setDeletingColumn(null);
     }
@@ -341,6 +354,27 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
           const val = row[col.key];
 
           if (col.key === 'totalNilai' || col.type === 'readonly_calculated') {
+            const targetM = targetMethodId || methodsToRender[0];
+            const currentSchema = serviceId === 'provisioning'
+              ? getMethodSchema(serviceId, targetM, rowBiota || (biota === 'fauna' ? 'fauna' : 'flora'))
+              : getMethodSchema(serviceId, targetM);
+            const calc = currentSchema.calculateRow(row);
+
+            if (calc.isPendingQuantity) {
+              return (
+                <td
+                  key={col.key}
+                  className="py-2 px-3 border-r border-slate-200 text-center bg-amber-50/50"
+                  title={calc.pendingReason || 'Data kuantitas / volume belum tersedia'}
+                >
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                    Belum dapat dihitung
+                  </span>
+                </td>
+              );
+            }
+
             return (
               <td
                 key={col.key}
@@ -352,13 +386,34 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
           }
 
           if (col.type === 'number') {
+            let placeholderText = col.placeholder || '0';
+            if (serviceId === 'provisioning') {
+              if (rowBiota === 'fauna') {
+                const faunaUnits = getFaunaRowUnits(row);
+                if (col.key === 'produktivitas') {
+                  placeholderText = faunaUnits.prodPlaceholder;
+                } else if (col.key === 'jumlah') {
+                  placeholderText = faunaUnits.qtyPlaceholder;
+                } else if (col.key === 'hargaUnit') {
+                  placeholderText = faunaUnits.pricePlaceholder;
+                }
+              } else {
+                if (col.key === 'produktivitas') {
+                  placeholderText = '0 (m³/ha)';
+                } else if (col.key === 'jumlah') {
+                  placeholderText = '0 (m³ kayu)';
+                } else if (col.key === 'hargaUnit') {
+                  placeholderText = 'Rp/m³';
+                }
+              }
+            }
             return (
               <td key={col.key} className="py-1 px-2 border-r border-slate-200 text-right">
                 <FormattedNumberInput
                   key={`${row.id}-${col.key}`}
                   value={val}
                   onChange={(numVal) => handleCellChange(targetMethodId, row.id, col.key, numVal, rowBiota)}
-                  placeholder={col.placeholder || '0'}
+                  placeholder={placeholderText}
                   decimals={2}
                   className={`w-full px-2 py-1 text-right bg-transparent hover:bg-white focus:bg-white focus:ring-1 rounded border font-mono ${
                     isHighlighted && (col.key === 'hargaUnit' || col.key === 'hargaOutput')
@@ -379,7 +434,7 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                   value={val || ''}
                   onChange={(v) => handleCellChange(targetMethodId, row.id, col.key, v, rowBiota)}
                   options={rowBiota === 'fauna' ? masterBiotaList.fauna : masterBiotaList.flora}
-                  placeholder={rowBiota === 'fauna' ? 'Contoh: Scylla serrata (Kepiting Bakau)' : 'Contoh: Rhizophora apiculata'}
+                  placeholder={rowBiota === 'fauna' ? 'Contoh: Ikan Tongkol, Kepiting Bakau (Scylla serrata)' : 'Contoh: Rhizophora apiculata'}
                   isHighlighted={isHighlighted}
                   activeLocation={activeProject?.location}
                 />
@@ -519,6 +574,20 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
           ...faunaCustomCols.filter(f => !floraCustomCols.some(fc => fc.key === f.key || fc.label.toLowerCase() === f.label.toLowerCase()))
         ]
       : customColumns;
+
+    const allMethodRows = serviceId === 'provisioning' ? [...floraRows, ...faunaRows] : rows;
+    const pendingQuantityRows = allMethodRows.filter(r => {
+      const rowB = r.biota || (faunaRows.includes(r) ? 'fauna' : 'flora');
+      const s = serviceId === 'provisioning' ? getMethodSchema(serviceId, mId, rowB) : getMethodSchema(serviceId, mId);
+      const calc = s.calculateRow(r);
+      return Boolean(calc.isPendingQuantity);
+    });
+    const calculableRows = allMethodRows.filter(r => {
+      const rowB = r.biota || (faunaRows.includes(r) ? 'fauna' : 'flora');
+      const s = serviceId === 'provisioning' ? getMethodSchema(serviceId, mId, rowB) : getMethodSchema(serviceId, mId);
+      const calc = s.calculateRow(r);
+      return !calc.isPendingQuantity;
+    });
 
     const floraTotal = floraRows.reduce((acc, row) => acc + getRowTotal(row, 'flora', mId), 0);
     const faunaTotal = faunaRows.reduce((acc, row) => acc + getRowTotal(row, 'fauna', mId), 0);
@@ -805,6 +874,22 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                 )}
               </div>
             )}
+
+            {/* View Survey Questionnaire & Econometric Details for Cultural Methods (TCM & CVM) */}
+            {(mId === 'tcm' || mId === 'cvm') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSurveyModalMethod(mId as 'tcm' | 'cvm');
+                  setIsSurveyModalOpen(true);
+                }}
+                className="px-3 py-1.5 bg-gradient-to-r from-indigo-50 to-blue-50 hover:from-indigo-100 hover:to-blue-100 text-indigo-700 border border-indigo-200 rounded text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                title="Lihat data 12 responden kuesioner survei lapangan dan estimasi ekonometrika"
+              >
+                <FileQuestion className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Data Kuesioner ({mId.toUpperCase()})</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -812,7 +897,14 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
         <div className="px-4 py-2 bg-slate-50/50 border-b border-slate-200/70 text-[11px] text-slate-500 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <span>Formula: </span>
-            <strong className="text-slate-700 font-medium">{schema.formulaDescription}</strong>
+            {serviceId === 'provisioning' && mId === 'market-price' ? (
+              <span className="text-slate-700 font-medium">
+                <span className="text-emerald-700 font-semibold">[Flora]</span> Vol (m³) × Harga (Rp/m³)&nbsp;&nbsp;|&nbsp;&nbsp;
+                <span className="text-amber-700 font-semibold">[Fauna/Perikanan Pesisir]</span> Kuantitas (kg / ekor) × Harga (Rp/kg / Rp/ekor) <span className="text-slate-400 font-normal">atau</span> Prod × Luas (Ha) × Harga
+              </span>
+            ) : (
+              <strong className="text-slate-700 font-medium">{schema.formulaDescription}</strong>
+            )}
           </div>
           <div className="text-[11px] text-slate-500 shrink-0">
             Keterangan: <span className="font-semibold text-slate-700">{schema.subtitle}</span>
@@ -851,7 +943,39 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                           <div className="flex flex-col items-end leading-tight">
                             <span>Produktivitas</span>
                             <span className="text-[10px] text-slate-500 font-normal leading-tight">
-                              (m³/ha)
+                              m³/ha (Flora) · kg/ha/th / ekor/ha/th (Fauna)
+                            </span>
+                          </div>
+                        </th>
+                      );
+                    }
+
+                    if (serviceId === 'provisioning' && col.key === 'hargaUnit') {
+                      return (
+                        <th
+                          key={col.key}
+                          className={`py-2 px-3 border-r border-slate-200 ${col.width || ''} text-right`}
+                        >
+                          <div className="flex flex-col items-end leading-tight">
+                            <span>Harga Pasar / Unit</span>
+                            <span className="text-[10px] text-slate-500 font-normal leading-tight">
+                              Rp/m³ (Flora) · Rp/kg / Rp/ekor (Fauna)
+                            </span>
+                          </div>
+                        </th>
+                      );
+                    }
+
+                    if (serviceId === 'provisioning' && col.key === 'jumlah') {
+                      return (
+                        <th
+                          key={col.key}
+                          className={`py-2 px-3 border-r border-slate-200 ${col.width || ''} text-right`}
+                        >
+                          <div className="flex flex-col items-end leading-tight">
+                            <span>Volume / Kuantitas</span>
+                            <span className="text-[10px] text-slate-500 font-normal leading-tight">
+                              m³ (Flora) · kg / ekor (Fauna)
                             </span>
                           </div>
                         </th>
@@ -867,8 +991,6 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                           <span>
                             {serviceId === 'provisioning' && col.key === 'item'
                               ? 'Jenis Biota (Flora / Fauna)'
-                              : serviceId === 'provisioning' && col.key === 'jumlah'
-                              ? 'Volume (m³)'
                               : `${col.label} ${col.unit ? `(${col.unit})` : ''}`}
                           </span>
                         </div>
@@ -943,6 +1065,9 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                             <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-100/80 border border-emerald-200 px-2 py-0.5 rounded-full shadow-2xs">
                               {floraRows.length} item
                             </span>
+                            <span className="text-[10px] text-emerald-700 bg-emerald-100/60 border border-emerald-200/80 px-2 py-0.5 rounded hidden sm:inline-block">
+                              Satuan Vegetasi: m³/ha • Volume (m³) • Harga (Rp/m³)
+                            </span>
                           </div>
                           {!isAdmin && (
                             <button
@@ -987,6 +1112,9 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                             </span>
                             <span className="text-[11px] font-semibold text-amber-800 bg-amber-100/80 border border-amber-200 px-2 py-0.5 rounded-full shadow-2xs">
                               {faunaRows.length} item
+                            </span>
+                            <span className="text-[10px] text-amber-800 bg-amber-100/80 border border-amber-300 px-2 py-0.5 rounded font-medium hidden sm:inline-block">
+                              Satuan Komoditas Pesisir: kg & Rp/kg (perikanan/berat) • ekor & Rp/ekor (satwa/individu)
                             </span>
                           </div>
                           {!isAdmin && (
@@ -1047,15 +1175,32 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                     TOTAL NILAI EKONOMI ({cleanMethodName.toUpperCase()}) :
                   </td>
                   <td className="py-3 px-3 text-right font-mono text-sm font-bold text-blue-800 bg-blue-50 border-x border-blue-200">
-                    {formatIDR(methodTotal)}
+                    <div>{formatIDR(methodTotal)}</div>
+                    {pendingQuantityRows.length > 0 && (
+                      <div className="text-[10px] text-amber-700 font-sans font-medium mt-0.5 flex items-center justify-end gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                        <span>*Total sementara ({pendingQuantityRows.length} komoditas belum dapat dihitung)</span>
+                      </div>
+                    )}
                   </td>
                   <td
                     colSpan={remainingColSpan}
                     className="py-3 px-3 text-xs text-slate-500 font-normal"
                   >
-                    {serviceId === 'provisioning'
-                      ? `${floraRows.length + faunaRows.length} komoditas (${floraRows.length} Flora, ${faunaRows.length} Fauna) terhitung`
-                      : `${rows.length} item terhitung`}
+                    {serviceId === 'provisioning' ? (
+                      <div className="flex flex-col gap-0.5">
+                        <span>
+                          {calculableRows.length} dari {allMethodRows.length} komoditas terhitung ({floraRows.length} Flora, {faunaRows.length} Fauna)
+                        </span>
+                        {pendingQuantityRows.length > 0 && (
+                          <span className="text-amber-700 font-medium text-[11px]">
+                            ⚠ {pendingQuantityRows.length} komoditas berstatus "Belum dapat dihitung" (menunggu volume/produktivitas)
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      `${rows.length} item terhitung`
+                    )}
                   </td>
                 </tr>
               </tfoot>
@@ -1151,6 +1296,15 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
         onClose={() => setDeletingColumn(null)}
         onConfirm={handleConfirmDeleteColumn}
         column={deletingColumn}
+      />
+
+      {/* Modal Survey Questionnaire / Respondent (TCM & CVM) */}
+      <SurveyRespondentModal
+        isOpen={isSurveyModalOpen}
+        onClose={() => setIsSurveyModalOpen(false)}
+        projectId={currentProjId}
+        initialMethod={surveyModalMethod}
+        areaId={areaId}
       />
     </div>
   );

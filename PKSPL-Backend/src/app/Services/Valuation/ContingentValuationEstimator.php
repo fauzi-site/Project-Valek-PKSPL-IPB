@@ -42,7 +42,10 @@ class ContingentValuationEstimator
     public function estimate(Proyek $project, string $model, array $covariates = []): array
     {
         $rows = CvmData::where('id_proyek', $project->id_proyek)
-            ->where('question_method', 'dichotomous_choice')
+            ->where(function ($q) {
+                $q->where('elicitation_format', 'dichotomous_choice')
+                  ->orWhere('elicitation_format', 'single_bounded');
+            })
             ->whereNotNull('bid_amount')
             ->get();
 
@@ -54,7 +57,7 @@ class ContingentValuationEstimator
             ));
         }
 
-        $yesCount = $rows->where('willing_to_pay', true)->count();
+        $yesCount = $rows->filter(fn ($r) => (bool) ($r->willingness_to_pay ?? $r->willing_to_pay))->count();
         if ($yesCount === 0 || $yesCount === $rows->count()) {
             return $this->failure('Seluruh responden menjawab sama (semua ya atau semua tidak), sehingga model tidak dapat diestimasi.');
         }
@@ -88,7 +91,7 @@ class ContingentValuationEstimator
 
             $observations[] = [
                 'bid' => (float) $row->bid_amount,
-                'response' => $row->willing_to_pay ? 1 : 0,
+                'response' => ($row->willingness_to_pay ?? $row->willing_to_pay) ? 1 : 0,
                 'socio_economic' => $socio,
             ];
         }
@@ -126,6 +129,8 @@ class ContingentValuationEstimator
         return [
             'ok' => true,
             'message' => null,
+            'ewtp' => $result['ewtp'] ?? null,
+            'total_wtp' => $result['total_wtp'] ?? null,
             'coefficients' => $coefficients,
             'mean_covariates' => $meanCovariates,
             'respondent_count' => count($observations),
@@ -147,9 +152,9 @@ class ContingentValuationEstimator
     private function covariateValue(CvmData $row, string $name): float
     {
         return match ($name) {
-            'income' => (float) ($row->household_income ?? 0),
-            'education' => $this->educationYears($row->education_level),
-            'age' => (float) ($row->age ?? 0),
+            'income' => (float) ($row->household_income ?? $row->socioeconomic_data['household_income'] ?? $row->socioeconomic_data['income'] ?? 0),
+            'education' => $this->educationYears($row->education_level ?? $row->socioeconomic_data['education_level'] ?? $row->socioeconomic_data['education'] ?? null),
+            'age' => (float) ($row->age ?? $row->socioeconomic_data['age'] ?? 0),
             default => 0.0,
         };
     }

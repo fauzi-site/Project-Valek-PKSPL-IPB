@@ -21,12 +21,18 @@ export const AuthProvider = ({ children }) => {
     }
   });
 
-  // Loading starts as true only if a token is present and needs backend verification
+  // Loading starts as true only if a token is present and we don't have a cached user profile yet
   const [loading, setLoading] = useState(() => {
-    const token = typeof window !== 'undefined'
-      ? (localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token'))
-      : null;
-    return !!token;
+    try {
+      const token = typeof window !== 'undefined'
+        ? (localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token'))
+        : null;
+      if (!token) return false;
+      const cached = localStorage.getItem('pkspl_user') || sessionStorage.getItem('pkspl_user');
+      return !cached;
+    } catch {
+      return false;
+    }
   });
 
   const isAuthenticated = user !== null;

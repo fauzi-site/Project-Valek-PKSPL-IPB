@@ -45,6 +45,7 @@ Route::prefix('v1')->group(function (): void {
     Route::get('public/projects/statistics', [StatisticsController::class, 'index']);
     Route::get('public/projects/activity', [StatisticsController::class, 'activity']);
     Route::get('public/projects/map', [ProyekController::class, 'publicMap']);
+    Route::get('public/projects/{identifier}', [ProyekController::class, 'publicDetail']);
 
     // Admin Activity, Master Data & Analytics endpoints (Protected: Super Admin Only)
     Route::middleware(['auth:sanctum', 'role:Super Admin'])->group(function (): void {

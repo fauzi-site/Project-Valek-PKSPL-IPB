@@ -41,4 +41,39 @@ class CvmData extends Model
     {
         return $this->belongsTo(ValuationModule::class, 'id_module', 'id_module');
     }
+
+    public function getQuestionMethodAttribute()
+    {
+        return $this->elicitation_format;
+    }
+
+    public function setQuestionMethodAttribute($value)
+    {
+        $this->elicitation_format = $value;
+    }
+
+    public function getWillingToPayAttribute()
+    {
+        return $this->willingness_to_pay;
+    }
+
+    public function setWillingToPayAttribute($value)
+    {
+        $this->willingness_to_pay = $value;
+    }
+
+    public function getHouseholdIncomeAttribute()
+    {
+        return $this->socioeconomic_data['household_income'] ?? $this->socioeconomic_data['income'] ?? null;
+    }
+
+    public function getAgeAttribute()
+    {
+        return $this->socioeconomic_data['age'] ?? null;
+    }
+
+    public function getEducationLevelAttribute()
+    {
+        return $this->socioeconomic_data['education_level'] ?? $this->socioeconomic_data['education'] ?? null;
+    }
 }

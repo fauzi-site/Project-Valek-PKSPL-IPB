@@ -44,4 +44,34 @@ class TcmData extends Model
     {
         return $this->belongsTo(ValuationModule::class, 'id_module', 'id_module');
     }
+
+    public function getVisitFrequencyAttribute()
+    {
+        return $this->annual_visits;
+    }
+
+    public function setVisitFrequencyAttribute($value)
+    {
+        $this->annual_visits = $value;
+    }
+
+    public function getIncomeAttribute()
+    {
+        return $this->socioeconomic_data['income'] ?? $this->socioeconomic_data['household_income'] ?? null;
+    }
+
+    public function getAgeAttribute()
+    {
+        return $this->socioeconomic_data['age'] ?? null;
+    }
+
+    public function getEducationLevelAttribute()
+    {
+        return $this->socioeconomic_data['education_level'] ?? $this->socioeconomic_data['education'] ?? null;
+    }
+
+    public function getSubstituteSiteCostAttribute()
+    {
+        return $this->socioeconomic_data['substitute_site_cost'] ?? null;
+    }
 }

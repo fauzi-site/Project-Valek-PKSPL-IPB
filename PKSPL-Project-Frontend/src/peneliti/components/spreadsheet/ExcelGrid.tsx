@@ -141,11 +141,21 @@ export const ExcelGrid: React.FC<ExcelGridProps> = ({
               <th className="py-2 px-3 w-32 text-right border-r border-slate-200">
                 <div className="flex flex-col items-end leading-tight">
                   <span>Produktivitas</span>
-                  <span className="text-[10px] text-slate-500 font-normal leading-tight">(m³/ha)</span>
+                  <span className="text-[10px] text-slate-500 font-normal leading-tight">m³/ha · kg/ha/th</span>
                 </div>
               </th>
-              <th className="py-2.5 px-3 w-40 text-right border-r border-slate-200">Harga / Unit (Rp)</th>
-              <th className="py-2.5 px-3 w-32 text-right border-r border-slate-200">Volume (m³)</th>
+              <th className="py-2.5 px-3 w-40 text-right border-r border-slate-200">
+                <div className="flex flex-col items-end leading-tight">
+                  <span>Harga / Unit (Rp)</span>
+                  <span className="text-[10px] text-slate-500 font-normal leading-tight">Rp/m³ · Rp/kg</span>
+                </div>
+              </th>
+              <th className="py-2.5 px-3 w-32 text-right border-r border-slate-200">
+                <div className="flex flex-col items-end leading-tight">
+                  <span>Volume</span>
+                  <span className="text-[10px] text-slate-500 font-normal leading-tight">m³ · kg</span>
+                </div>
+              </th>
               <th className="py-2.5 px-3 w-28 text-right border-r border-slate-200">Luas (Ha)</th>
               <th className="py-2.5 px-3 min-w-[200px] text-right border-r border-slate-200 bg-slate-200/60 text-slate-900">
                 <span className="flex items-center justify-end gap-1">

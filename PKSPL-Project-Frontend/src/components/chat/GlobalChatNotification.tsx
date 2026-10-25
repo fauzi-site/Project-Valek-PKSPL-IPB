@@ -233,8 +233,8 @@ export const GlobalChatNotification: React.FC = () => {
       }
     };
 
-    // Jalankan polling setiap 7 detik
-    const pollInterval = setInterval(pollUnreadNotifications, 7000);
+    // Jalankan polling fallback setiap 30 detik jika tab aktif
+    const pollInterval = setInterval(pollUnreadNotifications, 30000);
 
     return () => {
       isMounted = false;

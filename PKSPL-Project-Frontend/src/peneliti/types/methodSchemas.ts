@@ -30,10 +30,79 @@ export interface MethodSchema {
   formulaDescription: string;
   templateFileName: string;
   columns: ColumnDefinition[];
-  calculateRow: (row: Record<string, any>) => { quantity: number; total: number };
+  calculateRow: (row: Record<string, any>) => {
+    quantity?: number;
+    total: number;
+    isCalculable?: boolean;
+    isPendingQuantity?: boolean;
+    pendingReason?: string;
+  };
   defaultNewRow: (nextNo: number, areaHa: number) => Record<string, any>;
   initialRows: Record<string, any>[];
   serviceTitle?: string;
+}
+
+export interface FaunaUnits {
+  qtyUnit: string;
+  prodUnit: string;
+  priceUnit: string;
+  qtyPlaceholder: string;
+  prodPlaceholder: string;
+  pricePlaceholder: string;
+}
+
+/**
+ * Helper resolusi satuan adaptif untuk baris Fauna (Market Price)
+ * Mendukung ikan/berat (kg, Rp/kg), individu (ekor, Rp/ekor), atau custom satuan
+ */
+export function getFaunaRowUnits(row?: Record<string, any>): FaunaUnits {
+  const customUnit = (row?.satuan || row?.unit || '').toString().toLowerCase().trim();
+  const itemName = (row?.item || '').toString().toLowerCase().trim();
+
+  // 1. Satwa individu / ekor (kepiting, bibit, burung, dsb.)
+  if (
+    customUnit === 'ekor' ||
+    customUnit === 'ind' ||
+    customUnit === 'individu' ||
+    (!customUnit && (
+      itemName.includes('ekor') ||
+      itemName.includes('kepiting') ||
+      itemName.includes('bibit') ||
+      itemName.includes('burung') ||
+      itemName.includes('penyu')
+    ))
+  ) {
+    return {
+      qtyUnit: 'ekor',
+      prodUnit: 'ekor/ha/th',
+      priceUnit: 'Rp/ekor',
+      qtyPlaceholder: '0 (ekor)',
+      prodPlaceholder: '0 (ekor/ha/th)',
+      pricePlaceholder: 'Rp/ekor',
+    };
+  }
+
+  // 2. Komoditas cair (misal madu mangrove)
+  if (customUnit === 'liter' || customUnit === 'l' || (!customUnit && itemName.includes('madu'))) {
+    return {
+      qtyUnit: 'liter',
+      prodUnit: 'liter/ha/th',
+      priceUnit: 'Rp/liter',
+      qtyPlaceholder: '0 (liter)',
+      prodPlaceholder: '0 (liter/ha/th)',
+      pricePlaceholder: 'Rp/liter',
+    };
+  }
+
+  // 3. Default komoditas berbasis berat (ikan hasil tangkapan, udang, dsb.)
+  return {
+    qtyUnit: 'kg',
+    prodUnit: 'kg/ha/th',
+    priceUnit: 'Rp/kg',
+    qtyPlaceholder: '0 (kg tangkapan)',
+    prodPlaceholder: '0 (kg/ha/th)',
+    pricePlaceholder: 'Rp/kg',
+  };
 }
 
 export const METHOD_SCHEMAS: Record<string, MethodSchema> = {
@@ -58,12 +127,57 @@ export const METHOD_SCHEMAS: Record<string, MethodSchema> = {
       { key: 'source', label: 'Sumber Data', type: 'text', width: 'min-w-[200px]', align: 'left', placeholder: 'Survei Pasar 2024' },
     ],
     calculateRow: (r) => {
+      const hasProd = r.produktivitas !== null && r.produktivitas !== undefined && r.produktivitas !== '';
+      const hasLuas = r.luasHa !== null && r.luasHa !== undefined && r.luasHa !== '';
+      const hasHarga = r.hargaUnit !== null && r.hargaUnit !== undefined && r.hargaUnit !== '';
+      const hasJml = r.jumlah !== null && r.jumlah !== undefined && r.jumlah !== '';
+
       const prod = Number(r.produktivitas) || 0;
       const luas = Number(r.luasHa) || 0;
       const harga = Number(r.hargaUnit) || 0;
-      const vol = prod > 0 && luas > 0 ? Number((prod * luas).toFixed(2)) : (Number(r.jumlah) || 0);
-      const total = vol > 0 && harga > 0 ? Math.round(vol * harga) : 0;
-      return { quantity: vol, total };
+      const jml = Number(r.jumlah) || 0;
+
+      // Kuantitas 0 aktual (terukur memang 0) HANYA jika ada penanda eksplisit bahwa 0 adalah hasil pengukuran valid
+      if (r.isMeasuredZero === true && hasHarga && harga > 0) {
+        return {
+          quantity: 0,
+          total: 0,
+          isCalculable: true,
+          isPendingQuantity: false
+        };
+      }
+
+      // Harga terisi namun kuantitas (volume kayu & produktivitas) belum tersedia / belum diukur (> 0)
+      if (hasHarga && harga > 0 && prod <= 0 && jml <= 0) {
+        return {
+          quantity: undefined,
+          total: 0,
+          isCalculable: false,
+          isPendingQuantity: true,
+          pendingReason: 'Volume kayu belum tersedia'
+        };
+      }
+
+      if (hasProd && prod > 0 && hasLuas && luas > 0 && hasHarga && harga > 0) {
+        const vol = Number((prod * luas).toFixed(2));
+        return {
+          quantity: vol,
+          total: Math.round(vol * harga),
+          isCalculable: true,
+          isPendingQuantity: false
+        };
+      }
+
+      if (hasJml && jml > 0 && hasHarga && harga > 0) {
+        return {
+          quantity: jml,
+          total: Math.round(jml * harga),
+          isCalculable: true,
+          isPendingQuantity: false
+        };
+      }
+
+      return { quantity: undefined, total: 0, isCalculable: false, isPendingQuantity: false };
     },
     defaultNewRow: (no, luasHa) => ({
       id: `ROW-PRV-FLR-${Date.now()}-${no}-${Math.random().toString(36).substring(2, 7)}`,
@@ -131,26 +245,78 @@ export const METHOD_SCHEMAS: Record<string, MethodSchema> = {
     serviceId: 'provisioning',
     methodId: 'market-price',
     methodName: 'Market Price (Fauna)',
-    subtitle: 'Nilai Pasar Aktual - Komoditas Perikanan & Satwa Mangrove',
-    formulaDescription: 'Total = Produktivitas (kg/ha/th) × Luas (Ha) × Harga/Unit (Rp)',
+    subtitle: 'Nilai Pasar Aktual - Komoditas Perikanan & Satwa Pesisir/Mangrove',
+    formulaDescription: 'Total = Kuantitas (Volume / Produktivitas × Luas) × Harga Satuan (Rp)',
     templateFileName: 'Provisioning_MarketPrice_Fauna.xlsx',
     columns: [
       { key: 'no', label: 'No', type: 'number', width: 'w-12', align: 'center' },
-      { key: 'item', label: 'Jenis Fauna', type: 'text', width: 'min-w-[240px]', align: 'left', placeholder: 'Contoh: Scylla serrata (Kepiting Bakau)' },
-      { key: 'produktivitas', label: 'Produktivitas', type: 'number', unit: 'kg/ha/th', width: 'w-32', align: 'right', placeholder: '0.00' },
-      { key: 'hargaUnit', label: 'Harga / Unit (Rp)', type: 'number', width: 'w-40', align: 'right', placeholder: '0' },
-      { key: 'jumlah', label: 'Volume (kg)', type: 'number', width: 'w-32', align: 'right', placeholder: '0.00' },
+      { key: 'item', label: 'Jenis Fauna / Komoditas', type: 'text', width: 'min-w-[240px]', align: 'left', placeholder: 'Contoh: Ikan Tongkol, Kepiting Bakau, Bibit/Individu' },
+      { key: 'produktivitas', label: 'Produktivitas', type: 'number', unit: 'satuan/ha/th', width: 'w-32', align: 'right', placeholder: '0.00' },
+      { key: 'hargaUnit', label: 'Harga / Satuan (Rp)', type: 'number', width: 'w-40', align: 'right', placeholder: '0' },
+      { key: 'jumlah', label: 'Kuantitas / Volume', type: 'number', width: 'w-32', align: 'right', placeholder: '0.00' },
       { key: 'luasHa', label: 'Luas (Ha)', type: 'number', width: 'w-28', align: 'right' },
       { key: 'totalNilai', label: 'Total Nilai (Rp)', type: 'readonly_calculated', width: 'min-w-[200px]', align: 'right', isTotal: true },
       { key: 'source', label: 'Sumber Data', type: 'text', width: 'min-w-[200px]', align: 'left', placeholder: 'TPI / Survei Nelayan 2024' },
     ],
     calculateRow: (r) => {
+      const hasProd = r.produktivitas !== null && r.produktivitas !== undefined && r.produktivitas !== '';
+      const hasLuas = r.luasHa !== null && r.luasHa !== undefined && r.luasHa !== '';
+      const hasHarga = r.hargaUnit !== null && r.hargaUnit !== undefined && r.hargaUnit !== '';
+      const hasJml = r.jumlah !== null && r.jumlah !== undefined && r.jumlah !== '';
+
       const prod = Number(r.produktivitas) || 0;
       const luas = Number(r.luasHa) || 0;
       const harga = Number(r.hargaUnit) || 0;
-      const vol = prod > 0 && luas > 0 ? Number((prod * luas).toFixed(2)) : (Number(r.jumlah) || 0);
-      const total = vol > 0 && harga > 0 ? Math.round(vol * harga) : 0;
-      return { quantity: vol, total };
+      const jml = Number(r.jumlah) || 0;
+
+      // Kuantitas 0 aktual (terukur memang 0) HANYA jika ada penanda eksplisit bahwa 0 adalah hasil pengukuran valid
+      if (r.isMeasuredZero === true && hasHarga && harga > 0) {
+        return {
+          quantity: 0,
+          total: 0,
+          isCalculable: true,
+          isPendingQuantity: false
+        };
+      }
+
+      // Harga terisi namun kuantitas (volume tangkapan & produktivitas) belum tersedia / belum diukur (> 0)
+      if (hasHarga && harga > 0 && prod <= 0 && jml <= 0) {
+        return {
+          quantity: undefined,
+          total: 0,
+          isCalculable: false,
+          isPendingQuantity: true,
+          pendingReason: 'Volume tangkapan / kuantitas belum tersedia'
+        };
+      }
+
+      // Opsi 1: Kuantitas dihitung dari Produktivitas x Luas (jika keduanya tersedia dan > 0)
+      if (hasProd && prod > 0 && hasLuas && luas > 0 && hasHarga && harga > 0) {
+        const qty = Number((prod * luas).toFixed(2));
+        return {
+          quantity: qty,
+          total: Math.round(qty * harga),
+          isCalculable: true,
+          isPendingQuantity: false
+        };
+      }
+
+      // Opsi 2: Kuantitas langsung dari Volume / Tangkapan / Jumlah Terukur (> 0)
+      if (hasJml && jml > 0 && hasHarga && harga > 0) {
+        return {
+          quantity: jml,
+          total: Math.round(jml * harga),
+          isCalculable: true,
+          isPendingQuantity: false
+        };
+      }
+
+      return {
+        quantity: undefined,
+        total: 0,
+        isCalculable: false,
+        isPendingQuantity: false
+      };
     },
     defaultNewRow: (no, luasHa) => ({
       id: `ROW-PRV-FAU-${Date.now()}-${no}-${Math.random().toString(36).substring(2, 7)}`,

@@ -11,6 +11,7 @@ use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class AdminActivityLogController extends Controller
 {
@@ -19,8 +20,8 @@ class AdminActivityLogController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        // Pastikan tabel activity_logs memiliki rekam jejak yang kaya jika masih sedikit atau belum distandarisasi
-        if (ActivityLog::count() < 16 || ActivityLog::whereRaw("meta->>'user_role' = 'Analyst'")->count() > 0 || ActivityLog::whereRaw("meta->>'user_role' = 'Guest'")->count() > 0) {
+        // Isi log audit awal hanya jika tabel masih kosong
+        if (ActivityLog::count() === 0) {
             $this->seedRealisticActivityLogs();
         }
 
@@ -116,7 +117,7 @@ class AdminActivityLogController extends Controller
             $roleRaw = $log->user?->role?->nama_role ?? 'Peneliti';
             $meta = is_array($log->meta) ? $log->meta : [];
 
-            // Tentukan user role aktual (mendukung Super Admin, Peneliti, Analyst, Guest)
+            // Tentukan user role aktual (Super Admin, Peneliti, Guest)
             $userRole = $meta['user_role'] ?? (($roleRaw === 'Admin' || $roleRaw === 'Administrator') ? 'Super Admin' : $roleRaw);
 
             $activityType = $this->determineActivityType($log->action, $log->description);
@@ -128,7 +129,6 @@ class AdminActivityLogController extends Controller
             // Avatar background gradient
             $avatarGradients = [
                 'Super Admin' => 'from-purple-600 to-indigo-600',
-                'Analyst' => 'from-amber-600 to-orange-600',
                 'Peneliti' => 'from-blue-600 to-indigo-600',
                 'Guest' => 'from-slate-600 to-slate-700',
             ];
@@ -163,7 +163,6 @@ class AdminActivityLogController extends Controller
         });
 
         // Dynamic summary stats dari database
-        $totalLogsCount = ActivityLog::count();
         $todayCount = ActivityLog::where('created_at', '>=', Carbon::now()->subHours(24))->count();
         $activeUsersCount = ActivityLog::distinct('id_user')->count('id_user');
         if ($activeUsersCount === 0) {
@@ -227,7 +226,7 @@ class AdminActivityLogController extends Controller
         ]);
 
         $log = ActivityLog::create([
-            'id_user' => $validated['id_user'] ?? auth()->id() ?? 1,
+            'id_user' => $validated['id_user'] ?? Auth::id() ?? 1,
             'id_proyek' => $validated['id_proyek'] ?? null,
             'action' => $validated['action'],
             'description' => $validated['description'],
@@ -742,8 +741,10 @@ class AdminActivityLogController extends Controller
             ],
         ];
 
-        // Hapus hanya data log audit lama agar digantikan dengan log audit terstandarisasi yang lengkap
-        ActivityLog::truncate();
+        // Pastikan tidak menghapus data jika sudah ada log
+        if (ActivityLog::count() > 0) {
+            return;
+        }
 
         foreach ($sampleLogs as $s) {
             $user = $users->get($s['email']) ?? User::first();

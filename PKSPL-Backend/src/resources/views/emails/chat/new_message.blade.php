@@ -146,15 +146,21 @@
                 @endif
             </div>
 
+            @php
+                $recipientRole = strtolower($recipient->role?->nama_role ?? '');
+                $isAdminRecipient = in_array($recipientRole, ['super admin', 'admin', 'administrator'], true);
+                $chatTargetUrl = $frontendUrl . ($isAdminRecipient ? '/admin/messages' : '/peneliti/discussions');
+            @endphp
+
             <div style="text-align: center; margin: 28px 0;">
-                <a href="{{ $frontendUrl }}/analyst/discussions" class="btn-action">
+                <a href="{{ $chatTargetUrl }}" class="btn-action">
                     Buka Diskusi di Portal PKSPL
                 </a>
             </div>
 
             <p style="font-size: 12px; color: #94a3b8; margin-top: 24px;">
                 Jika tombol di atas tidak dapat diklik, salin dan buka tautan berikut di peramban Anda:<br>
-                <span style="color: #2563eb; word-break: break-all;">{{ $frontendUrl }}/analyst/discussions</span>
+                <span style="color: #2563eb; word-break: break-all;">{{ $chatTargetUrl }}</span>
             </p>
         </div>
         <div class="footer">

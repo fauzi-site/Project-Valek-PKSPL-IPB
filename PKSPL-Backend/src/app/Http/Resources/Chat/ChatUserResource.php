@@ -53,7 +53,7 @@ class ChatUserResource extends JsonResource
             'email' => $this->email,
             'role' => $roleName,
             'academicTitle' => $roleName === 'Peneliti' ? 'Peneliti Valuasi' : $roleName,
-            'specialization' => $roleName === 'Analyst' ? 'Reviewer & Quality Control' : ($roleName === 'Admin' ? 'Administrator Sistem' : 'Penelitian Ekosistem'),
+            'specialization' => in_array($roleName, ['Super Admin', 'Admin'], true) ? 'Administrator Sistem' : 'Penelitian Ekosistem',
             'institution' => 'PKSPL IPB University',
             'avatarUrl' => $this->foto,
             'isOnline' => $isOnline,

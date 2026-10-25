@@ -40,6 +40,9 @@ class DatabaseSeeder extends Seeder
             EkosistemValuasiSeeder::class,
             // Chat & Discussion Module (Super Admin, Peneliti)
             ChatSeeder::class,
+            // Master Data Spesifik & Integrasi Riset Survei (Kota Bogor & Pulau Pramuka)
+            KotaBogorAndGlobalMasterSeeder::class,
+            PramukaSurveySeeder::class,
         ]);
     }
 }

@@ -41,7 +41,9 @@ class TravelCostEstimator
     public function estimate(Proyek $project, string $model, array $covariates = []): array
     {
         $rows = TcmData::where('id_proyek', $project->id_proyek)
-            ->whereNotNull('visit_frequency')
+            ->where(function ($q) {
+                $q->whereNotNull('annual_visits');
+            })
             ->get();
 
         if ($rows->count() < self::MIN_RESPONDENTS) {
@@ -84,7 +86,7 @@ class TravelCostEstimator
             }
 
             $observations[] = [
-                'visits' => (float) $row->visit_frequency,
+                'visits' => (float) ($row->annual_visits ?? $row->visit_frequency ?? 1),
                 'travel_cost' => (float) $row->total_travel_cost,
                 'socio_economic' => $socio,
             ];
@@ -115,6 +117,7 @@ class TravelCostEstimator
             'ok' => true,
             'message' => null,
             'coefficients' => $coefficients,
+            'cs_per_visit' => $result['cs_per_visit'] ?? null,
             'respondent_count' => count($observations),
             'mean_travel_cost' => array_sum($travelCosts) / count($travelCosts),
             'converged' => $regression['converged'] ?? true,
@@ -133,10 +136,10 @@ class TravelCostEstimator
     private function covariateValue(TcmData $row, string $name): float
     {
         return match ($name) {
-            'income' => (float) ($row->income ?? 0),
-            'age' => (float) ($row->age ?? 0),
-            'education' => $this->educationYears($row->education),
-            'substitute' => $row->substitute_site ? 1.0 : 0.0,
+            'income' => (float) ($row->income ?? $row->socioeconomic_data['income'] ?? $row->socioeconomic_data['household_income'] ?? 0),
+            'age' => (float) ($row->age ?? $row->socioeconomic_data['age'] ?? 0),
+            'education' => $this->educationYears($row->education ?? $row->education_level ?? $row->socioeconomic_data['education_level'] ?? $row->socioeconomic_data['education'] ?? null),
+            'substitute' => (float) ($row->substitute_site ?? $row->substitute_site_cost ?? $row->socioeconomic_data['substitute_site'] ?? $row->socioeconomic_data['substitute_site_cost'] ?? 0.0),
             default => 0.0,
         };
     }

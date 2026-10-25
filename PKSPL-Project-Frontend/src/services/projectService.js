@@ -5,8 +5,13 @@ export const getProyekList = async (params = {}) => {
   return response.data?.data || response.data
 }
 
-export const getPublicMapProjects = async () => {
-  const response = await api.get('/public/projects/map', { _skipAuthRedirect: true })
+export const getPublicMapProjects = async (params = {}) => {
+  const response = await api.get('/public/projects/map', { params, _skipAuthRedirect: true })
+  return response.data?.data || response.data
+}
+
+export const getPublicProjectDetail = async (idProyek) => {
+  const response = await api.get(`/public/projects/${idProyek}`, { _skipAuthRedirect: true })
   return response.data?.data || response.data
 }
 

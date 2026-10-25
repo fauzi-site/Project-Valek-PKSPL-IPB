@@ -149,7 +149,7 @@ const AnalyticsPageContent: React.FC = () => {
     getProjectIndices,
     getAreaConfig,
   } = useProject();
-  const { getServiceSubtotal, getGrandTotalForArea, getRows, getRowsForAreaService } = useSpreadsheet();
+  const { getServiceSubtotal, getGrandTotalForArea, getRows, getRowsForAreaService, hydrateAreaFromBackend } = useSpreadsheet();
   const navigate = useNavigate();
 
   // ── Route sync ─────────────────────────────────────────────────────────
@@ -169,6 +169,15 @@ const AnalyticsPageContent: React.FC = () => {
   const allLandCovers = (getProjectLandCovers ? getProjectLandCovers(effectiveProjId) : []) || [];
   const allIndices    = (getProjectIndices   ? getProjectIndices(effectiveProjId)    : []) || [];
   const indexLabelMap = buildIndexLabelMap(allIndices);
+
+  // Hydrate valuation rows from backend for all land covers in the project
+  useEffect(() => {
+    if (effectiveProjId && allLandCovers.length > 0) {
+      allLandCovers.forEach(lc => {
+        hydrateAreaFromBackend(String(effectiveProjId), String(lc.id));
+      });
+    }
+  }, [effectiveProjId, allLandCovers, hydrateAreaFromBackend]);
 
   // ── Filter State ───────────────────────────────────────────────────────
   const [filterIndexId,     setFilterIndexId]     = useState<string>('ALL');

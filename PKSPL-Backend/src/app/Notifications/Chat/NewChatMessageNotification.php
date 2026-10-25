@@ -60,6 +60,10 @@ class NewChatMessageNotification extends Notification implements ShouldQueue
             ? "📎 {$this->sender->nama} mengirim berkas lampiran."
             : "Pesan baru dari {$this->sender->nama}";
 
+        $roleName = strtolower($notifiable->role?->nama_role ?? '');
+        $isAdmin = in_array($roleName, ['super admin', 'admin', 'administrator'], true);
+        $actionUrl = $isAdmin ? '/admin/messages' : '/peneliti/discussions';
+
         return [
             'type' => 'chat_message',
             'conversation_id' => $this->conversation->id_conversation,
@@ -69,7 +73,7 @@ class NewChatMessageNotification extends Notification implements ShouldQueue
             'sender_role' => $senderRole,
             'message' => $summary,
             'project_name' => $this->message->proyek?->nama_proyek,
-            'action_url' => '/analyst/discussions',
+            'action_url' => $actionUrl,
         ];
     }
 

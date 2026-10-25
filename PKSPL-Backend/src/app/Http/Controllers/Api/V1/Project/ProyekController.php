@@ -15,6 +15,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -89,96 +90,322 @@ class ProyekController extends ApiResourceController
     /**
      * Menyediakan data proyek ringkas dan aman untuk marker pada Landing Page Map.
      * Dapat diakses secara publik tanpa token otentikasi.
+     * Mendukung filter opsional ?tahun=all, ?tahun=2026, atau ?tahun=2025,2026 untuk perbandingan antar-tahun.
      */
-    public function publicMap(): JsonResponse
+    public function publicMap(Request $request): JsonResponse
     {
-        $projects = Proyek::query()
-            ->select([
-                'id_proyek',
-                'kode_proyek',
-                'nama_proyek',
-                'latitude',
-                'longitude',
-                'luas',
-                'satuan_luas',
-                'deskripsi',
-                'tujuan_valuasi',
-                'id_provinsi',
-                'id_kabupaten_kota',
-                'tahun',
-            ])
-            ->with([
-                'provinsi:id_provinsi,nama_provinsi',
-                'kabupatenKota:id_kabupaten_kota,nama_kabupaten_kota',
-            ])
-            ->whereNotNull('latitude')
-            ->whereNotNull('longitude')
-            ->orderBy('id_proyek', 'asc')
-            ->get();
+        $rawTahun = $request->query('tahun');
 
-        $data = $projects->map(function (Proyek $proyek) {
-            $nameLower = strtolower((string) $proyek->nama_proyek);
-            $category = match (true) {
-                str_contains($nameLower, 'mangrove') || str_contains($nameLower, 'hutan') || str_contains($nameLower, 'lamun') => 'flora',
-                str_contains($nameLower, 'terumbu') || str_contains($nameLower, 'karang') || str_contains($nameLower, 'penyu') || str_contains($nameLower, 'dugong') => 'fauna',
-                str_contains($nameLower, 'tangkap') || str_contains($nameLower, 'ikan') || str_contains($nameLower, 'citarum') || str_contains($nameLower, 'estuari') => 'tangkap',
-                str_contains($nameLower, 'budidaya') || str_contains($nameLower, 'tambak') || str_contains($nameLower, 'reklamasi') || str_contains($nameLower, 'antam') => 'budidaya',
-                str_contains($nameLower, 'pesisir') || str_contains($nameLower, 'ekowisata') || str_contains($nameLower, 'bahari') || str_contains($nameLower, 'pantai') || str_contains($nameLower, 'laut') => 'pesisir',
-                default => 'pesisir',
-            };
+        // Parse parameter tahun: jika kosong, null, 'all', atau 'semua', jangan batasi tahun
+        $filterYears = null;
+        if (!empty($rawTahun) && !in_array(strtolower((string) $rawTahun), ['all', 'semua', 'semua tahun', 'all_years', '*'], true)) {
+            if (is_array($rawTahun)) {
+                $filterYears = array_values(array_unique(array_map('intval', array_filter($rawTahun, 'is_numeric'))));
+            } elseif (str_contains((string) $rawTahun, ',')) {
+                $filterYears = array_values(array_unique(array_map('intval', array_filter(explode(',', (string) $rawTahun), 'is_numeric'))));
+            } elseif (is_numeric($rawTahun)) {
+                $filterYears = [(int) $rawTahun];
+            }
+        }
 
-            $projectCode = $proyek->kode_proyek ?: ('PRJ-' . str_pad((string) $proyek->id_proyek, 3, '0', STR_PAD_LEFT));
+        $cacheKey = 'public_map_projects_' . ($filterYears ? implode('_', $filterYears) : 'all');
 
-            $projTev = match ((int) $proyek->id_proyek) {
-                1 => 58723271140,
-                3 => 34200000000,
-                4 => 48949677785,
-                5 => 28400000000,
-                6 => 16800000000,
-                7 => 12500000000,
-                8 => 42500000000,
-                9 => 14800000000,
-                10 => 19200000000,
-                11 => 65400000000,
-                default => (int) round(((float) ($proyek->luas ?: 100)) * 38500000),
-            };
+        $payload = Cache::remember($cacheKey, 60, function () use ($filterYears) {
+            $query = Proyek::query()
+                ->select([
+                    'id_proyek',
+                    'kode_proyek',
+                    'nama_proyek',
+                    'latitude',
+                    'longitude',
+                    'luas',
+                    'satuan_luas',
+                    'deskripsi',
+                    'tujuan_valuasi',
+                    'id_provinsi',
+                    'id_kabupaten_kota',
+                    'tahun',
+                    'created_at',
+                ])
+                ->with([
+                    'provinsi:id_provinsi,nama_provinsi',
+                    'kabupatenKota:id_kabupaten_kota,nama_kabupaten_kota',
+                ])
+                ->whereNotNull('latitude')
+                ->whereNotNull('longitude');
 
-            $tevFormatted = match (true) {
-                $projTev >= 1e12 => 'Rp ' . number_format($projTev / 1e12, 1, ',', '.') . ' T/thn',
-                $projTev >= 1e9 => 'Rp ' . number_format($projTev / 1e9, 1, ',', '.') . ' M/thn',
-                default => 'Rp ' . number_format($projTev, 0, ',', '.') . '/thn',
-            };
+            if (!empty($filterYears)) {
+                $query->whereIn('tahun', $filterYears);
+            }
+
+            $projects = $query->orderBy('id_proyek', 'asc')->get();
+
+            $data = $projects->map(function (Proyek $proyek) {
+                $nameLower = strtolower((string) $proyek->nama_proyek);
+                $category = match (true) {
+                    str_contains($nameLower, 'mangrove') || str_contains($nameLower, 'hutan') || str_contains($nameLower, 'lamun') => 'flora',
+                    str_contains($nameLower, 'terumbu') || str_contains($nameLower, 'karang') || str_contains($nameLower, 'penyu') || str_contains($nameLower, 'dugong') => 'fauna',
+                    str_contains($nameLower, 'tangkap') || str_contains($nameLower, 'ikan') || str_contains($nameLower, 'citarum') || str_contains($nameLower, 'estuari') => 'tangkap',
+                    str_contains($nameLower, 'budidaya') || str_contains($nameLower, 'tambak') || str_contains($nameLower, 'reklamasi') || str_contains($nameLower, 'antam') => 'budidaya',
+                    str_contains($nameLower, 'pesisir') || str_contains($nameLower, 'ekowisata') || str_contains($nameLower, 'bahari') || str_contains($nameLower, 'pantai') || str_contains($nameLower, 'laut') => 'pesisir',
+                    default => 'pesisir',
+                };
+
+                $projectCode = $proyek->kode_proyek ?: ('PRJ-' . str_pad((string) $proyek->id_proyek, 3, '0', STR_PAD_LEFT));
+
+                // Derivasi base_code untuk menghubungkan program penelitian lanjutan lintas tahun
+                // Contoh: PRJ-004-DUMMY-2025 -> PRJ-004, PRJ-004 -> PRJ-004
+                $baseCode = preg_replace('/-(?:DUMMY-)?\d{4}$/i', '', (string) $projectCode);
+
+                $isDummy = str_contains(strtoupper((string) $proyek->nama_proyek), 'DUMMY')
+                    || str_contains(strtoupper((string) $projectCode), 'DUMMY');
+
+                $projTev = match ((int) $proyek->id_proyek) {
+                    1 => 58723271140,
+                    3 => 34200000000,
+                    4 => 48949677785,
+                    5 => 28400000000,
+                    6 => 16800000000,
+                    7 => 12500000000,
+                    8 => 42500000000,
+                    9 => 14800000000,
+                    10 => 19200000000,
+                    11 => 65400000000,
+                    default => (int) round(((float) ($proyek->luas ?: 100)) * 38500000),
+                };
+
+                // Untuk data dummy pengujian, TEV diset 'Belum tersedia' dan total_tev diset null
+                if ($isDummy) {
+                    $tevFormatted = 'Belum tersedia';
+                    $totalTev = null;
+                } else {
+                    $tevFormatted = match (true) {
+                        $projTev >= 1e12 => 'Rp ' . number_format($projTev / 1e12, 1, ',', '.') . ' T/thn',
+                        $projTev >= 1e9 => 'Rp ' . number_format($projTev / 1e9, 1, ',', '.') . ' M/thn',
+                        default => 'Rp ' . number_format($projTev, 0, ',', '.') . '/thn',
+                    };
+                    $totalTev = $projTev;
+                }
+
+                $effectiveYear = (int) ($proyek->tahun ?: ($proyek->created_at ? (int) $proyek->created_at->format('Y') : 2026));
+
+                return [
+                    'id' => (string) $proyek->id_proyek,
+                    'id_proyek' => $proyek->id_proyek,
+                    'kode_proyek' => $projectCode,
+                    'base_code' => $baseCode,
+                    'is_dummy' => $isDummy,
+                    'nama_proyek' => $proyek->nama_proyek,
+                    'name' => $proyek->nama_proyek,
+                    'latitude' => (float) $proyek->latitude,
+                    'longitude' => (float) $proyek->longitude,
+                    'coords' => [(float) $proyek->latitude, (float) $proyek->longitude],
+                    'luas' => $proyek->luas ? number_format((float) $proyek->luas, 2, ',', '.') . ' ' . ($proyek->satuan_luas ?: 'Ha') : '-',
+                    'luas_raw' => (float) ($proyek->luas ?: 0),
+                    'satuan_luas' => $proyek->satuan_luas ?: 'Ha',
+                    'provinsi' => $proyek->provinsi?->nama_provinsi ?? 'Indonesia',
+                    'kabupaten' => $proyek->kabupatenKota?->nama_kabupaten_kota ?? '-',
+                    'kabupaten_kota' => $proyek->kabupatenKota?->nama_kabupaten_kota ?? '-',
+                    'created_at' => $proyek->created_at ? $proyek->created_at->toISOString() : null,
+                    'created_at_formatted' => $proyek->created_at ? $proyek->created_at->locale('id')->translatedFormat('d F Y') : 'Belum tersedia',
+                    'tahun' => $effectiveYear,
+                    'category' => $category,
+                    'tev' => $tevFormatted,
+                    'total_tev' => $totalTev,
+                    'ringkasan' => $proyek->deskripsi ?: $proyek->tujuan_valuasi ?: 'Kajian valuasi ekonomi sumber daya pesisir dan laut.',
+                    'deskripsi' => $proyek->deskripsi ?: $proyek->tujuan_valuasi ?: '',
+                ];
+            });
 
             return [
-                'id' => (string) $proyek->id_proyek,
-                'id_proyek' => $proyek->id_proyek,
-                'kode_proyek' => $projectCode,
-                'nama_proyek' => $proyek->nama_proyek,
-                'name' => $proyek->nama_proyek,
-                'latitude' => (float) $proyek->latitude,
-                'longitude' => (float) $proyek->longitude,
-                'coords' => [(float) $proyek->latitude, (float) $proyek->longitude],
-                'luas' => $proyek->luas ? number_format((float) $proyek->luas, 2, ',', '.') . ' ' . ($proyek->satuan_luas ?: 'Ha') : '-',
-                'luas_raw' => (float) ($proyek->luas ?: 0),
-                'satuan_luas' => $proyek->satuan_luas ?: 'Ha',
-                'provinsi' => $proyek->provinsi?->nama_provinsi ?? 'Indonesia',
-                'kabupaten' => $proyek->kabupatenKota?->nama_kabupaten_kota ?? '-',
-                'kabupaten_kota' => $proyek->kabupatenKota?->nama_kabupaten_kota ?? '-',
-                'status' => 'Selesai',
-                'tahun' => (int) ($proyek->tahun ?: 2026),
-                'category' => $category,
-                'tev' => $tevFormatted,
-                'total_tev' => $projTev,
-                'ringkasan' => $proyek->deskripsi ?: $proyek->tujuan_valuasi ?: 'Kajian valuasi ekonomi sumber daya pesisir dan laut.',
-                'deskripsi' => $proyek->deskripsi ?: $proyek->tujuan_valuasi ?: '',
+                'status' => 'success',
+                'message' => 'Data peta proyek publik berhasil dimuat.',
+                'data' => $data->values()->all(),
+                'count' => $data->count(),
             ];
         });
 
+        return response()->json($payload);
+    }
+
+    /**
+     * Menyediakan data detail program penelitian publik berdasarkan id_proyek atau kode_proyek.
+     * Mengambil seluruh data riil dari database (nama, lokasi, luas, TEV, spesies, titik pantau, riwayat).
+     */
+    public function publicDetail(string|int $identifier): JsonResponse
+    {
+        $proyek = Proyek::query()
+            ->with([
+                'provinsi:id_provinsi,nama_provinsi',
+                'kabupatenKota:id_kabupaten_kota,nama_kabupaten_kota',
+                'kecamatan:id_kecamatan,nama_kecamatan',
+                'desaKelurahan:id_desa_kelurahan,nama_desa_kelurahan',
+                'user:id_user,nama,email',
+            ])
+            ->where(function ($q) use ($identifier) {
+                if (is_numeric($identifier)) {
+                    $q->where('id_proyek', (int) $identifier);
+                }
+                $q->orWhere('kode_proyek', (string) $identifier);
+            })
+            ->first();
+
+        if (!$proyek) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Program penelitian tidak ditemukan.',
+            ], 404);
+        }
+
+        $nameLower = strtolower((string) $proyek->nama_proyek);
+        $category = match (true) {
+            str_contains($nameLower, 'mangrove') || str_contains($nameLower, 'hutan') || str_contains($nameLower, 'lamun') => 'flora',
+            str_contains($nameLower, 'terumbu') || str_contains($nameLower, 'karang') || str_contains($nameLower, 'penyu') || str_contains($nameLower, 'dugong') => 'fauna',
+            str_contains($nameLower, 'tangkap') || str_contains($nameLower, 'ikan') || str_contains($nameLower, 'citarum') || str_contains($nameLower, 'estuari') => 'tangkap',
+            str_contains($nameLower, 'budidaya') || str_contains($nameLower, 'tambak') || str_contains($nameLower, 'reklamasi') || str_contains($nameLower, 'antam') => 'budidaya',
+            default => 'pesisir',
+        };
+
+        $projectCode = $proyek->kode_proyek ?: ('PRJ-' . str_pad((string) $proyek->id_proyek, 3, '0', STR_PAD_LEFT));
+        $isDummy = str_contains(strtoupper((string) $proyek->nama_proyek), 'DUMMY')
+            || str_contains(strtoupper((string) $projectCode), 'DUMMY');
+        $baseCode = preg_replace('/-(?:DUMMY-)?\d{4}$/i', '', (string) $projectCode);
+
+        // 1. Hitung TEV Riil
+        if ($isDummy) {
+            $calculatedTev = 0;
+            $tevFormatted = 'Belum tersedia';
+        } else {
+            $vrSum = (float) DB::table('valuation_rows')
+                ->join('jenis_tutupan_lahan', 'valuation_rows.id_jenis_tutupan_lahan', '=', 'jenis_tutupan_lahan.id_jenis_tutupan_lahan')
+                ->join('indexes', 'jenis_tutupan_lahan.id_index', '=', 'indexes.id_index')
+                ->where('indexes.id_proyek', $proyek->id_proyek)
+                ->sum('valuation_rows.total_nilai');
+
+            $benefitsSum = (float) DB::table('benefits')
+                ->where('id_proyek', $proyek->id_proyek)
+                ->sum('value');
+
+            $hvSum = (float) DB::table('hasil_valuasi')
+                ->join('jenis_tutupan_lahan', 'hasil_valuasi.id_jenis_tutupan_lahan', '=', 'jenis_tutupan_lahan.id_jenis_tutupan_lahan')
+                ->join('indexes', 'jenis_tutupan_lahan.id_index', '=', 'indexes.id_index')
+                ->where('indexes.id_proyek', $proyek->id_proyek)
+                ->sum('hasil_valuasi.tev');
+
+            $calculatedTev = 0;
+            if ($vrSum > 0) {
+                $calculatedTev = $vrSum;
+            } elseif ($benefitsSum > 0) {
+                $calculatedTev = $benefitsSum;
+            } elseif ($hvSum > 0) {
+                $calculatedTev = $hvSum;
+            }
+
+            $tevFormatted = 'Belum tersedia';
+            if ($calculatedTev > 0) {
+                $tevFormatted = match (true) {
+                    $calculatedTev >= 1e12 => 'Rp ' . number_format($calculatedTev / 1e12, 2, ',', '.') . ' T/thn',
+                    $calculatedTev >= 1e9 => 'Rp ' . number_format($calculatedTev / 1e9, 2, ',', '.') . ' M/thn',
+                    $calculatedTev >= 1e6 => 'Rp ' . number_format($calculatedTev / 1e6, 2, ',', '.') . ' Juta/thn',
+                    default => 'Rp ' . number_format($calculatedTev, 0, ',', '.') . '/thn',
+                };
+            }
+        }
+
+        // 2. Titik / Zona Pantau (Indeks & Area)
+        $indexCount = DB::table('indexes')->where('id_proyek', $proyek->id_proyek)->count();
+        $titikPantauText = $indexCount > 0 ? "{$indexCount} Titik/Zona Pantau" : 'Belum tersedia';
+
+        // 3. Spesies Utama
+        $speciesCollector = collect();
+        $provSpecies = DB::table('provisioning_service')
+            ->join('jenis_tutupan_lahan', 'provisioning_service.id_jenis_tutupan_lahan', '=', 'jenis_tutupan_lahan.id_jenis_tutupan_lahan')
+            ->join('indexes', 'jenis_tutupan_lahan.id_index', '=', 'indexes.id_index')
+            ->where('indexes.id_proyek', $proyek->id_proyek)
+            ->select('provisioning_service.nama_objek', 'provisioning_service.nama_latin', 'provisioning_service.nama_daerah')
+            ->get();
+
+        foreach ($provSpecies as $sp) {
+            $text = trim((string) $sp->nama_objek);
+            if ($sp->nama_latin && !str_contains($text, $sp->nama_latin)) {
+                $text .= ' (' . trim($sp->nama_latin) . ')';
+            }
+            if ($text) {
+                $speciesCollector->push($text);
+            }
+        }
+
+        $vrSpecies = DB::table('valuation_rows')
+            ->join('jenis_tutupan_lahan', 'valuation_rows.id_jenis_tutupan_lahan', '=', 'jenis_tutupan_lahan.id_jenis_tutupan_lahan')
+            ->join('indexes', 'jenis_tutupan_lahan.id_index', '=', 'indexes.id_index')
+            ->where('indexes.id_proyek', $proyek->id_proyek)
+            ->where('valuation_rows.service_id', 'provisioning')
+            ->selectRaw("valuation_rows.row_data->>'item' as item, valuation_rows.row_data->>'nama_latin' as nama_latin")
+            ->get();
+
+        foreach ($vrSpecies as $sp) {
+            if (!empty($sp->item)) {
+                $text = trim((string) $sp->item);
+                if (!empty($sp->nama_latin) && !str_contains($text, $sp->nama_latin)) {
+                    $text .= ' (' . trim($sp->nama_latin) . ')';
+                }
+                $speciesCollector->push($text);
+            }
+        }
+
+        $spesiesList = $speciesCollector->filter()->unique()->values()->all();
+
+        // 4. Riwayat Pemantauan & Aktivitas
+        $riwayatList = DB::table('histori')
+            ->where('id_proyek', $proyek->id_proyek)
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($h) {
+                return [
+                    'tanggal' => $h->created_at ? substr((string) $h->created_at, 0, 10) : date('Y-m-d'),
+                    'aktivitas' => $h->aktivitas,
+                    'detail' => $h->keterangan ?: 'Aktivitas penelitian tercatat pada sistem database.',
+                ];
+            })
+            ->values()
+            ->all();
+
         return response()->json([
             'status' => 'success',
-            'message' => 'Data peta proyek publik berhasil dimuat.',
-            'data' => $data,
-            'count' => $data->count(),
+            'data' => [
+                'id' => (string) $proyek->id_proyek,
+                'id_proyek' => $proyek->id_proyek,
+                'kode_proyek' => $projectCode,
+                'base_code' => $baseCode,
+                'is_dummy' => $isDummy,
+                'name' => $proyek->nama_proyek,
+                'nama_proyek' => $proyek->nama_proyek,
+                'category' => $category,
+                'provinsi' => $proyek->provinsi?->nama_provinsi ?? 'Belum tersedia',
+                'kabupaten' => $proyek->kabupatenKota?->nama_kabupaten_kota ?? 'Belum tersedia',
+                'kecamatan' => $proyek->kecamatan?->nama_kecamatan ?? null,
+                'desa' => $proyek->desaKelurahan?->nama_desa_kelurahan ?? null,
+                'alamat_lengkap' => $proyek->alamat_lengkap ?: 'Belum tersedia',
+                'latitude' => $proyek->latitude !== null ? (float) $proyek->latitude : null,
+                'longitude' => $proyek->longitude !== null ? (float) $proyek->longitude : null,
+                'coords' => ($proyek->latitude !== null && $proyek->longitude !== null)
+                    ? [(float) $proyek->latitude, (float) $proyek->longitude]
+                    : null,
+                'geometry' => $proyek->geometry,
+                'luas' => $proyek->luas ? number_format((float) $proyek->luas, 2, ',', '.') . ' ' . ($proyek->satuan_luas ?: 'Ha') : 'Belum tersedia',
+                'luas_raw' => (float) ($proyek->luas ?: 0),
+                'satuan_luas' => $proyek->satuan_luas ?: 'Ha',
+                'status' => 'Terdaftar & Aktif',
+                'tev' => $tevFormatted,
+                'total_tev' => $calculatedTev > 0 ? $calculatedTev : null,
+                'jumlahTitikPantau' => $titikPantauText,
+                'ringkasan' => $proyek->tujuan_valuasi ?: $proyek->deskripsi ?: 'Kajian valuasi ekonomi sumber daya pesisir dan laut.',
+                'deskripsi' => $proyek->deskripsi ?: $proyek->tujuan_valuasi ?: 'Belum ada deskripsi untuk program ini.',
+                'peneliti' => $proyek->user?->nama ?? 'Belum tersedia',
+                'tahun' => (int) ($proyek->tahun ?: ($proyek->created_at ? (int) $proyek->created_at->format('Y') : 2026)),
+                'spesies' => $spesiesList,
+                'riwayat' => $riwayatList,
+            ],
         ]);
     }
 
@@ -231,6 +458,11 @@ class ProyekController extends ApiResourceController
         }
 
         $this->storeUploadedFiles($request, $proyek);
+
+        Cache::forget('public_map_projects');
+        Cache::forget('landing_statistics');
+        Cache::forget('landing_activity_default');
+        Cache::forget('admin_analytics_overview_default');
 
         $proyek->refresh();
         $proyek->load([
@@ -316,6 +548,11 @@ class ProyekController extends ApiResourceController
         $proyek->update($payload);
         $this->storeUploadedFiles($request, $proyek);
 
+        Cache::forget('public_map_projects');
+        Cache::forget('landing_statistics');
+        Cache::forget('landing_activity_default');
+        Cache::forget('admin_analytics_overview_default');
+
         $proyek->refresh();
         $proyek->load([
             'user.role',
@@ -389,6 +626,11 @@ class ProyekController extends ApiResourceController
             } catch (\Throwable $e) {
                 Log::warning("Gagal menghapus direktori berkas proyek {$proyek->id_proyek}: " . $e->getMessage());
             }
+
+            Cache::forget('public_map_projects');
+            Cache::forget('landing_statistics');
+            Cache::forget('landing_activity_default');
+            Cache::forget('admin_analytics_overview_default');
 
             return $this->destroyResource($proyek);
         });

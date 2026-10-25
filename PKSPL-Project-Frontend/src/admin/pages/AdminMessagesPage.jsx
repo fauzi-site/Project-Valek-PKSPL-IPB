@@ -343,7 +343,7 @@ export const AdminMessagesPage = () => {
     };
   }, [currentUserId, activeConversationId]);
 
-  // 4. Fallback Polling adaptif setiap 10 detik
+  // 4. Fallback Polling adaptif setiap 30 detik
   useEffect(() => {
     const pollInterval = setInterval(async () => {
       if (document.visibilityState === 'visible') {
@@ -359,7 +359,7 @@ export const AdminMessagesPage = () => {
           // ignore silent error
         }
       }
-    }, 10000);
+    }, 30000);
 
     return () => clearInterval(pollInterval);
   }, [currentUserId, activeConversationId]);

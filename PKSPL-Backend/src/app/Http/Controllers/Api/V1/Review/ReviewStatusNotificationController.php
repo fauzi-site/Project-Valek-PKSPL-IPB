@@ -102,13 +102,13 @@ class ReviewStatusNotificationController extends Controller
         $forceEmail = (bool) ($payload['force_email'] ?? $request->input('force_email') ?? false);
         $shouldSendEmail = $isOffline || $isRevision || $forceEmail;
 
-        // 4. Kirim Email Notifikasi via SMTP Mailpit ke Peneliti & salinan ke Analyst
+        // 4. Kirim Email Notifikasi via SMTP Mailpit ke Peneliti & salinan ke Super Admin / Reviewer
         $emailSent = false;
         $primaryEmail = $payload['recipient_email'] ?? $request->input('recipient_email') ?? $researcher?->email ?? 'peneliti@gmail.com';
-        $analystEmail = $currentUser?->email ?? 'analyst@gmail.com';
+        $reviewerEmail = $currentUser?->email ?? 'admin@gmail.com';
 
-        // Daftar penerima email (Peneliti dan Analyst pengirim agar keduanya tercatat di Mailpit)
-        $recipients = array_unique(array_filter([$primaryEmail, $analystEmail]));
+        // Daftar penerima email (Peneliti dan Super Admin/Reviewer pengirim agar keduanya tercatat di Mailpit)
+        $recipients = array_unique(array_filter([$primaryEmail, $reviewerEmail]));
 
         if ($shouldSendEmail && ! empty($recipients)) {
             foreach ($recipients as $recipientEmail) {
@@ -182,13 +182,13 @@ class ReviewStatusNotificationController extends Controller
         }
 
         $recipientEmail = $payload['recipient_email'] ?? $request->input('recipient_email') ?? $proyek->user?->email ?? 'peneliti@gmail.com';
-        $analystEmail = 'analyst@gmail.com';
-        $reviewer = $payload['reviewer'] ?? $request->input('reviewer') ?? 'Dr. Benny Nababan';
+        $adminEmail = 'admin@gmail.com';
+        $reviewer = $payload['reviewer'] ?? $request->input('reviewer') ?? 'Super Admin PKSPL';
         $statusType = strtoupper(trim((string) ($payload['type'] ?? $request->input('type') ?? 'DALAM_REVIEW')));
         $notes = $payload['notes'] ?? $request->input('notes') ?? null;
         $comments = $payload['comments'] ?? $request->input('comments') ?? [];
 
-        $recipients = array_unique(array_filter([$recipientEmail, $analystEmail]));
+        $recipients = array_unique(array_filter([$recipientEmail, $adminEmail]));
 
         try {
             foreach ($recipients as $targetEmail) {

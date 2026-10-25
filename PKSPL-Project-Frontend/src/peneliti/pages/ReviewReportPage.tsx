@@ -86,7 +86,8 @@ const ReviewReportPageContent: React.FC = () => {
     getRows,
     getServiceSubtotal,
     getGrandTotalForArea,
-    getAllProjectRows
+    getAllProjectRows,
+    hydrateAreaFromBackend
   } = useSpreadsheet();
 
   const navigate = useNavigate();
@@ -109,16 +110,6 @@ const ReviewReportPageContent: React.FC = () => {
     } as any : activeProject);
   const effectiveProjId = routeProjId || currentProject?.id || '4';
 
-  // Sync activeProjectId if route parameter differs
-  useEffect(() => {
-    if (params.projectId && params.projectId !== activeProjectId) {
-      const found = projects.find(p => p.id === params.projectId || p.code === params.projectId);
-      if (found) {
-        setActiveProjectId(found.id);
-      }
-    }
-  }, [params.projectId, activeProjectId, projects, setActiveProjectId]);
-
   const isMock = isMockProject(effectiveProjId);
 
   // Project's dynamic spatial items with seamless fallback
@@ -136,6 +127,25 @@ const ReviewReportPageContent: React.FC = () => {
 
   const rawLayers = (getProjectLayers ? getProjectLayers(effectiveProjId) : []) || [];
   const currentLayers = (rawLayers && rawLayers.length > 0) ? rawLayers : (isMock ? INITIAL_MAP_LAYERS : []);
+
+  // Hydrate valuation rows from backend for all land covers in the project
+  useEffect(() => {
+    if (effectiveProjId && rawLandCovers.length > 0) {
+      rawLandCovers.forEach(lc => {
+        hydrateAreaFromBackend(String(effectiveProjId), String(lc.id));
+      });
+    }
+  }, [effectiveProjId, rawLandCovers, hydrateAreaFromBackend]);
+
+  // Sync activeProjectId if route parameter differs
+  useEffect(() => {
+    if (params.projectId && params.projectId !== activeProjectId) {
+      const found = projects.find(p => p.id === params.projectId || p.code === params.projectId);
+      if (found) {
+        setActiveProjectId(found.id);
+      }
+    }
+  }, [params.projectId, activeProjectId, projects, setActiveProjectId]);
 
   // Spatial status indicators
   const hasPolygons = currentLandCovers.length > 0;
@@ -781,7 +791,7 @@ const ReviewReportPageContent: React.FC = () => {
           </div>
           <div className="md:col-span-2 lg:col-span-3 pt-2 border-t border-slate-100">
             <span className="text-slate-400 font-bold uppercase text-[10px]">Deskripsi Penelitian</span>
-            <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">{currentProject?.description}</p>
+            <p className="text-xs text-slate-600 mt-0.5 leading-relaxed whitespace-pre-line">{currentProject?.description}</p>
           </div>
         </div>
       </section>

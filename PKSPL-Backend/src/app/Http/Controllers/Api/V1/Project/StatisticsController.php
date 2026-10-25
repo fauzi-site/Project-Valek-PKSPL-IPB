@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Proyek;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -13,10 +14,21 @@ use Illuminate\Support\Facades\DB;
  */
 class StatisticsController extends Controller
 {
+    /**
+     * Query dasar proyek riil (mengecualikan data dummy pengujian).
+     */
+    private function baseProjectQuery()
+    {
+        return Proyek::query()
+            ->where('nama_proyek', 'not ilike', '%DUMMY%')
+            ->where('kode_proyek', 'not ilike', '%DUMMY%');
+    }
+
     public function index(): JsonResponse
     {
-        // 1. Total Projects / Analisis
-        $totalProjects = Proyek::query()->count();
+        $payload = Cache::remember('landing_statistics', 60, function () {
+            // 1. Total Projects / Analisis
+            $totalProjects = $this->baseProjectQuery()->count();
 
         // 2. Total Peneliti (User dengan role 'Peneliti')
         $totalResearchers = User::query()
@@ -39,7 +51,7 @@ class StatisticsController extends Controller
         $monthlyProjects = [];
 
         // Hitung data riil pembuatan proyek per bulan di database untuk tahun berjalan secara agregat
-        $monthlyCounts = Proyek::query()
+        $monthlyCounts = $this->baseProjectQuery()
             ->whereYear('created_at', $currentYear)
             ->selectRaw('EXTRACT(MONTH FROM created_at)::int as m, count(*) as count')
             ->groupBy('m')
@@ -74,7 +86,7 @@ class StatisticsController extends Controller
         }
 
         // 6. Total Luas Kawasan (Hektare) dari seluruh proyek
-        $totalAreaHa = (float) (Proyek::query()->sum('luas') ?: 7422.4);
+        $totalAreaHa = (float) ($this->baseProjectQuery()->sum('luas') ?: 7422.4);
 
         // 7. Pengguna Terdaftar Berdasarkan Role - Agregasi database langsung via GROUP BY
         $totalUsers = User::query()->count();
@@ -87,7 +99,7 @@ class StatisticsController extends Controller
             ->toArray();
 
         // 8. Hitung Akumulasi TEV Nasional dan Komposisi Proyek dari daftar proyek
-        $allProjects = Proyek::query()->get(['id_proyek', 'kode_proyek', 'nama_proyek', 'luas', 'tahun', 'created_at', 'updated_at']);
+        $allProjects = $this->baseProjectQuery()->get(['id_proyek', 'kode_proyek', 'nama_proyek', 'luas', 'tahun', 'created_at', 'updated_at']);
         $totalTev = 0;
         $ecosystemTev = [
             'Mangrove' => ['value' => 0, 'areaHa' => 0, 'projectsCount' => 0, 'color' => '#059669'],
@@ -313,30 +325,34 @@ class StatisticsController extends Controller
         $activeYr = $dbYears[0] ?? (int) date('Y');
         $monthlyTrend = $monthlyTrendByYear[$activeYr] ?? [];
 
-        return response()->json([
-            'total_projects' => $totalProjects,
-            'total_area_ha' => round($totalAreaHa, 2),
-            'total_tev' => $totalTev,
-            'total_tev_miliar' => round($totalTev / 1e9, 2),
-            'total_researchers' => $totalResearchers,
-            'total_users' => $totalUsers,
-            'users_by_role' => [
-                'peneliti' => $usersByRole['Peneliti'] ?? $totalResearchers,
-                'analyst' => $usersByRole['Analyst'] ?? 4,
-                'admin' => $usersByRole['Admin'] ?? $usersByRole['Administrator'] ?? 1,
-                'guest' => $usersByRole['Guest'] ?? 1,
-            ],
-            'project_statuses' => $projectStatuses,
-            'status_workflow' => $donutStatus,
-            'ecosystem_valuation' => $chartEcosystem,
-            'monthly_projects' => $monthlyProjects,
-            'ecosystem_distribution' => $ecosystemProjects,
-            'ecosystem_composition' => $ecosystemProjects,
-            'monthly_trend' => $monthlyTrend,
-            'yearly_trend' => $yearlyTrend,
-            'monthly_trend_by_year' => $monthlyTrendByYear,
-            'years_available' => $dbYears,
-        ]);
+            return [
+                'total_projects' => $totalProjects,
+                'total_area_ha' => round($totalAreaHa, 2),
+                'total_tev' => $totalTev,
+                'total_tev_miliar' => round($totalTev / 1e9, 2),
+                'total_researchers' => $totalResearchers,
+                'total_users' => $totalUsers,
+                'users_by_role' => [
+                    'peneliti' => $usersByRole['Peneliti'] ?? $totalResearchers,
+                    'analyst' => $usersByRole['Analyst'] ?? 0,
+                    'admin' => $usersByRole['Super Admin'] ?? $usersByRole['Admin'] ?? 1,
+                    'super admin' => $usersByRole['Super Admin'] ?? $usersByRole['Admin'] ?? 1,
+                    'guest' => $usersByRole['Guest'] ?? 1,
+                ],
+                'project_statuses' => $projectStatuses,
+                'status_workflow' => $donutStatus,
+                'ecosystem_valuation' => $chartEcosystem,
+                'monthly_projects' => $monthlyProjects,
+                'ecosystem_distribution' => $ecosystemProjects,
+                'ecosystem_composition' => $ecosystemProjects,
+                'monthly_trend' => $monthlyTrend,
+                'yearly_trend' => $yearlyTrend,
+                'monthly_trend_by_year' => $monthlyTrendByYear,
+                'years_available' => $dbYears,
+            ];
+        });
+
+        return response()->json($payload);
     }
 
     /**
@@ -345,95 +361,102 @@ class StatisticsController extends Controller
      */
     public function activity(\Illuminate\Http\Request $request): JsonResponse
     {
-        $allProjects = Proyek::query()
-            ->select(['id_proyek', 'kode_proyek', 'nama_proyek', 'luas', 'tahun', 'created_at', 'updated_at'])
-            ->get();
+        $selectedYearParam = $request->filled('year') ? (int) $request->year : null;
+        $cacheKey = 'landing_activity_' . ($selectedYearParam ?: 'default');
 
-        $monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+        $result = Cache::remember($cacheKey, 60, function () use ($selectedYearParam) {
+            $allProjects = $this->baseProjectQuery()
+                ->select(['id_proyek', 'kode_proyek', 'nama_proyek', 'luas', 'tahun', 'created_at', 'updated_at'])
+                ->get();
 
-        $enrichedProjects = $allProjects->map(function ($p) {
-            $createdAt = $p->created_at ? \Carbon\Carbon::parse($p->created_at)->setTimezone('Asia/Jakarta') : \Carbon\Carbon::now('Asia/Jakarta');
-            $updatedAt = $p->updated_at ? \Carbon\Carbon::parse($p->updated_at)->setTimezone('Asia/Jakarta') : $createdAt;
-            $yr = (int) ($p->tahun ?: $createdAt->year);
-            $isDone = true;
+            $monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+            $enrichedProjects = $allProjects->map(function ($p) {
+                $createdAt = $p->created_at ? \Carbon\Carbon::parse($p->created_at)->setTimezone('Asia/Jakarta') : \Carbon\Carbon::now('Asia/Jakarta');
+                $updatedAt = $p->updated_at ? \Carbon\Carbon::parse($p->updated_at)->setTimezone('Asia/Jakarta') : $createdAt;
+                $yr = (int) ($p->tahun ?: $createdAt->year);
+                $isDone = true;
+
+                return [
+                    'id' => $p->id_proyek,
+                    'nama' => $p->nama_proyek,
+                    'year' => $yr,
+                    'created_month' => (int) $createdAt->month,
+                    'is_completed' => $isDone,
+                    'completed_year' => $isDone ? (int) $updatedAt->year : null,
+                    'completed_month' => $isDone ? (int) $updatedAt->month : null,
+                ];
+            });
+
+            $dbYears = $enrichedProjects->pluck('year')->unique()->sort()->values()->toArray();
+            if (empty($dbYears)) {
+                $dbYears = [(int) date('Y')];
+            }
+            rsort($dbYears);
+
+            $selectedYear = $selectedYearParam ?: $dbYears[0];
+
+            // 12 bulan untuk tahun yang dipilih
+            $projectsInYear = $enrichedProjects->filter(fn ($item) => $item['year'] === $selectedYear);
+            $monthlyData = [];
+            $totalInYear = 0;
+            $maxCount = 0;
+            $peakMonth = null;
+
+            for ($m = 1; $m <= 12; $m++) {
+                $monthLabel = $monthNames[$m - 1];
+                $count = $projectsInYear->filter(fn ($item) => $item['created_month'] === $m)->count();
+                $totalInYear += $count;
+
+                if ($count > $maxCount) {
+                    $maxCount = $count;
+                    $peakMonth = $monthLabel;
+                }
+
+                $monthlyData[] = [
+                    'month' => $m,
+                    'name' => $monthLabel,
+                    'period' => $monthLabel,
+                    'label' => "{$monthLabel} {$selectedYear}",
+                    'count' => $count,
+                    'projects' => $count,
+                ];
+            }
+
+            // Tren tahunan
+            $sortedYearsAsc = collect($dbYears)->sort()->values()->toArray();
+            $yearlyData = [];
+            foreach ($sortedYearsAsc as $yr) {
+                $countInYr = $enrichedProjects->filter(fn ($item) => $item['year'] === $yr)->count();
+                $yearlyData[] = [
+                    'year' => $yr,
+                    'name' => (string) $yr,
+                    'period' => (string) $yr,
+                    'label' => "Tahun {$yr}",
+                    'count' => $countInYr,
+                    'projects' => $countInYr,
+                ];
+            }
+
+            $averageMonthly = round($totalInYear / 12, 1);
 
             return [
-                'id' => $p->id_proyek,
-                'nama' => $p->nama_proyek,
-                'year' => $yr,
-                'created_month' => (int) $createdAt->month,
-                'is_completed' => $isDone,
-                'completed_year' => $isDone ? (int) $updatedAt->year : null,
-                'completed_month' => $isDone ? (int) $updatedAt->month : null,
+                'status' => 'success',
+                'data' => [
+                    'year' => $selectedYear,
+                    'available_years' => $dbYears,
+                    'monthly' => $monthlyData,
+                    'yearly' => $yearlyData,
+                    'total' => $totalInYear,
+                    'average' => $averageMonthly,
+                    'peak' => [
+                        'name' => $peakMonth ?: '-',
+                        'count' => $maxCount,
+                    ],
+                ],
             ];
         });
 
-        $dbYears = $enrichedProjects->pluck('year')->unique()->sort()->values()->toArray();
-        if (empty($dbYears)) {
-            $dbYears = [(int) date('Y')];
-        }
-        rsort($dbYears);
-
-        $selectedYear = $request->filled('year') ? (int) $request->year : $dbYears[0];
-
-        // 12 bulan untuk tahun yang dipilih
-        $projectsInYear = $enrichedProjects->filter(fn ($item) => $item['year'] === $selectedYear);
-        $monthlyData = [];
-        $totalInYear = 0;
-        $maxCount = 0;
-        $peakMonth = null;
-
-        for ($m = 1; $m <= 12; $m++) {
-            $monthLabel = $monthNames[$m - 1];
-            $count = $projectsInYear->filter(fn ($item) => $item['created_month'] === $m)->count();
-            $totalInYear += $count;
-
-            if ($count > $maxCount) {
-                $maxCount = $count;
-                $peakMonth = $monthLabel;
-            }
-
-            $monthlyData[] = [
-                'month' => $m,
-                'name' => $monthLabel,
-                'period' => $monthLabel,
-                'label' => "{$monthLabel} {$selectedYear}",
-                'count' => $count,
-                'projects' => $count,
-            ];
-        }
-
-        // Tren tahunan
-        $sortedYearsAsc = collect($dbYears)->sort()->values()->toArray();
-        $yearlyData = [];
-        foreach ($sortedYearsAsc as $yr) {
-            $countInYr = $enrichedProjects->filter(fn ($item) => $item['year'] === $yr)->count();
-            $yearlyData[] = [
-                'year' => $yr,
-                'name' => (string) $yr,
-                'period' => (string) $yr,
-                'label' => "Tahun {$yr}",
-                'count' => $countInYr,
-                'projects' => $countInYr,
-            ];
-        }
-
-        $averageMonthly = round($totalInYear / 12, 1);
-
-        return response()->json([
-            'status' => 'success',
-            'data' => [
-                'year' => $selectedYear,
-                'available_years' => $dbYears,
-                'monthly' => $monthlyData,
-                'yearly' => $yearlyData,
-                'total' => $totalInYear,
-                'average' => $averageMonthly,
-                'peak' => [
-                    'name' => $peakMonth ?: '-',
-                    'count' => $maxCount,
-                ],
-            ],
-        ]);
+        return response()->json($result);
     }
 }

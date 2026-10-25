@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useProject } from '../context/ProjectContext';
 import { useSpreadsheet } from '../context/SpreadsheetContext';
-import { getMethodSchema } from '../types/methodSchemas';
+import { getMethodSchema, getFaunaRowUnits } from '../types/methodSchemas';
 import { EcosystemServiceId, normalizeMethods } from '../types/valuation';
 import { formatIDR, formatNumber } from '../utils/formatter';
 import { buildIndexLabelMap } from '../utils/indexLabel';
@@ -60,6 +60,8 @@ interface RowFormulaBreakdown {
   methodId: string;
   methodName: string;
   formulaDescription: string;
+  isPendingQuantity?: boolean;
+  pendingReason?: string;
 }
 
 const CalculationPageContent: React.FC = () => {
@@ -74,12 +76,22 @@ const CalculationPageContent: React.FC = () => {
     indices,
     getAreaConfig
   } = useProject();
-  const { getServiceSubtotal, getGrandTotalForArea, getRows } = useSpreadsheet();
+  const { getServiceSubtotal, getGrandTotalForArea, getRows, hydrateAreaFromBackend } = useSpreadsheet();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const routeProjId = params.projectId || activeProjectId;
   const currentProject = projects.find(p => p.id === routeProjId || p.code === routeProjId) || activeProject;
+
+  // Hydrate valuation rows from backend for all land covers in the project
+  useEffect(() => {
+    const projId = currentProject?.id || routeProjId;
+    if (projId && landCovers.length > 0) {
+      landCovers.forEach(lc => {
+        hydrateAreaFromBackend(String(projId), String(lc.id));
+      });
+    }
+  }, [currentProject?.id, routeProjId, landCovers, hydrateAreaFromBackend]);
 
   React.useEffect(() => {
     if (params.projectId && params.projectId !== activeProjectId) {
@@ -467,6 +479,33 @@ const CalculationPageContent: React.FC = () => {
     }, 0);
   };
 
+  // Count rows with pending quantity in scope per service
+  const getServicePendingCount = (serviceId: EcosystemServiceId): number => {
+    if (serviceId !== 'provisioning') return 0;
+    return targetLandCovers.reduce((acc, lc) => {
+      const cfg = getAreaConfig(lc.id);
+      if (!cfg.activeServices.provisioning) return acc;
+      const methods = normalizeMethods(cfg.selectedMethods?.provisioning, 'market-price');
+      let count = 0;
+      methods.forEach(mId => {
+        const rows = [
+          ...getRows(activeProjectId, lc.id, 'provisioning', mId, 'flora'),
+          ...getRows(activeProjectId, lc.id, 'provisioning', mId, 'fauna'),
+        ];
+        rows.forEach(r => {
+          const harga = Number(r.hargaUnit) || 0;
+          const prod = Number(r.produktivitas) || 0;
+          const vol = Number(r.jumlah) || 0;
+          const isMeasuredZero = r.isMeasuredZero === true;
+          if (harga > 0 && prod <= 0 && vol <= 0 && !isMeasuredZero) {
+            count += 1;
+          }
+        });
+      });
+      return acc + count;
+    }, 0);
+  };
+
   // Helper to construct row breakdown data for detail modal
   const getBreakdownRows = (serviceId: EcosystemServiceId): RowFormulaBreakdown[] => {
     const breakdownList: RowFormulaBreakdown[] = [];
@@ -493,15 +532,28 @@ const CalculationPageContent: React.FC = () => {
 
         const rawRows = serviceId === 'provisioning'
           ? [
-              ...getRows(activeProjectId, lc.id, serviceId, mId, 'flora'),
-              ...getRows(activeProjectId, lc.id, serviceId, mId, 'fauna')
+              ...getRows(activeProjectId, lc.id, serviceId, mId, 'flora').map(r => ({ ...r, _biotaGroup: 'flora' })),
+              ...getRows(activeProjectId, lc.id, serviceId, mId, 'fauna').map(r => ({ ...r, _biotaGroup: 'fauna' }))
             ]
           : getRows(activeProjectId, lc.id, serviceId, mId, 'none');
 
         rawRows.forEach((r, idx) => {
           let params = '';
           let formulaText = '';
+          let isPending = false;
+          let pendingReason = '';
           const total = Number(r.totalNilai) || 0;
+
+          const rowBiota = serviceId === 'provisioning' ? (r._biotaGroup || 'flora') : 'none';
+          const rowSchema = getMethodSchema(serviceId, mId, rowBiota);
+          const methodName = serviceId === 'provisioning' && mId === 'market-price'
+            ? (rowBiota === 'fauna' ? 'Market Price (Fauna)' : 'Market Price (Flora)')
+            : (rowSchema?.methodName || mId);
+          const formulaDescription = serviceId === 'provisioning' && mId === 'market-price'
+            ? (rowBiota === 'fauna'
+                ? 'Total = Volume Tangkapan (kg/satuan) × Harga/Unit (Rp) atau Produktivitas × Luas × Harga'
+                : rowSchema?.formulaDescription || '')
+            : (rowSchema?.formulaDescription || '');
 
           if (serviceId === 'provisioning') {
             if (mId === 'effect-production') {
@@ -511,12 +563,38 @@ const CalculationPageContent: React.FC = () => {
               params = `Output: ${formatNumber(q)} kg | Margin: Rp ${formatNumber(Math.max(0, p - c))}`;
               formulaText = `${formatNumber(q)} kg × (Rp ${formatNumber(p)} - Rp ${formatNumber(c)}) = ${formatIDR(total)}`;
             } else {
-              // Market Price (Flora/Fauna)
+              // Market Price (Flora / Fauna)
+              const isFauna = r.biota === 'fauna' || r._biotaGroup === 'fauna';
+              const faunaUnits = isFauna ? getFaunaRowUnits(r) : null;
+              const prodUnit = faunaUnits ? faunaUnits.prodUnit : 'm³/ha';
+              const qtyUnit = faunaUnits ? faunaUnits.qtyUnit : 'm³';
+              const priceUnit = faunaUnits ? faunaUnits.priceUnit : 'Rp/m³';
+
+              const isMeasuredZero = r.isMeasuredZero === true;
               const prod = Number(r.produktivitas) || 0;
-              const luas = Number(r.luasHa) || lc.areaHa;
+              const luas = Number(r.luasHa) || Number(r.luasPemanfaatan) || lc.areaHa;
+              const vol = Number(r.jumlah) || 0;
               const harga = Number(r.hargaUnit) || 0;
-              params = `Prod: ${formatNumber(prod)} kg/ha | Luas: ${formatNumber(luas)} ha | Harga: Rp ${formatNumber(harga)}/kg`;
-              formulaText = `${formatNumber(prod)} kg/ha × ${formatNumber(luas)} ha × Rp ${formatNumber(harga)} = ${formatIDR(total)}`;
+
+              if (harga > 0 && prod <= 0 && vol <= 0 && !isMeasuredZero) {
+                isPending = true;
+                pendingReason = isFauna
+                  ? `Kuantitas (${qtyUnit}) belum tersedia`
+                  : 'Volume (m³) belum tersedia';
+                params = isFauna
+                  ? `Kuantitas: Belum tersedia (${qtyUnit}) | Harga: ${priceUnit} ${formatNumber(harga)}`
+                  : `Volume: Belum tersedia (m³) | Harga: Rp ${formatNumber(harga)}/m³`;
+                formulaText = `Menunggu data kuantitas (${qtyUnit}) × ${priceUnit} ${formatNumber(harga)} = Belum dapat dihitung`;
+              } else if (prod > 0) {
+                params = `Prod: ${formatNumber(prod)} ${prodUnit} | Luas: ${formatNumber(luas)} ha | Harga: ${priceUnit} ${formatNumber(harga)}`;
+                formulaText = `${formatNumber(prod)} ${prodUnit} × ${formatNumber(luas)} ha × Rp ${formatNumber(harga)} = ${formatIDR(total)}`;
+              } else {
+                const volLabel = isFauna
+                  ? (qtyUnit === 'ekor' ? 'Jumlah Individu' : qtyUnit === 'liter' ? 'Volume Cairan' : 'Volume Tangkapan')
+                  : 'Volume Produksi';
+                params = `${volLabel}: ${formatNumber(vol)} ${qtyUnit} | Harga: ${priceUnit} ${formatNumber(harga)}`;
+                formulaText = `${formatNumber(vol)} ${qtyUnit} × Rp ${formatNumber(harga)} = ${formatIDR(total)}`;
+              }
             }
           } else if (serviceId === 'regulating') {
             if (mId === 'carbon-storage') {
@@ -599,8 +677,10 @@ const CalculationPageContent: React.FC = () => {
             indexCode,
             indexName,
             methodId: mId,
-            methodName: schema.methodName,
-            formulaDescription: schema.formulaDescription,
+            methodName: methodName || schema.methodName,
+            formulaDescription: formulaDescription || schema.formulaDescription,
+            isPendingQuantity: isPending,
+            pendingReason,
           });
         });
       });
@@ -664,6 +744,7 @@ const CalculationPageContent: React.FC = () => {
       usedMethods: getUsedMethods('provisioning'),
       subtotal: provTotal,
       rowCount: getRowCount('provisioning'),
+      pendingCount: getServicePendingCount('provisioning'),
       type: 'Direct Use Value',
     },
     {
@@ -677,6 +758,7 @@ const CalculationPageContent: React.FC = () => {
       usedMethods: getUsedMethods('regulating'),
       subtotal: regTotal,
       rowCount: getRowCount('regulating'),
+      pendingCount: getServicePendingCount('regulating'),
       type: 'Indirect Use Value',
     },
     {
@@ -690,6 +772,7 @@ const CalculationPageContent: React.FC = () => {
       usedMethods: getUsedMethods('supporting'),
       subtotal: suppTotal,
       rowCount: getRowCount('supporting'),
+      pendingCount: getServicePendingCount('supporting'),
       type: 'Ecosystem Function',
     },
     {
@@ -703,6 +786,7 @@ const CalculationPageContent: React.FC = () => {
       usedMethods: getUsedMethods('cultural'),
       subtotal: cultTotal,
       rowCount: getRowCount('cultural'),
+      pendingCount: getServicePendingCount('cultural'),
       type: 'Direct & Option Value',
     }
   ].filter(card => isServiceActiveInScope(card.id));
@@ -1340,14 +1424,28 @@ const CalculationPageContent: React.FC = () => {
                   </div>
 
                   <div className="flex items-center justify-between text-xs text-slate-600 pt-1 border-t border-slate-100">
-                    <span className="text-slate-500">Jumlah Komponen Dihitung:</span>
+                    <span className="text-slate-500">Jumlah Komponen:</span>
                     <span className="font-bold text-slate-700">{card.rowCount} baris variabel</span>
                   </div>
+
+                  {card.pendingCount > 0 && (
+                    <div className="flex items-center gap-1.5 text-[10.5px] text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-200">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                      <span>{card.pendingCount} komoditas menunggu data kuantitas</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-3 border-t border-slate-100 space-y-3">
                   <div className="flex items-baseline justify-between">
-                    <span className="text-xs text-slate-500 font-medium">Subtotal Terkalkulasi:</span>
+                    <div>
+                      <span className="text-xs text-slate-500 font-medium">Subtotal Terkalkulasi:</span>
+                      {card.pendingCount > 0 && (
+                        <div className="text-[10px] text-amber-600 font-medium">
+                          *Total sementara
+                        </div>
+                      )}
+                    </div>
                     <div className="text-right">
                       <div className="text-lg font-bold font-mono text-slate-900">
                         {formatIDR(card.subtotal)}
@@ -1796,6 +1894,20 @@ const CalculationPageContent: React.FC = () => {
 
               {/* Rows Breakdown Table — grouped by Index then by Land Cover */}
               <div className="p-6 overflow-y-auto space-y-4 flex-1">
+                {breakdownRows.some((r) => r.isPendingQuantity) && (
+                  <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3 text-xs text-amber-800">
+                    <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <div className="font-semibold text-amber-900">
+                        Perhatian: Sebagian Komoditas Belum Memiliki Data Kuantitas Terukur
+                      </div>
+                      <p className="mt-0.5 text-amber-700 leading-relaxed">
+                        Terdapat {breakdownRows.filter((r) => r.isPendingQuantity).length} komoditas dengan harga pasar terisi namun volume tangkapan/produktivitas belum tersedia (ditandai dengan status <span className="font-semibold text-amber-900">Belum dapat dihitung</span>). Nilai ekonomi tidak dipaksakan menjadi Rp0 aktual, dan subtotal/grand total yang ditampilkan merupakan total sementara dari komoditas yang datanya telah terukur.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {breakdownRows.length === 0 ? (
                   <div className="py-12 text-center text-slate-400 text-xs">
                     Belum ada baris data yang dimasukkan untuk jasa ini pada indeks / tutupan lahan yang dipilih.
@@ -1943,7 +2055,17 @@ const CalculationPageContent: React.FC = () => {
                                                   </span>
                                                 </td>
                                                 <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
-                                                  {formatIDR(row.resultValue)}
+                                                  {row.isPendingQuantity ? (
+                                                    <div className="flex flex-col items-end gap-1">
+                                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                                        Belum dapat dihitung
+                                                      </span>
+                                                      <span className="text-[10px] text-slate-400 font-normal">Kuantitas belum tersedia</span>
+                                                    </div>
+                                                  ) : (
+                                                    formatIDR(row.resultValue)
+                                                  )}
                                                 </td>
                                                 <td className="py-3 px-4 text-slate-500 text-[11px] italic">
                                                   {row.source}
@@ -1956,31 +2078,58 @@ const CalculationPageContent: React.FC = () => {
                                     })}
 
                                     {/* Subtotal per Tutupan Lahan */}
-                                    <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700">
-                                      <td colSpan={3} className="py-2.5 px-4 text-right font-sans">
-                                        Subtotal Tutupan Lahan ({lcGroup.areaName}):
-                                      </td>
-                                      <td className="py-2.5 px-4 text-right font-mono font-bold text-slate-900">
-                                        {formatIDR(lcGroup.subtotal)}
-                                      </td>
-                                      <td></td>
-                                    </tr>
+                                    {(() => {
+                                      const lcPendingCount = lcGroup.methods.reduce(
+                                        (sum, m) => sum + m.rows.filter((r) => r.isPendingQuantity).length,
+                                        0
+                                      );
+                                      return (
+                                        <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700">
+                                          <td colSpan={3} className="py-2.5 px-4 text-right font-sans">
+                                            Subtotal Tutupan Lahan ({lcGroup.areaName}):
+                                          </td>
+                                          <td className="py-2.5 px-4 text-right font-mono font-bold text-slate-900">
+                                            <div>{formatIDR(lcGroup.subtotal)}</div>
+                                            {lcPendingCount > 0 && (
+                                              <div className="text-[10px] text-amber-600 font-normal">
+                                                *Total sementara ({lcPendingCount} pending)
+                                              </div>
+                                            )}
+                                          </td>
+                                          <td></td>
+                                        </tr>
+                                      );
+                                    })()}
                                   </React.Fragment>
                                 );
                               })}
 
                               {/* Subtotal per Indeks jika ada lebih dari 1 tutupan lahan */}
-                              {idxGroup.landCovers.length > 1 && (
-                                <tr className="bg-slate-200/70 border-b-2 border-slate-300 text-xs font-bold text-slate-900">
-                                  <td colSpan={3} className="py-2.5 px-4 text-right">
-                                    Total Nilai {indexLabelMap.get(idxGroup.indexCode) ?? idxGroup.indexCode}:
-                                  </td>
-                                  <td className="py-2.5 px-4 text-right font-mono font-extrabold text-blue-950">
-                                    {formatIDR(idxGroup.subtotal)}
-                                  </td>
-                                  <td></td>
-                                </tr>
-                              )}
+                              {idxGroup.landCovers.length > 1 && (() => {
+                                const idxPendingCount = idxGroup.landCovers.reduce(
+                                  (sum, lc) => sum + lc.methods.reduce(
+                                    (mSum, m) => mSum + m.rows.filter((r) => r.isPendingQuantity).length,
+                                    0
+                                  ),
+                                  0
+                                );
+                                return (
+                                  <tr className="bg-slate-200/70 border-b-2 border-slate-300 text-xs font-bold text-slate-900">
+                                    <td colSpan={3} className="py-2.5 px-4 text-right">
+                                      Total Nilai {indexLabelMap.get(idxGroup.indexCode) ?? idxGroup.indexCode}:
+                                    </td>
+                                    <td className="py-2.5 px-4 text-right font-mono font-extrabold text-blue-950">
+                                      <div>{formatIDR(idxGroup.subtotal)}</div>
+                                      {idxPendingCount > 0 && (
+                                        <div className="text-[10px] text-amber-600 font-normal">
+                                          *Total sementara ({idxPendingCount} pending)
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td></td>
+                                  </tr>
+                                );
+                              })()}
                             </React.Fragment>
                           );
                         })}
@@ -1988,7 +2137,14 @@ const CalculationPageContent: React.FC = () => {
                       <tfoot>
                         <tr className="bg-slate-900 text-white font-bold text-xs">
                           <td colSpan={3} className="py-3.5 px-4 text-right">
-                            Grand Total — {activeCard?.category} ({activeCard?.nameId}) ({groupedByIndex.length} Indeks • {breakdownRows.length} Komponen):
+                            <div className="font-bold">
+                              Grand Total — {activeCard?.category} ({activeCard?.nameId}) ({groupedByIndex.length} Indeks • {breakdownRows.length} Komponen):
+                            </div>
+                            {breakdownRows.some((r) => r.isPendingQuantity) && (
+                              <div className="text-[11px] font-normal text-amber-300 mt-0.5">
+                                *Total sementara ({breakdownRows.filter((r) => r.isPendingQuantity).length} komoditas menunggu data kuantitas)
+                              </div>
+                            )}
                           </td>
                           <td className="py-3.5 px-4 text-right font-mono text-sm text-emerald-400 font-extrabold">
                             {formatIDR(totalBreakdown)}

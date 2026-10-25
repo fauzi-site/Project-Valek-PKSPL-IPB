@@ -139,8 +139,12 @@ export const AdminTopbar = ({
       }
     }
 
-    // Polling fallback every 20 seconds
-    const interval = setInterval(fetchNotifications, 20000);
+    // Polling fallback every 30 seconds if visible
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchNotifications();
+      }
+    }, 30000);
 
     return () => {
       isMounted = false;

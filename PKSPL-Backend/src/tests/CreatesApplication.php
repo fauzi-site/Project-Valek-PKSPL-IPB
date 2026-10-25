@@ -17,6 +17,11 @@ trait CreatesApplication
 
         $app->make(Kernel::class)->bootstrap();
 
+        if ($app->environment('testing')) {
+            config(['database.default' => 'sqlite']);
+            config(['database.connections.sqlite.database' => ':memory:']);
+        }
+
         return $app;
     }
 }

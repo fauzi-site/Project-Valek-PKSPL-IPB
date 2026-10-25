@@ -49,8 +49,8 @@ class ConversationResource extends JsonResource
 
         $avatarBg = match ($roleName) {
             'Analyst' => 'from-amber-600 to-rose-600',
+            'Super Admin', 'Admin', 'Administrator' => 'from-purple-600 to-indigo-600',
             'Peneliti' => 'from-blue-600 to-indigo-600',
-            'Admin', 'Administrator' => 'from-purple-600 to-indigo-600',
             default => 'from-slate-600 to-slate-800',
         };
 

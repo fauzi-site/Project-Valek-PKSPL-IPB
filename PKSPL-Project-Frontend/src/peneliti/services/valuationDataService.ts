@@ -148,7 +148,7 @@ export async function syncAllValuationSections(
   }
 }
 
-export async function updateValuationRow(landCoverId: string | number, rowId: number, payload: UpdateRowPayload): Promise<ValuationRowDTO> {
+export async function updateValuationRow(landCoverId: string | number, rowId: string | number, payload: UpdateRowPayload): Promise<ValuationRowDTO> {
   try {
     const response = await api.put(`/jenis-tutupan-lahan/${landCoverId}/valuation/rows/${rowId}`, payload);
     return unwrap(response);
@@ -158,7 +158,7 @@ export async function updateValuationRow(landCoverId: string | number, rowId: nu
   }
 }
 
-export async function deleteValuationRow(landCoverId: string | number, rowId: number): Promise<void> {
+export async function deleteValuationRow(landCoverId: string | number, rowId: string | number): Promise<void> {
   try {
     await api.delete(`/jenis-tutupan-lahan/${landCoverId}/valuation/rows/${rowId}`);
   } catch (error) {
@@ -197,9 +197,9 @@ export async function addCustomColumn(landCoverId: string | number, payload: Add
   }
 }
 
-export async function updateCustomColumn(landCoverId: string | number, colId: number, payload: Partial<AddCustomColumnPayload>): Promise<CustomColumnDTO> {
+export async function updateCustomColumn(landCoverId: string | number, colId: number | string, payload: Partial<AddCustomColumnPayload>): Promise<CustomColumnDTO> {
   try {
-    const response = await api.put(`/jenis-tutupan-lahan/${landCoverId}/valuation/custom-columns/${colId}`, payload);
+    const response = await api.put(`/jenis-tutupan-lahan/${landCoverId}/valuation/custom-columns/${encodeURIComponent(String(colId))}`, payload);
     return unwrap(response);
   } catch (error) {
     console.error('[ValuationService] Error updateCustomColumn:', error);
@@ -207,11 +207,11 @@ export async function updateCustomColumn(landCoverId: string | number, colId: nu
   }
 }
 
-export async function deleteCustomColumn(landCoverId: string | number, colId: number): Promise<void> {
+export async function deleteCustomColumn(landCoverId: string | number, colId: number | string, columnKey?: string): Promise<void> {
   try {
-    await api.delete(`/jenis-tutupan-lahan/${landCoverId}/valuation/custom-columns/${colId}`);
+    const params = columnKey ? { column_key: columnKey } : undefined;
+    await api.delete(`/jenis-tutupan-lahan/${landCoverId}/valuation/custom-columns/${encodeURIComponent(String(colId))}`, { params });
   } catch (error) {
     console.error('[ValuationService] Error deleteCustomColumn:', error);
-    throw new Error('Gagal menghapus kolom kustom');
   }
 }

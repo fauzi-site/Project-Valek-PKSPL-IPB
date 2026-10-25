@@ -23,6 +23,7 @@ interface SpreadsheetContextType {
   lastSavedText: string;
   isOffline: boolean;
   saveError: boolean;
+  hydrateAreaFromBackend: (projectId: string, areaId: string) => Promise<void>;
   syncProjectToBackend: (projectId: string, targetAreaId?: string, alternateProjectId?: string) => Promise<number>;
   getRows: (projectId: string, areaId: string, serviceId: string, methodId: string, biota?: string) => Record<string, any>[];
   getRowsForAreaService: (
@@ -65,7 +66,7 @@ interface SpreadsheetContextType {
     serviceId: string,
     methodId: string,
     biota: string | undefined,
-    column: { label: string; type: CustomColumnType; required?: boolean }
+    column: { label: string; type: CustomColumnType; required?: boolean; key?: string; id?: string }
   ) => void;
   updateCustomColumn: (
     projectId: string,
@@ -82,7 +83,8 @@ interface SpreadsheetContextType {
     serviceId: string,
     methodId: string,
     biota: string | undefined,
-    columnId: string
+    columnId: string,
+    columnKey?: string
   ) => void;
   addMultipleCustomColumns: (
     projectId: string,
@@ -111,7 +113,10 @@ export const isStaticMockRow = (r: Record<string, any>): boolean => {
   return false;
 };
 
-const SpreadsheetContext = createContext<SpreadsheetContextType | undefined>(undefined);
+// Ensure React Context survives Vite HMR so consumers don't disconnect from Provider
+const SpreadsheetContext =
+  (globalThis as any).__PKSPL_SpreadsheetContext ||
+  ((globalThis as any).__PKSPL_SpreadsheetContext = createContext<SpreadsheetContextType | undefined>(undefined));
 
 export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Store format: key = `${projectId}_${areaId}_${serviceId}_${methodId}_${biota || 'none'}` -> rows: Record<string, any>[]
@@ -134,6 +139,11 @@ export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return cleaned;
   });
 
+  const storeRef = useRef(store);
+  useEffect(() => {
+    storeRef.current = store;
+  }, [store]);
+
   // Custom columns store format: key = `${projectId}_${areaId}_${serviceId}_${methodId}_${biota || 'none'}` -> CustomColumnDefinition[]
   const [customColumnsStore, setCustomColumnsStore] = useState<Record<string, CustomColumnDefinition[]>>(() => {
     return loadFromStorage<Record<string, CustomColumnDefinition[]>>(STORAGE_KEY_CUSTOM_COLS, {});
@@ -146,19 +156,123 @@ export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const [backendRowIds, setBackendRowIds] = useState<Record<string, number>>({});
 
-  const loadRowsFromBackend = useCallback(async (
-    landCoverId: string,
-    serviceId: string,
-    methodId: string,
-    biota?: string
+  const hydrateAreaFromBackend = useCallback(async (
+    projectId: string,
+    areaId: string
   ) => {
-    if (!landCoverId || isNaN(Number(landCoverId))) return;
+    if (!areaId || isNaN(Number(areaId)) || Number(areaId) <= 0) return;
     try {
-      const result = await getValuationRows(landCoverId, { service_id: serviceId, method_id: methodId, biota });
-      // We don't overwrite local store completely to keep it simple, but we map the IDs if possible, 
-      // or we just trust localStorage as primary for now in this offline-first setup.
+      const result = await getValuationRows(areaId, {});
+      const backendRows = result?.rows || [];
+      const backendCustomCols = result?.custom_columns || [];
+
+      // 1. Hydrate rows
+      if (Array.isArray(backendRows) && backendRows.length > 0) {
+        setStore(prevStore => {
+          let changed = false;
+          const newStore = { ...prevStore };
+          const idMap: Record<string, number> = {};
+
+          // Group rows by service_id, method_id, biota
+          const groups: Record<string, Record<string, any>[]> = {};
+          backendRows.forEach(br => {
+            const sId = br.service_id;
+            const mId = br.method_id;
+            const b = br.biota || 'none';
+            const k = makeKey(projectId, areaId, sId, mId, b);
+            if (!groups[k]) groups[k] = [];
+
+            const rowData = br.row_data || {};
+            const rowId = rowData.id || `BACKEND-ROW-${br.id}`;
+            idMap[rowId] = br.id;
+
+            groups[k].push({
+              ...rowData,
+              id: rowId,
+              totalNilai: br.total_nilai !== undefined && br.total_nilai !== null ? Number(br.total_nilai) : rowData.totalNilai,
+            });
+          });
+
+          Object.entries(groups).forEach(([k, groupRows]) => {
+            const existing = newStore[k] || [];
+            if (groupRows.length > 0) {
+              const updatedGroup = groupRows.map(br => {
+                const matchedLocal = existing.find(er => er.id === br.id || (er.no && br.no && er.no === br.no));
+                if (matchedLocal) {
+                  return {
+                    ...matchedLocal,
+                    ...br,
+                    jumlah: br.jumlah !== undefined ? br.jumlah : matchedLocal.jumlah,
+                    produktivitas: br.produktivitas !== undefined ? br.produktivitas : matchedLocal.produktivitas,
+                  };
+                }
+                return br;
+              });
+              const localOnly = existing.filter(er => 
+                !isStaticMockRow(er) && 
+                !groupRows.some(br => br.id === er.id || (er.no && br.no && er.no === br.no))
+              );
+              newStore[k] = [...updatedGroup, ...localOnly];
+              changed = true;
+            }
+          });
+
+          setBackendRowIds(prev => ({ ...prev, ...idMap }));
+
+          if (changed) {
+            saveToStorage(STORAGE_KEY, newStore);
+            return newStore;
+          }
+          return prevStore;
+        });
+      }
+
+      // 2. Hydrate custom columns
+      if (Array.isArray(backendCustomCols)) {
+        setCustomColumnsStore(prevColsStore => {
+          const areaPrefix = `${projectId}_${areaId}_`;
+          const newColsStore = { ...prevColsStore };
+
+          // Reset existing keys for this area so backend is the authoritative source of truth on refresh
+          Object.keys(newColsStore).forEach(k => {
+            if (k.startsWith(areaPrefix)) {
+              delete newColsStore[k];
+            }
+          });
+
+          backendCustomCols.forEach((col: any) => {
+            const sId = col.service_id;
+            const mId = col.method_id;
+            const colDef: CustomColumnDefinition = {
+              id: String(col.id || col.column_key),
+              key: col.column_key,
+              label: col.label,
+              type: (col.type === 'decimal' || col.type === 'integer' ? 'number' : col.type || 'text') as CustomColumnType,
+              required: Boolean(col.is_required),
+              isCustom: true,
+            };
+
+            if (sId === 'provisioning' && (!col.biota || col.biota === 'none')) {
+              const kFlora = makeKey(projectId, areaId, sId, mId, 'flora');
+              const kFauna = makeKey(projectId, areaId, sId, mId, 'fauna');
+              if (!newColsStore[kFlora]) newColsStore[kFlora] = [];
+              if (!newColsStore[kFauna]) newColsStore[kFauna] = [];
+              if (!newColsStore[kFlora].some(c => c.key === colDef.key)) newColsStore[kFlora].push(colDef);
+              if (!newColsStore[kFauna].some(c => c.key === colDef.key)) newColsStore[kFauna].push(colDef);
+            } else {
+              const b = col.biota || 'none';
+              const k = makeKey(projectId, areaId, sId, mId, b);
+              if (!newColsStore[k]) newColsStore[k] = [];
+              if (!newColsStore[k].some(c => c.key === colDef.key)) newColsStore[k].push(colDef);
+            }
+          });
+
+          saveToStorage(STORAGE_KEY_CUSTOM_COLS, newColsStore);
+          return newColsStore;
+        });
+      }
     } catch (err) {
-      console.warn('[ValuationData] Gagal load dari backend:', err);
+      console.warn('[ValuationData] Gagal hydrateAreaFromBackend:', err);
     }
   }, []);
 
@@ -550,7 +664,8 @@ export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
     ];
     const sectionsByArea: Record<string, SyncAllSectionPayload[]> = {};
 
-    Object.keys(store).forEach(k => {
+    const currentStore = storeRef.current;
+    Object.keys(currentStore).forEach(k => {
       const parts = k.split('_');
       const aId = parts[1];
 
@@ -563,7 +678,7 @@ export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const sId = parts[2];
       const mId = parts[3];
       const b = parts[4] || 'none';
-      const rawRows = store[k] || [];
+      const rawRows = currentStore[k] || [];
       const validRows = rawRows.filter(r => !isStaticMockRow(r) && r.item && String(r.item).trim() !== '');
 
       if (validRows.length > 0) {
@@ -598,7 +713,7 @@ export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
 
     return totalSynced;
-  }, [store]);
+  }, []);
 
   const getTotalEconomicValue = useCallback((projectId: string, areaId: string = 'lc-01'): number => {
     if (!projectId) return 0;
@@ -649,16 +764,16 @@ export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
     serviceId: string,
     methodId: string,
     biota: string | undefined,
-    column: { label: string; type: CustomColumnType; required?: boolean }
+    column: { label: string; type: CustomColumnType; required?: boolean; key?: string; id?: string }
   ) => {
     const key = makeKey(projectId, areaId, serviceId, methodId, biota);
-    const existing = customColumnsStore[key] || [];
 
     const rawKey = column.label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
-    const uniqueKey = `c_${rawKey || 'col'}_${Date.now().toString(36)}`;
+    const uniqueKey = column.key || `c_${rawKey || 'col'}_${Date.now().toString(36)}`;
+    const colId = column.id || `col-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
 
     const newCol: CustomColumnDefinition = {
-      id: `col-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      id: colId,
       key: uniqueKey,
       label: column.label,
       type: column.type,
@@ -666,12 +781,33 @@ export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
       isCustom: true,
     };
 
-    const nextCols = [...existing, newCol];
-    const nextColsStore = { ...customColumnsStore, [key]: nextCols };
-    setCustomColumnsStore(nextColsStore);
-    saveToStorage(STORAGE_KEY_CUSTOM_COLS, nextColsStore);
+    setCustomColumnsStore(prevColsStore => {
+      const existing = prevColsStore[key] || [];
+      const filtered = existing.filter(c => c.key !== uniqueKey && c.id !== colId);
+      const nextColsStore = { ...prevColsStore, [key]: [...filtered, newCol] };
+      saveToStorage(STORAGE_KEY_CUSTOM_COLS, nextColsStore);
+      return nextColsStore;
+    });
+
     setLastSavedText(`Tersimpan otomatis • ${formatTime()}`);
-  }, [customColumnsStore]);
+
+    if (areaId && !isNaN(Number(areaId)) && Number(areaId) > 0) {
+      const backendType: 'text' | 'integer' | 'decimal' | 'date' | 'boolean' =
+        column.type === 'number' || column.type === 'currency' ? 'decimal' : 'text';
+
+      apiAddCustomColumn(areaId, {
+        service_id: serviceId,
+        method_id: methodId,
+        biota: biota && biota !== 'none' ? biota : undefined,
+        column_key: uniqueKey,
+        label: column.label,
+        type: backendType,
+        is_required: column.required ?? false,
+      }).catch(err => {
+        console.warn('[ValuationData] Gagal menyimpan custom column ke backend:', err);
+      });
+    }
+  }, []);
 
   const updateCustomColumn = useCallback((
     projectId: string,
@@ -683,18 +819,34 @@ export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
     updates: Partial<CustomColumnDefinition>
   ) => {
     const key = makeKey(projectId, areaId, serviceId, methodId, biota);
-    const existing = customColumnsStore[key] || [];
 
-    const nextCols = existing.map(c => {
-      if (c.id !== columnId && c.key !== columnId) return c;
-      return { ...c, ...updates };
+    setCustomColumnsStore(prevColsStore => {
+      const existing = prevColsStore[key] || [];
+      const nextCols = existing.map(c => {
+        if (c.id !== columnId && c.key !== columnId) return c;
+        return { ...c, ...updates };
+      });
+      const nextColsStore = { ...prevColsStore, [key]: nextCols };
+      saveToStorage(STORAGE_KEY_CUSTOM_COLS, nextColsStore);
+      return nextColsStore;
     });
 
-    const nextColsStore = { ...customColumnsStore, [key]: nextCols };
-    setCustomColumnsStore(nextColsStore);
-    saveToStorage(STORAGE_KEY_CUSTOM_COLS, nextColsStore);
     setLastSavedText(`Tersimpan otomatis • ${formatTime()}`);
-  }, [customColumnsStore]);
+
+    if (areaId && !isNaN(Number(areaId)) && Number(areaId) > 0) {
+      const backendType = updates.type
+        ? (updates.type === 'number' || updates.type === 'currency' ? 'decimal' : 'text')
+        : undefined;
+
+      apiUpdateCustomColumn(areaId, columnId, {
+        label: updates.label,
+        type: backendType,
+        is_required: updates.required,
+      }).catch(err => {
+        console.warn('[ValuationData] Gagal mengupdate custom column ke backend:', err);
+      });
+    }
+  }, []);
 
   const deleteCustomColumn = useCallback((
     projectId: string,
@@ -702,34 +854,45 @@ export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
     serviceId: string,
     methodId: string,
     biota: string | undefined,
-    columnId: string
+    columnId: string,
+    columnKey?: string
   ) => {
     const key = makeKey(projectId, areaId, serviceId, methodId, biota);
-    const existing = customColumnsStore[key] || [];
-    const target = existing.find(c => c.id === columnId || c.key === columnId);
+    let resolvedTargetKey = columnKey;
 
-    if (!target) return;
-
-    // 1. Immediately delete from customColumnsStore and persistent storage
-    const nextCols = existing.filter(c => c.id !== columnId && c.key !== columnId);
-    const nextColsStore = { ...customColumnsStore, [key]: nextCols };
-    setCustomColumnsStore(nextColsStore);
-    saveToStorage(STORAGE_KEY_CUSTOM_COLS, nextColsStore);
-
-    // 2. Immediately clean up cell values for this custom column across all rows in store
-    const currentRows = getRows(projectId, areaId, serviceId, methodId, biota);
-    const targetKey = target.key;
-    const updatedRows = currentRows.map(r => {
-      const copy = { ...r };
-      delete copy[targetKey];
-      return copy;
+    setCustomColumnsStore(prevColsStore => {
+      const existing = prevColsStore[key] || [];
+      const target = existing.find(c => c.id === columnId || c.key === columnId || (columnKey && c.key === columnKey));
+      if (target?.key) {
+        resolvedTargetKey = target.key;
+      }
+      const nextCols = existing.filter(c => c.id !== columnId && c.key !== columnId && (!columnKey || c.key !== columnKey));
+      const nextColsStore = { ...prevColsStore, [key]: nextCols };
+      saveToStorage(STORAGE_KEY_CUSTOM_COLS, nextColsStore);
+      return nextColsStore;
     });
 
-    const nextStore = { ...store, [key]: updatedRows };
-    setStore(nextStore);
-    saveToStorage(STORAGE_KEY, nextStore);
+    const effectiveKey = resolvedTargetKey || columnKey || columnId;
+    setStore(prevStore => {
+      const currentRows = prevStore[key] || [];
+      const updatedRows = currentRows.map(r => {
+        const copy = { ...r };
+        delete copy[effectiveKey];
+        return copy;
+      });
+      const nextStore = { ...prevStore, [key]: updatedRows };
+      saveToStorage(STORAGE_KEY, nextStore);
+      return nextStore;
+    });
+
     setLastSavedText(`Tersimpan otomatis • ${formatTime()}`);
-  }, [customColumnsStore, store, getRows]);
+
+    if (areaId && !isNaN(Number(areaId)) && Number(areaId) > 0) {
+      apiDeleteCustomColumn(areaId, columnId, effectiveKey).catch(err => {
+        console.warn('[ValuationData] Gagal menghapus custom column dari backend:', err);
+      });
+    }
+  }, []);
 
   const addMultipleCustomColumns = useCallback((
     projectId: string,
@@ -740,33 +903,57 @@ export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
     newCols: { label: string; type?: CustomColumnType; required?: boolean }[]
   ) => {
     const key = makeKey(projectId, areaId, serviceId, methodId, biota);
-    const existing = customColumnsStore[key] || [];
 
-    const colsToAdd: CustomColumnDefinition[] = [];
-    newCols.forEach((col, idx) => {
-      const isDuplicate = existing.some(e => e.label.toLowerCase() === col.label.toLowerCase()) ||
-                          colsToAdd.some(a => a.label.toLowerCase() === col.label.toLowerCase());
-      if (!isDuplicate) {
-        const rawKey = col.label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
-        const uniqueKey = `c_${rawKey || 'col'}_${Date.now().toString(36)}_${idx}`;
-        colsToAdd.push({
-          id: `col-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
-          key: uniqueKey,
-          label: col.label,
-          type: col.type || 'text',
-          required: col.required ?? false,
-          isCustom: true,
+    setCustomColumnsStore(prevColsStore => {
+      const existing = prevColsStore[key] || [];
+      const colsToAdd: CustomColumnDefinition[] = [];
+
+      newCols.forEach((col, idx) => {
+        const isDuplicate = existing.some(e => e.label.toLowerCase() === col.label.toLowerCase()) ||
+                            colsToAdd.some(a => a.label.toLowerCase() === col.label.toLowerCase());
+        if (!isDuplicate) {
+          const rawKey = col.label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+          const uniqueKey = `c_${rawKey || 'col'}_${Date.now().toString(36)}_${idx}`;
+          colsToAdd.push({
+            id: `col-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
+            key: uniqueKey,
+            label: col.label,
+            type: col.type || 'text',
+            required: col.required ?? false,
+            isCustom: true,
+          });
+        }
+      });
+
+      if (colsToAdd.length === 0) return prevColsStore;
+
+      const nextColsStore = { ...prevColsStore, [key]: [...existing, ...colsToAdd] };
+      saveToStorage(STORAGE_KEY_CUSTOM_COLS, nextColsStore);
+
+      if (areaId && !isNaN(Number(areaId)) && Number(areaId) > 0) {
+        colsToAdd.forEach(c => {
+          const backendType: 'text' | 'integer' | 'decimal' | 'date' | 'boolean' =
+            c.type === 'number' || c.type === 'currency' ? 'decimal' : 'text';
+
+          apiAddCustomColumn(areaId, {
+            service_id: serviceId,
+            method_id: methodId,
+            biota: biota && biota !== 'none' ? biota : undefined,
+            column_key: c.key,
+            label: c.label,
+            type: backendType,
+            is_required: c.required ?? false,
+          }).catch(err => {
+            console.warn('[ValuationData] Gagal menyimpan custom column ke backend:', err);
+          });
         });
       }
+
+      return nextColsStore;
     });
 
-    if (colsToAdd.length > 0) {
-      const nextColsStore = { ...customColumnsStore, [key]: [...existing, ...colsToAdd] };
-      setCustomColumnsStore(nextColsStore);
-      saveToStorage(STORAGE_KEY_CUSTOM_COLS, nextColsStore);
-      setLastSavedText(`Tersimpan otomatis • ${formatTime()}`);
-    }
-  }, [customColumnsStore]);
+    setLastSavedText(`Tersimpan otomatis • ${formatTime()}`);
+  }, []);
 
   const retrySave = () => {
     triggerAutosave(store);
@@ -783,6 +970,7 @@ export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
         lastSavedText,
         isOffline,
         saveError,
+        hydrateAreaFromBackend,
         syncProjectToBackend,
         rows,
         getRows,
@@ -815,4 +1003,8 @@ export const useSpreadsheet = (): SpreadsheetContextType => {
     throw new Error('useSpreadsheet must be used within a SpreadsheetProvider');
   }
   return ctx;
+};
+
+export const useSpreadsheetSafely = (): SpreadsheetContextType | null => {
+  return useContext(SpreadsheetContext) || null;
 };

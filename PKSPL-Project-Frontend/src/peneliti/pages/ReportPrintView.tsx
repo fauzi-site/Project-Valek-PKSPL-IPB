@@ -781,6 +781,17 @@ export const ReportPrintView: React.FC = () => {
                 <span className="font-mono text-slate-800 flex-1">{formatDate(new Date().toISOString())}</span>
               </div>
             </div>
+
+            {currentProject?.description && (
+              <div className="pt-2 border-t border-slate-200 col-span-1 sm:col-span-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                  Deskripsi &amp; Catatan Survei Lapangan:
+                </span>
+                <p className="text-[11px] text-slate-700 leading-relaxed whitespace-pre-line">
+                  {currentProject.description}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

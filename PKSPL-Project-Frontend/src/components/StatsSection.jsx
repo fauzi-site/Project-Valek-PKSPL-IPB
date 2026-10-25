@@ -72,7 +72,6 @@ export const StatsSection = () => {
           period: m,
           label: `${m} ${selectedYear}`,
           projects: 0,
-          completed: 0,
           tev: 0,
           areaHa: 0
         }));
@@ -81,7 +80,6 @@ export const StatsSection = () => {
         name: item.name || item.period,
         label: item.label || `${item.period} ${selectedYear}`,
         projects: item.projects ?? item.proyekBaru ?? item.count ?? 0,
-        completed: item.proyekSelesai ?? item.completed ?? 0,
         tev: item.akumulasiTevMiliar ?? item.tev ?? 0,
         areaHa: item.luasHa ?? 0
       }));
@@ -91,7 +89,6 @@ export const StatsSection = () => {
         name: item.name || item.period,
         label: item.label || `Tahun ${item.period}`,
         projects: item.projects ?? item.proyekBaru ?? item.count ?? 0,
-        completed: item.proyekSelesai ?? item.completed ?? 0,
         tev: item.akumulasiTevMiliar ?? item.tev ?? 0,
         areaHa: item.luasHa ?? 0
       }));
@@ -172,15 +169,6 @@ export const StatsSection = () => {
             </span>
             <span className="font-bold text-white font-mono">{data.projects} Program</span>
           </div>
-          {data.completed > 0 && (
-            <div className="flex items-center justify-between text-slate-300">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                <span>Disetujui:</span>
-              </span>
-              <span className="font-bold text-emerald-300 font-mono">{data.completed} Program</span>
-            </div>
-          )}
           {data.tev > 0 && (
             <div className="flex items-center justify-between text-slate-300">
               <span className="flex items-center gap-1.5">

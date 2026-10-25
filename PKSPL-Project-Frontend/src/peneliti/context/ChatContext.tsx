@@ -38,7 +38,10 @@ interface ChatContextType {
   clearError: () => void;
 }
 
-const ChatContext = createContext<ChatContextType | undefined>(undefined);
+// Ensure React Context survives Vite HMR so consumers don't disconnect from Provider
+const ChatContext =
+  (globalThis as any).__PKSPL_ChatContext ||
+  ((globalThis as any).__PKSPL_ChatContext = createContext<ChatContextType | undefined>(undefined));
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth() || {};
@@ -156,7 +159,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [activeConversationId, currentUserId]);
 
-  // Polling fallback every 10 seconds if visible
+  // Polling fallback every 30 seconds if visible (WebSocket handles real-time events)
   useEffect(() => {
     const pollInterval = setInterval(async () => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
@@ -175,7 +178,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // ignore
         }
       }
-    }, 10000);
+    }, 30000);
 
     return () => clearInterval(pollInterval);
   }, [currentUserId, activeConversationId]);

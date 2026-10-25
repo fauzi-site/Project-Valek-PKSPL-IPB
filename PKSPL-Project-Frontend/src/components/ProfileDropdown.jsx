@@ -21,10 +21,11 @@ const ProfileDropdown = ({ isScrolled = false }) => {
   const roleName = user?.role?.nama_role || (typeof user?.role === 'string' ? user?.role : '');
   const normalizedRole = roleName.toLowerCase();
   const isAdminRole = ['super admin', 'admin', 'administrator'].includes(normalizedRole);
-  const dashboardPath = isAdminRole ? '/admin' : '/peneliti/projects';
+  const isPenelitiRole = normalizedRole === 'peneliti';
+  const dashboardPath = isAdminRole ? '/admin' : (isPenelitiRole ? '/peneliti/projects' : null);
   const dashboardLabel = isAdminRole
     ? t('nav.adminDashboard', { ns: 'common', defaultValue: 'Dashboard Admin' })
-    : t('nav.researcherDashboard', { ns: 'common', defaultValue: 'Dashboard Peneliti' });
+    : (isPenelitiRole ? t('nav.researcherDashboard', { ns: 'common', defaultValue: 'Dashboard Peneliti' }) : null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {

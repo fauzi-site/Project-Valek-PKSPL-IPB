@@ -22,10 +22,11 @@ const Navbar = () => {
   const roleName = user?.role?.nama_role || (typeof user?.role === 'string' ? user?.role : '');
   const normalizedRole = roleName.toLowerCase();
   const isAdminRole = ['super admin', 'admin', 'administrator'].includes(normalizedRole);
-  const dashboardPath = isAdminRole ? '/admin' : '/peneliti/projects';
+  const isPenelitiRole = normalizedRole === 'peneliti';
+  const dashboardPath = isAdminRole ? '/admin' : (isPenelitiRole ? '/peneliti/projects' : null);
   const dashboardLabel = isAdminRole
     ? t('nav.adminDashboard', { defaultValue: 'Dashboard Admin' })
-    : t('nav.researcherDashboard', { defaultValue: 'Dashboard Peneliti' });
+    : (isPenelitiRole ? t('nav.researcherDashboard', { defaultValue: 'Dashboard Peneliti' }) : null);
 
   const handleLogout = async () => {
     await logout();

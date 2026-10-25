@@ -13,10 +13,16 @@ import {
   ChevronDown,
   Calendar,
   X,
+  Search,
+  GitCompare,
+  CheckSquare,
+  Square,
+  Info,
+  ArrowRight,
+  TrendingUp,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { categories, getCategoryInfo, PROVINCE_GEOJSON_URL } from './map/mapData';
-import indonesia38Geojson from '../data/indonesia-38-provinces.json';
 import { getPublicMapProjects } from '../services/projectService';
 import { MAP_CONFIG } from '../peneliti/config/mapConfig';
 
@@ -28,69 +34,148 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
+const formatCreatedDate = (dateString, formattedFallback = null) => {
+  if (formattedFallback && formattedFallback !== 'Belum tersedia') {
+    return formattedFallback;
+  }
+  if (!dateString) return 'Belum tersedia';
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return 'Belum tersedia';
+  return d.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+};
+
+const getYearColor = (year) => {
+  switch (Number(year)) {
+    case 2026: return '#2563eb'; // blue
+    case 2025: return '#d97706'; // amber
+    case 2024: return '#059669'; // emerald
+    case 2023: return '#7c3aed'; // violet
+    default: return '#0284c7';
+  }
+};
+
 // Cache for marker icons to avoid DOM/Icon recreations
 const markerIconCache = new Map();
 
 /**
- * Creates sleek, institutional GIS marker icons:
- * - Zoom <= 5: 22px compact dot badge with white border and category color
- * - Zoom >= 6: 25x32px teardrop pin with category emoji inside
+ * Creates sleek, institutional GIS marker icons with optional year pills:
+ * - Zoom <= 5: compact dot badge
+ * - Zoom >= 6: teardrop pin with category emoji & year badge
  */
-const getMarkerIcon = (catInfo, isCompact = false, isSelected = false) => {
-  const cacheKey = `${catInfo.id}_${catInfo.color}_${isCompact ? 'compact' : 'pin'}_${isSelected ? 'sel' : 'norm'}`;
+const getMarkerIcon = (catInfo, isCompact = false, isSelected = false, year = null, showYearBadge = false, isDummy = false, isCoLocated = false) => {
+  const cacheKey = `${catInfo.id}_${catInfo.color}_${isCompact ? 'compact' : 'pin'}_${isSelected ? 'sel' : 'norm'}_${year || 'noyr'}_${showYearBadge ? 'yr' : 'noyr'}_${isDummy ? 'dum' : 'nodum'}_${isCoLocated ? 'col' : 'sing'}`;
   if (markerIconCache.has(cacheKey)) {
     return markerIconCache.get(cacheKey);
   }
+
+  const yrColor = getYearColor(year);
 
   let icon;
   if (isCompact) {
     icon = L.divIcon({
       html: `
         <div class="pkspl-dot-marker ${isSelected ? 'pkspl-marker-selected' : ''}" style="
-          width: 22px;
-          height: 22px;
+          width: 24px;
+          height: 24px;
           border-radius: 9999px;
           background-color: ${catInfo.color};
-          border: 2px solid #ffffff;
+          border: 2px solid ${showYearBadge && year ? yrColor : '#ffffff'};
           box-shadow: 0 2px 8px rgba(0,0,0,0.3);
           display: flex;
           align-items: center;
           justify-content: center;
           font-size: 10px;
           cursor: pointer;
+          position: relative;
           transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
         ">
           <span style="font-size: 9px; line-height: 1;">${catInfo.emoji || '•'}</span>
+          ${showYearBadge && year ? `
+            <span style="
+              position: absolute;
+              bottom: -5px;
+              right: -5px;
+              background-color: ${yrColor};
+              color: #ffffff;
+              font-size: 7px;
+              font-weight: 800;
+              padding: 0 2px;
+              border-radius: 4px;
+              border: 1px solid #fff;
+              line-height: 1.1;
+            ">${String(year).slice(-2)}</span>
+          ` : ''}
         </div>
       `,
       className: 'pkspl-marker-wrapper',
-      iconSize: [22, 22],
-      iconAnchor: [11, 11],
+      iconSize: [24, 24],
+      iconAnchor: [12, 12],
       popupAnchor: [0, -14],
     });
   } else {
     icon = L.divIcon({
       html: `
         <div class="pkspl-pin-marker ${isSelected ? 'pkspl-marker-selected' : ''}" style="
-          width: 26px;
-          height: 33px;
+          width: 28px;
+          height: 35px;
           display: flex;
           align-items: center;
           justify-content: center;
           cursor: pointer;
+          position: relative;
           transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
         ">
-          <svg width="26" height="33" viewBox="0 0 26 33" fill="none" class="drop-shadow-md">
+          <svg width="28" height="35" viewBox="0 0 26 33" fill="none" class="drop-shadow-md">
             <path d="M13 0C5.82 0 0 5.82 0 13C0 22.75 13 33 13 33C13 33 26 22.75 26 13C26 5.82 20.18 0 13 0Z" fill="${catInfo.color}"/>
             <circle cx="13" cy="12.5" r="7.5" fill="#ffffff"/>
             <text x="13" y="15.5" font-size="9" text-anchor="middle" dominant-baseline="central">${catInfo.emoji || ''}</text>
           </svg>
+          ${showYearBadge && year ? `
+            <span style="
+              position: absolute;
+              top: -6px;
+              right: -10px;
+              background-color: ${yrColor};
+              color: #ffffff;
+              font-size: 8px;
+              font-weight: 800;
+              line-height: 1;
+              padding: 2px 4px;
+              border-radius: 9999px;
+              border: 1.5px solid #ffffff;
+              box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+              white-space: nowrap;
+            ">${isDummy ? 'Uji · ' : ''}${year}</span>
+          ` : ''}
+          ${isCoLocated ? `
+            <span style="
+              position: absolute;
+              bottom: 2px;
+              left: -5px;
+              background-color: #0f284e;
+              color: #ffffff;
+              font-size: 8px;
+              font-weight: 800;
+              width: 14px;
+              height: 14px;
+              border-radius: 9999px;
+              border: 1.5px solid #ffffff;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            ">⇄</span>
+          ` : ''}
         </div>
       `,
       className: 'pkspl-marker-wrapper',
-      iconSize: [26, 33],
-      iconAnchor: [13, 33],
-      popupAnchor: [0, -33],
+      iconSize: [28, 35],
+      iconAnchor: [14, 35],
+      popupAnchor: [0, -35],
     });
   }
 
@@ -129,6 +214,60 @@ const getClusterIcon = (count) => {
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   });
+};
+
+/**
+ * Parses numeric area in hectares from string or number
+ */
+const parseLuas = (luasStr) => {
+  if (!luasStr) return null;
+  const cleaned = String(luasStr).replace(/\./g, '').replace(/,/g, '.');
+  const match = cleaned.match(/([\d\.]+)/);
+  if (!match) return null;
+  const val = parseFloat(match[1]);
+  return isNaN(val) ? null : val;
+};
+
+/**
+ * Calculates radial coordinate offset for co-located markers to prevent complete occlusion
+ */
+const getAdjustedCoords = (coords, index, total) => {
+  if (total <= 1 || !coords) return coords;
+  // Offset radius in degrees (~0.0024 deg is approx 260m)
+  const angle = (2 * Math.PI * index) / total;
+  const radius = 0.0024;
+  return [
+    coords[0] + radius * Math.cos(angle),
+    coords[1] + radius * Math.sin(angle),
+  ];
+};
+
+/**
+ * Identifies cross-year continuation or same research counterpart based on:
+ * 1. Matching base project code (e.g. PRJ-004 vs PRJ-004-DUMMY-2025)
+ * 2. Spatial proximity (< 0.2 degrees)
+ */
+const findCounterpart = (loc, allList) => {
+  if (!loc || !allList) return null;
+  const currentBase = loc.base_code || (loc.kode_proyek ? loc.kode_proyek.replace(/-(?:DUMMY-)?\d{4}$/i, '') : '');
+  if (!currentBase) return null;
+
+  const candidates = allList.filter(other => {
+    if (String(other.id) === String(loc.id)) return false;
+    const otherBase = other.base_code || (other.kode_proyek ? other.kode_proyek.replace(/-(?:DUMMY-)?\d{4}$/i, '') : '');
+    if (otherBase !== currentBase) return false;
+
+    // Spatial proximity check (< 0.2 deg ~ 22 km)
+    if (loc.coords && other.coords) {
+      const dLat = Math.abs(loc.coords[0] - other.coords[0]);
+      const dLng = Math.abs(loc.coords[1] - other.coords[1]);
+      if (dLat > 0.2 || dLng > 0.2) return false;
+    }
+    return true;
+  });
+
+  if (candidates.length === 0) return null;
+  return candidates[0];
 };
 
 /**
@@ -180,39 +319,48 @@ export default function MapSection() {
   const [error, setError] = useState(null);
   const [selectedLocId, setSelectedLocId] = useState(null);
   const [selectedYear, setSelectedYear] = useState(2026);
+  const [isCompareMode, setIsCompareMode] = useState(false);
+  const [compareYears, setCompareYears] = useState([2025, 2026]);
+  const [popupLocId, setPopupLocId] = useState(null);
+
   const [selectedProvinceName, setSelectedProvinceName] = useState(null);
   const selectedProvinceNameRef = useRef(null);
   selectedProvinceNameRef.current = selectedProvinceName;
 
   const geoJsonRef = useRef(null);
-  const [geojsonData, setGeojsonData] = useState(indonesia38Geojson);
+  const [geojsonData, setGeojsonData] = useState(null);
   const [currentZoom, setCurrentZoom] = useState(5);
   const [isMapReady, setIsMapReady] = useState(false);
 
   const mapRef = useRef(null);
   const markerRefs = useRef({});
 
-  // Fetch GeoJSON for province polygons with fallback to static 38-province dataset
+  // Fetch GeoJSON for province polygons with fallback to dynamic import
   useEffect(() => {
     fetch(PROVINCE_GEOJSON_URL)
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then(data => {
         if (data && data.features && data.features.length > 0) {
           setGeojsonData(data);
         }
       })
       .catch(err => {
-        console.warn('[MapSection] Fallback to bundled 38-province GeoJSON:', err);
-        setGeojsonData(indonesia38Geojson);
+        console.warn('[MapSection] Fallback to dynamic import for 38-province GeoJSON:', err);
+        import('../data/indonesia-38-provinces.json')
+          .then(mod => setGeojsonData(mod.default || mod))
+          .catch(e => console.error('[MapSection] Failed to load GeoJSON:', e));
       });
   }, []);
 
-  // Fetch projects from public API
+  // Fetch projects from public API (fetch all years upfront for instant client-side filtering)
   const fetchProjects = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await getPublicMapProjects();
+      const data = await getPublicMapProjects({ tahun: 'all' });
       const rawList = Array.isArray(data) ? data : (data?.data || []);
 
       const validProjects = rawList.filter(item => {
@@ -228,6 +376,10 @@ export default function MapSection() {
         id: String(item.id || item.id_proyek),
         tahun: Number(item.tahun) || 2026,
         coords: [parseFloat(item.latitude), parseFloat(item.longitude)],
+        created_at: item.created_at || null,
+        created_at_formatted: item.created_at_formatted || null,
+        base_code: item.base_code || (item.kode_proyek ? item.kode_proyek.replace(/-(?:DUMMY-)?\d{4}$/i, '') : ''),
+        is_dummy: Boolean(item.is_dummy || (item.nama_proyek && item.nama_proyek.includes('DUMMY')) || (item.kode_proyek && item.kode_proyek.includes('DUMMY'))),
       }));
 
       setLocations(validProjects);
@@ -244,28 +396,34 @@ export default function MapSection() {
     fetchProjects();
   }, [fetchProjects]);
 
-  // Available years: derived from dataset with logical fallback years
+  // Available years: dynamically derived from the database projects
   const availableYears = useMemo(() => {
-    const yearsInDb = locations.map(l => l.tahun).filter(Boolean);
-    const set = new Set([...yearsInDb, 2026, 2025, 2024, 2023]);
-    return Array.from(set).sort((a, b) => b - a);
+    const yearsInDb = locations
+      .map(l => Number(l.tahun))
+      .filter(y => !isNaN(y) && y > 1900);
+    const set = new Set(yearsInDb);
+    const sorted = Array.from(set).sort((a, b) => b - a);
+    return sorted.length > 0 ? sorted : [2026];
   }, [locations]);
 
-  // Set default year to the latest year available in the actual dataset
+  // Default year: latest year in DB
   const defaultYear = useMemo(() => {
-    const yearsWithData = locations.map(l => l.tahun).filter(Boolean);
-    return yearsWithData.length > 0 ? Math.max(...yearsWithData) : 2026;
-  }, [locations]);
+    return availableYears.length > 0 ? availableYears[0] : 2026;
+  }, [availableYears]);
 
   useEffect(() => {
-    if (defaultYear) {
+    if (defaultYear && selectedYear !== 'all') {
       setSelectedYear(defaultYear);
     }
   }, [defaultYear]);
 
   // Year Navigation Handlers
-  const currentYearIndex = availableYears.indexOf(selectedYear);
+  const currentYearIndex = selectedYear === 'all' ? -1 : availableYears.indexOf(Number(selectedYear));
   const handlePrevYear = () => {
+    if (selectedYear === 'all') {
+      if (availableYears.length > 0) setSelectedYear(availableYears[0]);
+      return;
+    }
     if (currentYearIndex < availableYears.length - 1) {
       setSelectedYear(availableYears[currentYearIndex + 1]);
       setSelectedLocId(null);
@@ -273,30 +431,166 @@ export default function MapSection() {
   };
 
   const handleNextYear = () => {
+    if (selectedYear === 'all') return;
     if (currentYearIndex > 0) {
       setSelectedYear(availableYears[currentYearIndex - 1]);
       setSelectedLocId(null);
     }
   };
 
-  const isPrevDisabled = currentYearIndex >= availableYears.length - 1;
-  const isNextDisabled = currentYearIndex <= 0;
+  const isPrevDisabled = selectedYear === 'all' ? false : currentYearIndex >= availableYears.length - 1;
+  const isNextDisabled = selectedYear === 'all' ? true : currentYearIndex <= 0;
 
-  // Filter locations by selected year
-  const yearLocations = useMemo(() => {
-    return locations.filter(loc => (loc.tahun || 2026) === selectedYear);
-  }, [locations, selectedYear]);
+  // Toggle year selection in Compare Mode
+  const toggleCompareYear = (yr) => {
+    if (compareYears.includes(yr)) {
+      if (compareYears.length > 1) {
+        setCompareYears(compareYears.filter(y => y !== yr));
+      }
+    } else {
+      setCompareYears([...compareYears, yr].sort((a, b) => b - a));
+    }
+    setSelectedLocId(null);
+  };
 
-  const filteredLocations = yearLocations;
+  // Filter locations to display based on mode
+  const displayedLocations = useMemo(() => {
+    if (isCompareMode) {
+      return locations.filter(loc => compareYears.includes(Number(loc.tahun)));
+    }
+    if (selectedYear === 'all') {
+      return locations;
+    }
+    return locations.filter(loc => Number(loc.tahun) === Number(selectedYear));
+  }, [locations, isCompareMode, compareYears, selectedYear]);
+
+  // Search state & hooks
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const searchContainerRef = useRef(null);
+
+  // Debounce search query (200ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery.trim().toLowerCase());
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Click outside to close search dropdown
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setIsSearchOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Search results within currently displayed locations
+  const searchResultsInActive = useMemo(() => {
+    if (!debouncedQuery) return [];
+    return displayedLocations.filter(loc => {
+      const name = (loc.name || loc.nama_proyek || '').toLowerCase();
+      const code = (loc.kode_proyek || '').toLowerCase();
+      const prov = (loc.provinsi || '').toLowerCase();
+      const kab = (loc.kabupaten || loc.kabupaten_kota || '').toLowerCase();
+      return name.includes(debouncedQuery) || code.includes(debouncedQuery) || prov.includes(debouncedQuery) || kab.includes(debouncedQuery);
+    });
+  }, [displayedLocations, debouncedQuery]);
+
+  // Search results across other years not currently active
+  const searchResultsOtherYears = useMemo(() => {
+    if (!debouncedQuery) return [];
+    if (selectedYear === 'all' && !isCompareMode) return [];
+    return locations.filter(loc => {
+      if (displayedLocations.some(d => String(d.id) === String(loc.id))) return false;
+      const name = (loc.name || loc.nama_proyek || '').toLowerCase();
+      const code = (loc.kode_proyek || '').toLowerCase();
+      const prov = (loc.provinsi || '').toLowerCase();
+      const kab = (loc.kabupaten || loc.kabupaten_kota || '').toLowerCase();
+      return name.includes(debouncedQuery) || code.includes(debouncedQuery) || prov.includes(debouncedQuery) || kab.includes(debouncedQuery);
+    });
+  }, [locations, displayedLocations, debouncedQuery, selectedYear, isCompareMode]);
+
+  // Handle program selection from search suggestions
+  const handleSelectProgram = (loc) => {
+    setIsSearchOpen(false);
+    setSearchQuery(loc.name || loc.nama_proyek);
+
+    if (isCompareMode) {
+      if (!compareYears.includes(Number(loc.tahun))) {
+        setCompareYears(prev => [...prev, Number(loc.tahun)].sort((a, b) => b - a));
+      }
+    } else if (selectedYear !== 'all' && Number(loc.tahun) !== Number(selectedYear)) {
+      setSelectedYear(Number(loc.tahun));
+    }
+
+    setSelectedLocId(loc.id);
+    setPopupLocId(loc.id);
+
+    if (mapRef.current && loc.coords) {
+      mapRef.current.flyTo(loc.coords, 10, {
+        duration: 1.2,
+      });
+    }
+
+    setTimeout(() => {
+      const marker = markerRefs.current[loc.id];
+      if (marker && typeof marker.openPopup === 'function') {
+        marker.openPopup();
+      }
+    }, 400);
+  };
+
+  // Group displayed locations by coordinate proximity (~11m tolerance)
+  const coLocatedMap = useMemo(() => {
+    const map = new Map();
+    displayedLocations.forEach(loc => {
+      if (!loc.coords) return;
+      const key = `${loc.coords[0].toFixed(4)},${loc.coords[1].toFixed(4)}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(loc);
+    });
+    return map;
+  }, [displayedLocations]);
+
+  // Prepare display coordinates and co-located metadata
+  const markersWithOffset = useMemo(() => {
+    return displayedLocations.map(loc => {
+      if (!loc.coords) return { loc, displayCoords: loc.coords, isCoLocated: false, coLocatedList: [loc] };
+      const key = `${loc.coords[0].toFixed(4)},${loc.coords[1].toFixed(4)}`;
+      const list = coLocatedMap.get(key) || [loc];
+      const isCoLocated = list.length > 1;
+      const index = list.findIndex(item => String(item.id) === String(loc.id));
+
+      const displayCoords = isCoLocated && currentZoom >= 8
+        ? getAdjustedCoords(loc.coords, index, list.length)
+        : loc.coords;
+
+      return {
+        loc,
+        displayCoords,
+        isCoLocated,
+        coLocatedList: list,
+        indexInGroup: index,
+      };
+    });
+  }, [displayedLocations, coLocatedMap, currentZoom]);
 
   // Dynamic Clustering: Groups nearby markers when zoom < 7
   const clusters = useMemo(() => {
     if (!mapRef.current || currentZoom >= 7 || !isMapReady) {
-      return filteredLocations.map(loc => ({
+      return markersWithOffset.map(item => ({
         isCluster: false,
-        loc,
-        id: loc.id,
-        coords: loc.coords,
+        loc: item.loc,
+        id: item.loc.id,
+        coords: item.displayCoords,
+        displayCoords: item.displayCoords,
+        isCoLocated: item.isCoLocated,
+        coLocatedList: item.coLocatedList,
       }));
     }
 
@@ -304,10 +598,10 @@ export default function MapSection() {
     const clusterDistanceThreshold = 55; // screen pixels
     const groups = [];
 
-    filteredLocations.forEach(loc => {
+    markersWithOffset.forEach(item => {
       let pt;
       try {
-        pt = map.latLngToLayerPoint(loc.coords);
+        pt = map.latLngToLayerPoint(item.displayCoords);
       } catch {
         pt = { x: 0, y: 0 };
       }
@@ -322,20 +616,20 @@ export default function MapSection() {
       }
 
       if (matchedGroup) {
-        matchedGroup.items.push(loc);
+        matchedGroup.items.push(item);
         const count = matchedGroup.items.length;
-        matchedGroup.latSum += loc.coords[0];
-        matchedGroup.lngSum += loc.coords[1];
+        matchedGroup.latSum += item.displayCoords[0];
+        matchedGroup.lngSum += item.displayCoords[1];
         matchedGroup.centerCoords = [matchedGroup.latSum / count, matchedGroup.lngSum / count];
         try {
           matchedGroup.centerPt = map.latLngToLayerPoint(matchedGroup.centerCoords);
         } catch {}
       } else {
         groups.push({
-          items: [loc],
-          latSum: loc.coords[0],
-          lngSum: loc.coords[1],
-          centerCoords: loc.coords,
+          items: [item],
+          latSum: item.displayCoords[0],
+          lngSum: item.displayCoords[1],
+          centerCoords: item.displayCoords,
           centerPt: pt,
         });
       }
@@ -343,16 +637,19 @@ export default function MapSection() {
 
     return groups.map((g, idx) => {
       if (g.items.length === 1) {
-        const singleLoc = g.items[0];
+        const single = g.items[0];
         return {
           isCluster: false,
-          loc: singleLoc,
-          id: singleLoc.id,
-          coords: singleLoc.coords,
+          loc: single.loc,
+          id: single.loc.id,
+          coords: single.displayCoords,
+          displayCoords: single.displayCoords,
+          isCoLocated: single.isCoLocated,
+          coLocatedList: single.coLocatedList,
         };
       }
 
-      const bounds = L.latLngBounds(g.items.map(i => i.coords));
+      const bounds = L.latLngBounds(g.items.map(i => i.displayCoords));
 
       return {
         isCluster: true,
@@ -360,26 +657,20 @@ export default function MapSection() {
         coords: g.centerCoords,
         count: g.items.length,
         bounds,
-        items: g.items,
+        items: g.items.map(i => i.loc),
       };
     });
-  }, [filteredLocations, currentZoom, isMapReady]);
+  }, [markersWithOffset, currentZoom, isMapReady]);
 
-  // Real KPI calculations based on actual data of the selected year
+  // Real KPI calculations based on displayed locations
   const totalLuasHa = useMemo(() => {
     let sum = 0;
-    yearLocations.forEach(loc => {
-      if (loc.luas) {
-        const cleaned = String(loc.luas).replace(/\./g, '').replace(/,/g, '.');
-        const match = cleaned.match(/([\d\.]+)/);
-        if (match) {
-          const val = parseFloat(match[1]);
-          if (!isNaN(val) && val > 0) sum += val;
-        }
-      }
+    displayedLocations.forEach(loc => {
+      const val = parseLuas(loc.luas);
+      if (val !== null && val > 0) sum += val;
     });
     return sum;
-  }, [yearLocations]);
+  }, [displayedLocations]);
 
 
   // Color palette for province polygons
@@ -546,61 +837,298 @@ export default function MapSection() {
           </p>
         </div>
 
-        {/* Panel PERIODE DATA (IKLI PKSPL IPB Concept) */}
-        <div className="bg-white rounded-xl border border-slate-200/90 p-4 sm:p-5 shadow-2xs mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1">
-              PERIODE DATA
-            </span>
-            <h3 className="text-base sm:text-lg font-bold text-[#0f284e] flex items-center gap-1.5 flex-wrap">
-              <span>Menampilkan Data Ekosistem Tahun</span>
-              <span className="text-blue-700 font-extrabold">{selectedYear}</span>
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Visualisasi peta berdasarkan data ekosistem dan tahun yang dipilih.
-            </p>
-          </div>
-
-          {/* Kontrol Pemilihan Tahun: ‹ [ 2026 ▼ ] › */}
-          <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
-            <button
-              onClick={handlePrevYear}
-              disabled={isPrevDisabled}
-              title="Tahun Sebelumnya"
-              className="w-9 h-9 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white text-slate-700 disabled:cursor-not-allowed flex items-center justify-center transition shadow-2xs cursor-pointer"
-              aria-label="Tahun Sebelumnya"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-
-            <div className="relative">
-              <select
-                value={selectedYear}
-                onChange={(e) => {
-                  setSelectedYear(Number(e.target.value));
-                  setSelectedLocId(null);
-                }}
-                className="appearance-none bg-slate-50 hover:bg-slate-100 border border-slate-200 font-bold text-sm text-[#0f284e] py-2 pl-3.5 pr-8 rounded-lg cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#0f284e] transition"
-              >
-                {availableYears.map(yr => (
-                  <option key={yr} value={yr}>
-                    {yr}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+        {/* Panel PERIODE DATA & PENCARIAN PROGRAM */}
+        <div className="bg-white rounded-xl border border-slate-200/90 p-4 sm:p-5 shadow-2xs mb-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            {/* Sisi Kiri: Status Periode Tahun */}
+            <div className="shrink-0">
+              <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1">
+                PERIODE DATA
+              </span>
+              <h3 className="text-base sm:text-lg font-bold text-[#0f284e] flex items-center gap-1.5 flex-wrap">
+                {isCompareMode ? (
+                  <>
+                    <span>Perbandingan Periode:</span>
+                    <span className="text-blue-700 font-extrabold">
+                      {compareYears.slice().sort((a, b) => a - b).join(' & ')}
+                    </span>
+                  </>
+                ) : selectedYear === 'all' ? (
+                  <>
+                    <span>Menampilkan Data Ekosistem:</span>
+                    <span className="text-blue-700 font-extrabold">Semua Tahun</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Menampilkan Data Ekosistem Tahun</span>
+                    <span className="text-blue-700 font-extrabold">{selectedYear}</span>
+                  </>
+                )}
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {isCompareMode
+                  ? 'Menampilkan marker multi-periode dengan penanda pembanding lintas tahun.'
+                  : selectedYear === 'all'
+                  ? 'Visualisasi seluruh program penelitian dari semua periode yang tercatat di database.'
+                  : 'Visualisasi peta spasial berdasarkan program penelitian di database.'}
+              </p>
             </div>
 
-            <button
-              onClick={handleNextYear}
-              disabled={isNextDisabled}
-              title="Tahun Berikutnya"
-              className="w-9 h-9 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white text-slate-700 disabled:cursor-not-allowed flex items-center justify-center transition shadow-2xs cursor-pointer"
-              aria-label="Tahun Berikutnya"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+            {/* Bagian Tengah: Pencarian Program Penelitian Interaktif */}
+            <div className="relative flex-1 max-w-lg w-full" ref={searchContainerRef}>
+              <div className="relative flex items-center">
+                <Search className="w-4 h-4 absolute left-3.5 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setIsSearchOpen(true);
+                  }}
+                  onFocus={() => {
+                    if (searchQuery.trim()) setIsSearchOpen(true);
+                  }}
+                  placeholder="Cari nama atau kode program (misal: Pramuka, PRJ-001)..."
+                  className="w-full bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200 rounded-lg py-2.5 pl-10 pr-9 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0f284e] focus:border-transparent transition shadow-2xs"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setIsSearchOpen(false);
+                    }}
+                    className="absolute right-2.5 p-1 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
+                    title="Hapus kata kunci pencarian"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Dropdown Hasil Pencarian Interaktif */}
+              {isSearchOpen && debouncedQuery && (
+                <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-xl shadow-xl border border-slate-200 z-[500] max-h-80 overflow-y-auto divide-y divide-slate-100 animate-in fade-in zoom-in-95 duration-150">
+                  {searchResultsInActive.length > 0 ? (
+                    <>
+                      <div className="px-3.5 py-2 bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                        <span>
+                          Program Ditemukan ({isCompareMode ? 'Perbandingan' : selectedYear === 'all' ? 'Semua Tahun' : selectedYear})
+                        </span>
+                        <span className="text-blue-600 font-semibold">{searchResultsInActive.length} Lokasi</span>
+                      </div>
+                      {searchResultsInActive.map((loc) => {
+                        const catInfo = getCategoryInfo(loc.category) || { label: 'Pesisir', color: '#3b82f6', emoji: '📍' };
+                        return (
+                          <div
+                            key={loc.id}
+                            onClick={() => handleSelectProgram(loc)}
+                            className="p-3 hover:bg-blue-50/60 transition cursor-pointer flex items-start justify-between gap-3 group"
+                          >
+                            <div className="flex items-start gap-2.5 min-w-0">
+                              <span
+                                className="w-7 h-7 rounded-lg shrink-0 flex items-center justify-center text-xs shadow-2xs mt-0.5 text-white"
+                                style={{ backgroundColor: catInfo.color }}
+                              >
+                                {catInfo.emoji}
+                              </span>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-bold text-xs sm:text-sm text-slate-900 group-hover:text-blue-700 transition">
+                                    {loc.name || loc.nama_proyek}
+                                  </span>
+                                  {loc.kode_proyek && (
+                                    <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                                      {loc.kode_proyek}
+                                    </span>
+                                  )}
+                                  <span
+                                    className="text-[10px] font-extrabold px-1.5 py-0.2 rounded text-white"
+                                    style={{ backgroundColor: getYearColor(loc.tahun) }}
+                                  >
+                                    {loc.tahun}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-500 mt-0.5 truncate flex items-center gap-1">
+                                  <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                                  <span>{loc.provinsi}</span>
+                                  <span>•</span>
+                                  <span>{loc.kabupaten || loc.kabupaten_kota}</span>
+                                  {loc.luas && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="font-medium text-slate-600">{loc.luas}</span>
+                                    </>
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.location.hash = 'project/' + loc.id;
+                              }}
+                              className="shrink-0 text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-md transition cursor-pointer"
+                            >
+                              Detail
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </>
+                  ) : (
+                    <div className="p-4 text-center">
+                      <p className="text-xs text-slate-600">
+                        Tidak ada program penelitian yang cocok dengan &quot;<strong className="text-slate-800">{searchQuery}</strong>&quot; pada tampilan ini.
+                      </p>
+                    </div>
+                  )}
+
+                  {searchResultsOtherYears.length > 0 && (
+                    <div className="p-3 bg-amber-50/50 text-left">
+                      <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider block mb-1.5">
+                        Ditemukan pada Periode Lain di Database:
+                      </span>
+                      <div className="space-y-1.5">
+                        {searchResultsOtherYears.map((loc) => (
+                          <div
+                            key={loc.id}
+                            onClick={() => handleSelectProgram(loc)}
+                            className="p-2 bg-white hover:bg-amber-100/70 border border-amber-200/70 rounded-lg transition cursor-pointer flex items-center justify-between gap-2 text-xs"
+                          >
+                            <span className="font-medium text-slate-800 truncate">
+                              {loc.name || loc.nama_proyek} ({loc.kode_proyek})
+                            </span>
+                            <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded whitespace-nowrap">
+                              Tahun {loc.tahun} (Beralih)
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Sisi Kanan: Kontrol Pemilihan Tahun & Mode Perbandingan */}
+            <div className="flex items-center gap-2 self-start lg:self-center shrink-0 flex-wrap">
+              {/* Tombol Bandingkan Tahun */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCompareMode(!isCompareMode);
+                  setSelectedLocId(null);
+                }}
+                className={`px-3 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border ${
+                  isCompareMode
+                    ? 'bg-[#0f284e] text-white border-[#0f284e] shadow-2xs'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                }`}
+                title="Bandingkan Program Antar-Tahun"
+              >
+                <GitCompare className="w-3.5 h-3.5" />
+                <span>Bandingkan Tahun</span>
+              </button>
+
+              {!isCompareMode && (
+                <>
+                  <button
+                    onClick={handlePrevYear}
+                    disabled={isPrevDisabled}
+                    title="Tahun Sebelumnya"
+                    className="w-9 h-9 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white text-slate-700 disabled:cursor-not-allowed flex items-center justify-center transition shadow-2xs cursor-pointer"
+                    aria-label="Tahun Sebelumnya"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+
+                  <div className="relative">
+                    <select
+                      value={selectedYear}
+                      onChange={(e) => {
+                        const val = e.target.value === 'all' ? 'all' : Number(e.target.value);
+                        setSelectedYear(val);
+                        setSelectedLocId(null);
+                      }}
+                      className="appearance-none bg-slate-50 hover:bg-slate-100 border border-slate-200 font-bold text-sm text-[#0f284e] py-2 pl-3.5 pr-8 rounded-lg cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#0f284e] transition"
+                    >
+                      <option value="all">Semua Tahun</option>
+                      {availableYears.map(yr => (
+                        <option key={yr} value={yr}>
+                          Tahun {yr}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+                  </div>
+
+                  <button
+                    onClick={handleNextYear}
+                    disabled={isNextDisabled}
+                    title="Tahun Berikutnya"
+                    className="w-9 h-9 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white text-slate-700 disabled:cursor-not-allowed flex items-center justify-center transition shadow-2xs cursor-pointer"
+                    aria-label="Tahun Berikutnya"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </>
+              )}
+            </div>
           </div>
+
+          {/* Sub-Panel: Pilihan Tahun Perbandingan Interaktif */}
+          {isCompareMode && (
+            <div className="w-full pt-3 mt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-semibold text-slate-600 flex items-center gap-1 text-[11px]">
+                  <GitCompare className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Pilih Tahun:</span>
+                </span>
+                {availableYears.map(yr => {
+                  const isChecked = compareYears.includes(yr);
+                  const yrColor = getYearColor(yr);
+                  const count = locations.filter(l => Number(l.tahun) === yr).length;
+                  return (
+                    <button
+                      key={yr}
+                      type="button"
+                      onClick={() => toggleCompareYear(yr)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-bold transition cursor-pointer flex items-center gap-1.5 border ${
+                        isChecked
+                          ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
+                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-full inline-block"
+                        style={{ backgroundColor: yrColor }}
+                      />
+                      <span>Tahun {yr}</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold ${
+                        isChecked ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {count} Lokasi
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Legenda visual perbandingan */}
+              <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                <span className="flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#2563eb]" /> 2026
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#d97706]" /> 2025
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="text-[10px] font-bold px-1 rounded bg-[#0f284e] text-white">⇄</span>
+                  <span>Lokasi Bertumpuk</span>
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
 
@@ -650,64 +1178,197 @@ export default function MapSection() {
               }
 
               const loc = item.loc;
-              const catInfo = getCategoryInfo(loc.category) || { label: loc.category, color: '#3b82f6', emoji: '📍' };
-              const isSelected = selectedLocId === loc.id;
+              const isCoLocated = item.isCoLocated;
+              const coLocatedList = item.coLocatedList || [loc];
+              const activeLocId = popupLocId && coLocatedList.some(c => String(c.id) === String(popupLocId))
+                ? popupLocId
+                : loc.id;
+              const activeLoc = coLocatedList.find(c => String(c.id) === String(activeLocId)) || loc;
+
+              const catInfo = getCategoryInfo(activeLoc.category) || { label: activeLoc.category, color: '#3b82f6', emoji: '📍' };
+              const isSelected = selectedLocId === activeLoc.id;
               const isCompact = currentZoom <= 5;
+              const showYearBadge = isCompareMode || selectedYear === 'all';
+              const counterpart = findCounterpart(activeLoc, locations);
 
               return (
                 <Marker
                   key={loc.id}
-                  position={loc.coords}
-                  icon={getMarkerIcon(catInfo, isCompact, isSelected)}
+                  position={item.coords}
+                  icon={getMarkerIcon(catInfo, isCompact, isSelected, activeLoc.tahun, showYearBadge, activeLoc.is_dummy, isCoLocated)}
                   ref={el => {
                     if (el) markerRefs.current[loc.id] = el;
                     else delete markerRefs.current[loc.id];
                   }}
                   eventHandlers={{
-                    click: () => setSelectedLocId(loc.id)
+                    click: () => {
+                      setSelectedLocId(activeLoc.id);
+                      setPopupLocId(activeLoc.id);
+                    }
                   }}
                 >
-                  <Popup className="custom-popup" minWidth={310}>
+                  <Popup className="custom-popup" minWidth={320}>
                     <div className="p-1">
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <span
-                          className="text-xs px-2.5 py-1 rounded-full font-medium text-white shadow-2xs inline-flex items-center gap-1"
-                          style={{ backgroundColor: catInfo.color }}
-                        >
-                          <span>{catInfo.emoji}</span> <span>{catInfo.label}</span>
-                        </span>
-                        {loc.kode_proyek && (
+                      {/* Switcher jika terdapat program bertumpuk pada lokasi yang sama */}
+                      {coLocatedList.length > 1 && (
+                        <div className="mb-2.5 p-1.5 bg-slate-100 rounded-lg flex items-center justify-between gap-1 text-xs">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase px-1 flex items-center gap-1">
+                            <GitCompare className="w-3 h-3 text-blue-600" />
+                            <span>Lokasi Bertumpuk ({coLocatedList.length}):</span>
+                          </span>
+                          <div className="flex items-center gap-1">
+                            {coLocatedList.map(c => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => {
+                                  setPopupLocId(c.id);
+                                  setSelectedLocId(c.id);
+                                }}
+                                className={`px-2 py-0.5 rounded text-[11px] font-bold cursor-pointer transition ${
+                                  String(activeLoc.id) === String(c.id)
+                                    ? 'bg-[#0f284e] text-white shadow-2xs'
+                                    : 'bg-white text-slate-700 hover:bg-slate-200'
+                                }`}
+                              >
+                                {c.tahun} {c.is_dummy ? '(Dummy)' : ''}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span
+                            className="text-xs px-2.5 py-1 rounded-full font-medium text-white shadow-2xs inline-flex items-center gap-1"
+                            style={{ backgroundColor: catInfo.color }}
+                          >
+                            <span>{catInfo.emoji}</span> <span>{catInfo.label}</span>
+                          </span>
+                          <span
+                            className="text-[11px] px-2 py-0.5 rounded-full font-bold text-white shadow-2xs"
+                            style={{ backgroundColor: getYearColor(activeLoc.tahun) }}
+                          >
+                            Tahun {activeLoc.tahun}
+                          </span>
+                          {activeLoc.is_dummy && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500 text-white shadow-2xs">
+                              DATA DUMMY
+                            </span>
+                          )}
+                        </div>
+                        {activeLoc.kode_proyek && (
                           <span className="text-[11px] font-mono px-2 py-0.5 bg-slate-100 text-slate-700 rounded font-semibold border border-slate-200">
-                            {loc.kode_proyek}
+                            {activeLoc.kode_proyek}
                           </span>
                         )}
                       </div>
-                      <h3 className="text-base font-bold text-slate-900 leading-tight mb-1.5">{loc.name || loc.nama_proyek}</h3>
-                      <p className="text-xs text-slate-600 mb-3 line-clamp-3 leading-relaxed">{loc.ringkasan}</p>
+
+                      <h3 className="text-base font-bold text-slate-900 leading-tight mb-1.5">
+                        {activeLoc.name || activeLoc.nama_proyek}
+                      </h3>
+                      <p className="text-xs text-slate-600 mb-3 line-clamp-3 leading-relaxed">
+                        {activeLoc.ringkasan}
+                      </p>
 
                       <div className="grid grid-cols-2 gap-1.5 text-xs mb-3">
                         <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
-                          <span className="block text-slate-400 text-[10px] uppercase tracking-wider font-semibold mb-0.5">Provinsi</span>
-                          <span className="font-semibold text-slate-700 truncate block text-[11px]">{loc.provinsi}</span>
+                          <span className="block text-slate-400 text-[10px] uppercase tracking-wider font-semibold mb-0.5">
+                            Provinsi
+                          </span>
+                          <span className="font-semibold text-slate-700 truncate block text-[11px]">
+                            {activeLoc.provinsi}
+                          </span>
                         </div>
                         <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
-                          <span className="block text-slate-400 text-[10px] uppercase tracking-wider font-semibold mb-0.5">Luas Area</span>
-                          <span className="font-semibold text-slate-700 text-[11px] truncate block">{loc.luas || '-'}</span>
+                          <span className="block text-slate-400 text-[10px] uppercase tracking-wider font-semibold mb-0.5">
+                            Luas Area
+                          </span>
+                          <span className="font-semibold text-slate-700 text-[11px] truncate block">
+                            {activeLoc.luas || '-'}
+                          </span>
                         </div>
                         <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
-                          <span className="block text-slate-400 text-[10px] uppercase tracking-wider font-semibold mb-0.5">Status</span>
-                          <span className="font-semibold text-slate-700 text-[11px] truncate block capitalize">{loc.status || 'Aktif'}</span>
+                          <span className="block text-slate-400 text-[10px] uppercase tracking-wider font-semibold mb-0.5">
+                            Tanggal Dibuat
+                          </span>
+                          <span className="font-semibold text-slate-700 text-[11px] truncate block">
+                            {formatCreatedDate(activeLoc.created_at, activeLoc.created_at_formatted)}
+                          </span>
                         </div>
                         <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
-                          <span className="block text-slate-400 text-[10px] uppercase tracking-wider font-semibold mb-0.5">Estimasi TEV</span>
-                          <span className="font-semibold text-slate-700 text-[11px] truncate block">{loc.tev || '-'}</span>
+                          <span className="block text-slate-400 text-[10px] uppercase tracking-wider font-semibold mb-0.5">
+                            Estimasi TEV
+                          </span>
+                          <span className="font-semibold text-slate-700 text-[11px] truncate block">
+                            {activeLoc.tev || (activeLoc.is_dummy ? 'Belum tersedia' : '-')}
+                          </span>
                         </div>
                       </div>
+
+                      {/* Card Perbandingan jika ada pasangan penelitian antar-tahun */}
+                      {counterpart && (
+                        <div className="mb-3 p-2.5 bg-gradient-to-br from-blue-50/80 to-indigo-50/50 rounded-xl border border-blue-200/80 text-xs">
+                          <div className="flex items-center justify-between gap-1 mb-1.5">
+                            <span className="font-bold text-[#0f284e] flex items-center gap-1 text-[11px]">
+                              <GitCompare className="w-3.5 h-3.5 text-blue-600" />
+                              <span>Perbandingan Antar-Tahun ({counterpart.tahun} vs {activeLoc.tahun})</span>
+                            </span>
+                            <span className="text-[10px] font-semibold text-blue-700 bg-blue-100/80 px-1.5 py-0.2 rounded">
+                              {counterpart.is_dummy || activeLoc.is_dummy ? 'Uji Banding' : 'Penelitian Lanjutan'}
+                            </span>
+                          </div>
+
+                          <div className="space-y-1 text-[11px]">
+                            {/* Perbandingan Luas */}
+                            {(() => {
+                              const l1 = parseLuas(counterpart.luas);
+                              const l2 = parseLuas(activeLoc.luas);
+                              if (l1 !== null && l2 !== null) {
+                                const diff = l2 - l1;
+                                const sign = diff > 0 ? '+' : '';
+                                return (
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-slate-600">Perubahan Luas Area:</span>
+                                    <span className="font-bold text-slate-800">
+                                      {counterpart.luas} → {activeLoc.luas}{' '}
+                                      <span className={diff > 0 ? 'text-emerald-700' : diff < 0 ? 'text-rose-700' : 'text-slate-600'}>
+                                        ({sign}{diff.toLocaleString('id-ID', { maximumFractionDigits: 2 })} Ha)
+                                      </span>
+                                    </span>
+                                  </div>
+                                );
+                              }
+                              return (
+                                <div className="flex items-center justify-between">
+                                  <span className="text-slate-600">Perubahan Luas:</span>
+                                  <span className="font-medium text-slate-500 italic">Belum tersedia</span>
+                                </div>
+                              );
+                            })()}
+
+                            {/* Perbandingan TEV */}
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-600">Perubahan TEV:</span>
+                              {activeLoc.is_dummy || counterpart.is_dummy || !activeLoc.total_tev || !counterpart.total_tev ? (
+                                <span className="font-medium text-amber-700 bg-amber-100/70 px-1.5 py-0.2 rounded text-[10px]">
+                                  Belum tersedia (Sintetis)
+                                </span>
+                              ) : (
+                                <span className="font-bold text-slate-800">
+                                  {counterpart.tev} → {activeLoc.tev}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       <button
                         onClick={(e) => {
                           e.preventDefault();
-                          window.location.hash = 'project/' + loc.id;
+                          window.location.hash = 'project/' + activeLoc.id;
                         }}
                         className="w-full flex items-center justify-center space-x-1.5 bg-[#0f284e] hover:bg-[#153a70] text-white py-2 rounded-lg transition-colors text-xs font-semibold shadow-2xs cursor-pointer"
                       >
@@ -744,7 +1405,7 @@ export default function MapSection() {
           )}
 
           {/* Empty State: Data Belum Tersedia untuk Tahun Terpilih */}
-          {yearLocations.length === 0 && !isLoading && !error && (
+          {displayedLocations.length === 0 && !isLoading && !error && (
             <div className="absolute inset-0 z-[400] bg-slate-900/10 backdrop-blur-[2px] flex items-center justify-center p-4">
               <div className="bg-white/95 backdrop-blur-md rounded-2xl p-6 border border-slate-200/90 shadow-xl text-center max-w-sm">
                 <div className="w-12 h-12 rounded-xl bg-slate-100 text-slate-600 mx-auto flex items-center justify-center mb-3">
@@ -752,13 +1413,30 @@ export default function MapSection() {
                 </div>
                 <h4 className="font-bold text-slate-800 text-base mb-1">Data Belum Tersedia</h4>
                 <p className="text-xs text-slate-600 leading-relaxed mb-4">
-                  Belum ada data ekosistem dan lokasi penelitian yang tercatat untuk periode tahun <strong>{selectedYear}</strong>.
+                  {isCompareMode ? (
+                    <>
+                      Belum ada data ekosistem untuk periode perbandingan tahun <strong>{compareYears.join(' & ')}</strong>.
+                    </>
+                  ) : selectedYear === 'all' ? (
+                    <>Belum ada data program penelitian yang tercatat di database.</>
+                  ) : (
+                    <>
+                      Belum ada data ekosistem dan lokasi penelitian yang tercatat untuk periode tahun <strong>{selectedYear}</strong>.
+                    </>
+                  )}
                 </p>
                 <button
-                  onClick={() => setSelectedYear(defaultYear)}
+                  onClick={() => {
+                    if (isCompareMode) {
+                      setIsCompareMode(false);
+                      setSelectedYear('all');
+                    } else {
+                      setSelectedYear(defaultYear);
+                    }
+                  }}
                   className="text-xs font-semibold px-4 py-2 rounded-lg bg-[#0f284e] text-white hover:bg-[#153a70] transition shadow-2xs cursor-pointer"
                 >
-                  Kembali ke Tahun {defaultYear}
+                  {isCompareMode ? 'Kembali ke Semua Tahun' : `Kembali ke Tahun ${defaultYear}`}
                 </button>
               </div>
             </div>
@@ -810,10 +1488,14 @@ export default function MapSection() {
               </div>
             </div>
             <div className="text-2xl sm:text-3xl font-extrabold text-[#0f284e] tracking-tight">
-              {isLoading ? '...' : yearLocations.length}
+              {isLoading ? '...' : displayedLocations.length}
             </div>
             <p className="text-[11px] text-slate-500 mt-1">
-              Titik lokasi pada periode {selectedYear}
+              {isCompareMode
+                ? `Titik lokasi pada periode perbandingan (${compareYears.slice().sort((a,b)=>a-b).join(' & ')})`
+                : selectedYear === 'all'
+                ? 'Titik lokasi pada seluruh periode penelitian di database'
+                : `Titik lokasi pada periode ${selectedYear}`}
             </p>
           </div>
 
@@ -828,10 +1510,14 @@ export default function MapSection() {
               </div>
             </div>
             <div className="text-2xl sm:text-3xl font-extrabold text-[#0f284e] tracking-tight">
-              {isLoading ? '...' : (yearLocations.length > 0 ? `${Math.round(totalLuasHa).toLocaleString('id-ID')} Ha` : '0 Ha')}
+              {isLoading ? '...' : (displayedLocations.length > 0 ? `${Math.round(totalLuasHa).toLocaleString('id-ID')} Ha` : '0 Ha')}
             </div>
             <p className="text-[11px] text-slate-500 mt-1">
-              Akumulasi luas wilayah kajian ({selectedYear})
+              {isCompareMode
+                ? `Akumulasi luas wilayah kajian (${compareYears.slice().sort((a,b)=>a-b).join(' & ')})`
+                : selectedYear === 'all'
+                ? 'Akumulasi luas wilayah kajian (Semua Tahun)'
+                : `Akumulasi luas wilayah kajian (${selectedYear})`}
             </p>
           </div>
 

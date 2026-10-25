@@ -1,9 +1,22 @@
 import React from 'react';
-import { useSpreadsheet } from '../../context/SpreadsheetContext';
+import { useSpreadsheetSafely } from '../../context/SpreadsheetContext';
 import { CheckCircle2, Loader2, AlertCircle, WifiOff } from 'lucide-react';
 
 export const AutosaveIndicator: React.FC = () => {
-  const { isSaving, lastSavedText, saveError, isOffline, retrySave, toggleOfflineSimulation } = useSpreadsheet();
+  const spreadsheet = useSpreadsheetSafely();
+
+  if (!spreadsheet) {
+    return (
+      <div className="flex items-center gap-2 text-xs shrink-0 whitespace-nowrap">
+        <span className="flex items-center gap-1.5 text-slate-500 bg-slate-50 px-2.5 py-1 rounded border border-slate-200">
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+          <span>Tersimpan otomatis</span>
+        </span>
+      </div>
+    );
+  }
+
+  const { isSaving, lastSavedText, saveError, isOffline, retrySave, toggleOfflineSimulation } = spreadsheet;
 
   return (
     <div className="flex items-center gap-2 text-xs shrink-0 whitespace-nowrap">
