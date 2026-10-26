@@ -1614,13 +1614,13 @@ export const DataMasterPage: React.FC = () => {
                   {selectedDetailItem.category === 'Cultural' && (
                     <>
                       <div>
-                        <span className="text-slate-500 block text-[11px]">Pengunjung Acuan:</span>
+                        <span className="text-slate-500 block text-[11px]">Pengunjung / Populasi Acuan:</span>
                         <span className="font-semibold text-slate-800">
                           {selectedDetailItem.apiData?.jumlah_pengunjung ?? 1200} org/thn
                         </span>
                       </div>
                       <div>
-                        <span className="text-slate-500 block text-[11px]">Biaya Perjalanan Rata-rata:</span>
+                        <span className="text-slate-500 block text-[11px]">Nilai per Kunjungan (biaya perjalanan, surplus konsumen, atau WTP):</span>
                         <span className="font-semibold text-slate-800">
                           {formatIDR(selectedDetailItem.apiData?.biaya_perjalanan ?? 150000)}
                         </span>

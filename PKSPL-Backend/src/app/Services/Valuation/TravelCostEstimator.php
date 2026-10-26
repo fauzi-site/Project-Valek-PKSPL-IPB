@@ -19,8 +19,13 @@ use App\Services\Valuation\Exceptions\ValuationException;
  */
 class TravelCostEstimator
 {
-    /** Minimum respondents before an estimate is worth reporting at all. */
-    public const MIN_RESPONDENTS = 10;
+    /**
+     * The estimate needs more respondents than parameters (intercept, travel cost and each covariate
+     * used); below that the regression cannot be solved. Below SAMPLE_COMFORT it can be solved but is
+     * not reliable, which is reported as a warning instead of refusing.
+     */
+    public const MIN_RESPONDENTS = 3;
+    public const SAMPLE_COMFORT = 30;
 
     private const EDUCATION_YEARS = [
         'tidak sekolah' => 0, 'sd' => 6, 'sederajat sd' => 6,
@@ -36,14 +41,15 @@ class TravelCostEstimator
 
     /**
      * @param  string  $model  poisson | negative_binomial | ols
-     * @param  array<int, string>  $covariates  any of: income, age, education, substitute
+     * @param  array<int, string>  $covariates  any of: income, age, education, substitute, trip_duration
+     * @param  float|null  $totalAnnualVisits  visits to the whole site per year; when given, the site's total value is returned too
+     * @param  string|null  $lokasi  restrict to one location's respondents; '' selects those saved without one
      */
-    public function estimate(Proyek $project, string $model, array $covariates = []): array
+    public function estimate(Proyek $project, string $model, array $covariates = [], ?float $totalAnnualVisits = null, ?string $lokasi = null): array
     {
         $rows = TcmData::where('id_proyek', $project->id_proyek)
-            ->where(function ($q) {
-                $q->whereNotNull('annual_visits');
-            })
+            ->whereNotNull('annual_visits')
+            ->when($lokasi !== null, fn ($q) => $lokasi === '' ? $q->whereNull('lokasi') : $q->where('lokasi', $lokasi))
             ->get();
 
         if ($rows->count() < self::MIN_RESPONDENTS) {
@@ -53,6 +59,7 @@ class TravelCostEstimator
                 $rows->count(),
             ));
         }
+        $n = $rows->count();
 
         $travelCosts = $rows->map(fn ($r) => (float) $r->total_travel_cost)->all();
 
@@ -78,6 +85,29 @@ class TravelCostEstimator
             }
         }
 
+        // Intercept + travel cost + the covariates that vary.
+        $parameters = 2 + count($used);
+        if ($n <= $parameters) {
+            return $this->failure(sprintf(
+                'Model memakai %d parameter (konstanta, biaya perjalanan%s) sehingga butuh minimal %d responden; saat ini %d.',
+                $parameters,
+                $used ? ', '.implode(', ', $used) : '',
+                $parameters + 1,
+                $n,
+            ));
+        }
+
+        $warnings = [];
+        if ($n < self::SAMPLE_COMFORT) {
+            $warnings[] = sprintf('Sampel kecil (%d responden; disarankan minimal %d). Hasil dapat berubah banyak bila data bertambah.', $n, self::SAMPLE_COMFORT);
+        }
+        if ($n - $parameters < 5) {
+            $warnings[] = sprintf('Derajat kebebasan hanya %d (responden %d dikurangi %d parameter). R², koefisien, dan surplus konsumen tidak dapat diandalkan.', $n - $parameters, $n, $parameters);
+        }
+        if ($dropped) {
+            $warnings[] = 'Variabel kontrol tanpa variasi dikeluarkan: '.implode(', ', $dropped).'. Lengkapi datanya agar pengaruhnya dikendalikan.';
+        }
+
         $observations = [];
         foreach ($rows->values() as $i => $row) {
             $socio = [];
@@ -93,13 +123,12 @@ class TravelCostEstimator
         }
 
         try {
-            // total_annual_visits only scales total_cs, which this estimator
-            // does not report — the analyst supplies the visitor count on the
-            // form. Passing 1 keeps the calculator's guard satisfied without
+            // total_annual_visits only scales total_cs. Without a visitor
+            // count, 1 keeps the calculator's guard satisfied without
             // affecting any coefficient or the per-visit surplus.
             $result = $this->calculator->calculateTCM([
                 'observations' => $observations,
-                'total_annual_visits' => 1,
+                'total_annual_visits' => $totalAnnualVisits ?? 1,
                 'model' => $model,
             ]);
         } catch (ValuationException $e) {
@@ -118,8 +147,12 @@ class TravelCostEstimator
             'message' => null,
             'coefficients' => $coefficients,
             'cs_per_visit' => $result['cs_per_visit'] ?? null,
+            'mean_sk_per_respondent' => $result['mean_sk_per_respondent'] ?? null,
+            'total_annual_visits' => $totalAnnualVisits,
+            'total_cs' => $totalAnnualVisits !== null ? $result['total_cs'] : null,
             'respondent_count' => count($observations),
             'mean_travel_cost' => array_sum($travelCosts) / count($travelCosts),
+            'warnings' => $warnings,
             'converged' => $regression['converged'] ?? true,
             'log_likelihood' => $regression['log_likelihood'] ?? null,
             'dispersion_alpha' => $regression['dispersion'] ?? null,
@@ -139,6 +172,7 @@ class TravelCostEstimator
             'income' => (float) ($row->income ?? $row->socioeconomic_data['income'] ?? $row->socioeconomic_data['household_income'] ?? 0),
             'age' => (float) ($row->age ?? $row->socioeconomic_data['age'] ?? 0),
             'education' => $this->educationYears($row->education ?? $row->education_level ?? $row->socioeconomic_data['education_level'] ?? $row->socioeconomic_data['education'] ?? null),
+            'trip_duration' => (float) ($row->trip_duration ?? $row->socioeconomic_data['trip_duration'] ?? 0),
             'substitute' => (float) ($row->substitute_site ?? $row->substitute_site_cost ?? $row->socioeconomic_data['substitute_site'] ?? $row->socioeconomic_data['substitute_site_cost'] ?? 0.0),
             default => 0.0,
         };

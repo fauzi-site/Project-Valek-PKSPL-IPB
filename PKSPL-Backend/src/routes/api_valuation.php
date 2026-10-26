@@ -29,6 +29,8 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function (): void {
     Route::get('proyek/{proyek}/valuation/analytics', [ProjectValuationController::class, 'getAnalytics']);
 
     // 8.6 DATA SURVEI KUESIONER TCM & CVM (Peneliti & Analyst Workflow)
+    Route::get('proyek/{proyek}/survey-locations', [SurveyValuationController::class, 'locations']);
+    Route::post('proyek/{proyek}/survey-locations/rename', [SurveyValuationController::class, 'renameLocation']);
     Route::get('proyek/{proyek}/tcm-data', [SurveyValuationController::class, 'getTcmData']);
     Route::post('proyek/{proyek}/tcm-data', [SurveyValuationController::class, 'saveTcmRespondent']);
     Route::post('proyek/{proyek}/tcm-data/batch', [SurveyValuationController::class, 'batchTcmRespondents']);

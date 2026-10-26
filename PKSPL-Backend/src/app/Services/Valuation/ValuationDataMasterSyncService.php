@@ -391,8 +391,11 @@ class ValuationDataMasterSyncService
         ?int $idKecamatan,
         ?int $idDesaKelurahan
     ): bool {
-        $jumlahPengunjung = (float) ($rowData['jumlahPengunjung'] ?? ($rowData['pengunjung'] ?? 1000.0));
-        $biayaPerjalanan = (float) ($rowData['biayaPerjalanan'] ?? ($rowData['biaya'] ?? 0.0));
+        // The TCM / CVM tables store the visit count as `kunjungan` and the population as `populasi`.
+        $jumlahPengunjung = (float) ($rowData['jumlahPengunjung'] ?? $rowData['pengunjung'] ?? $rowData['kunjungan'] ?? $rowData['populasi'] ?? 1000.0);
+        // Per-visit (TCM) or per-person (CVM) value: travel cost / consumer surplus, or the WTP of a CVM row.
+        // CulturalCalculator multiplies it by visitors x frequency, so a CVM row needs it or it values to zero.
+        $biayaPerjalanan = (float) ($rowData['biayaPerjalanan'] ?? $rowData['biaya'] ?? $rowData['wtp'] ?? 0.0);
         $source = trim((string) ($rowData['source'] ?? ($rowData['referensi'] ?? 'Survei Valuasi Lapangan')));
 
         $lowerItem = strtolower($rawItem);

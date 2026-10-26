@@ -23,10 +23,11 @@ import {
   FileSpreadsheet,
   FileText,
   FileCode,
-  FileQuestion
+  HelpCircle,
+  Undo2
 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
-import { SurveyRespondentModal } from './SurveyRespondentModal';
+import { RespondentDetailModal } from './RespondentDetailModal';
 
 interface DynamicServiceSectionProps {
   projectId?: string;
@@ -127,6 +128,21 @@ const BiotaAutocomplete = ({ value, onChange, options, placeholder, isHighlighte
   );
 };
 
+/** Source label written when a figure comes from the per-respondent pop-up. */
+const DERIVED_SOURCE_PREFIX = 'Dari ';
+
+/** The one column per method that the respondent pop-up fills in. */
+const isRespondentDerivedColumn = (methodId: string, colKey: string) =>
+  (methodId === 'tcm' && colKey === 'biayaPerjalanan') || (methodId === 'cvm' && colKey === 'wtp');
+
+/** Tooltip for the columns the respondent pop-up touches (or deliberately leaves alone). */
+const DERIVED_COLUMN_HELP: Record<string, string> = {
+  'tcm:biayaPerjalanan': 'Terisi otomatis bila Anda menginput responden lewat tombol "Input Responden" dan menekan Simpan & Hitung. Menyimpan lagi akan menghitung ulang dan menimpa angka ini. Boleh juga diisi manual; keterangan Sumber Data akan berubah menjadi "Diisi manual".',
+  'tcm:kunjungan': 'Tidak terisi otomatis dari input responden. Isi sendiri total kunjungan seluruh kawasan dalam setahun; Total Nilai = kolom ini × Surplus Konsumen.',
+  'cvm:wtp': 'Terisi otomatis bila Anda menginput responden lewat tombol "Input Responden" dan menekan Simpan & Hitung. Menyimpan lagi akan menghitung ulang dan menimpa angka ini. Boleh juga diisi manual; keterangan Sumber Data akan berubah menjadi "Diisi manual".',
+  'cvm:populasi': 'Tidak terisi otomatis dari input responden. Isi sendiri jumlah populasi yang relevan; Total Nilai = kolom ini × Rata-rata WTP.',
+};
+
 export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
   projectId,
   prefixLetter,
@@ -154,6 +170,9 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
     updateCell,
     addRow,
     deleteRow,
+    deletedRows,
+    restoreRow,
+    discardDeletedRow,
     getCustomColumns,
     addCustomColumn,
     updateCustomColumn,
@@ -182,9 +201,8 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
   const [editingColumn, setEditingColumn] = useState<CustomColumnDefinition | null>(null);
   const [deletingColumn, setDeletingColumn] = useState<CustomColumnDefinition | null>(null);
 
-  // Survey Questionnaire & Respondent Modal State (TCM & CVM)
-  const [isSurveyModalOpen, setIsSurveyModalOpen] = useState(false);
-  const [surveyModalMethod, setSurveyModalMethod] = useState<'tcm' | 'cvm'>('tcm');
+  // Row whose per-respondent detail is open (TCM / CVM two-stage input).
+  const [detailTarget, setDetailTarget] = useState<{ method: 'tcm' | 'cvm'; rowId: string } | null>(null);
 
   // Modal states for import/download dropdowns in provisioning per method card
   const [importDropdownOpen, setImportDropdownOpen] = useState<Record<string, boolean>>({});
@@ -308,13 +326,55 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
     addRow(currentProjId, areaId, serviceId, targetMethodId, b, areaHa);
   };
 
-  const handleDeleteRow = (targetMethodId: string, rowId: string, targetBiota?: 'flora' | 'fauna') => {
+  // Undo: a deletion shows a bar for a while; older ones stay in the "Terhapus" list of each table.
+  const [undoToast, setUndoToast] = useState<{ token: string; label: string } | null>(null);
+  const [deletedMenuOpen, setDeletedMenuOpen] = useState<Record<string, boolean>>({});
+
+  const handleDeleteRow = async (targetMethodId: string, rowId: string, targetBiota?: 'flora' | 'fauna') => {
     const b = serviceId === 'provisioning' ? (targetBiota || 'flora') : 'none';
-    deleteRow(currentProjId, areaId, serviceId, targetMethodId, b, rowId);
+    const row = getRows(currentProjId, areaId, serviceId, targetMethodId, b).find((r) => r.id === rowId);
+    const token = await deleteRow(currentProjId, areaId, serviceId, targetMethodId, b, rowId);
+    if (token) setUndoToast({ token, label: String(row?.item || row?.nama || 'Baris') });
   };
+
+  useEffect(() => {
+    if (!undoToast) return;
+    const timer = setTimeout(() => setUndoToast(null), 15000);
+    return () => clearTimeout(timer);
+  }, [undoToast]);
+
+  const deletedHere = (mId: string) =>
+    deletedRows.filter(
+      (e) => String(e.projectId) === String(currentProjId) && String(e.areaId) === String(areaId) && e.serviceId === serviceId && e.methodId === mId,
+    );
+
+  // Ctrl/Cmd+Z restores the latest deleted row of this section, unless the researcher is typing in a field.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z' || e.shiftKey) return;
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
+      const latest = deletedRows.find(
+        (d) => String(d.projectId) === String(currentProjId) && String(d.areaId) === String(areaId) && d.serviceId === serviceId,
+      );
+      if (!latest) return;
+      e.preventDefault();
+      restoreRow(latest.token).then(() => setUndoToast(null));
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [deletedRows, currentProjId, areaId, serviceId, restoreRow]);
 
   const handleCellChange = (targetMethodId: string, rowId: string, colKey: string, val: any, targetBiota?: 'flora' | 'fauna') => {
     const b = serviceId === 'provisioning' ? (targetBiota || 'flora') : 'none';
+    // Typing over a figure that came from respondent data makes it a manual one; say so in Sumber Data.
+    if (isRespondentDerivedColumn(targetMethodId, colKey)) {
+      const row = getRows(currentProjId, areaId, serviceId, targetMethodId, undefined).find((r) => r.id === rowId);
+      if (String(row?.source || '').startsWith(DERIVED_SOURCE_PREFIX)) {
+        updateCell(currentProjId, areaId, serviceId, targetMethodId, b, rowId, { [colKey]: val, source: 'Diisi manual', detail: null });
+        return;
+      }
+    }
     updateCell(currentProjId, areaId, serviceId, targetMethodId, b, rowId, colKey, val);
   };
 
@@ -339,8 +399,8 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
     const isHighlighted = highlightedRowId === row.id || highlightedRowId === String(row.no);
 
     return (
+      <React.Fragment key={row.id || `${rowBiota || 'row'}-${rIdx}`}>
       <tr
-        key={row.id || `${rowBiota || 'row'}-${rIdx}`}
         className={`hover:bg-blue-50/30 transition-colors ${
           isHighlighted ? 'bg-rose-50 border-2 border-rose-500' : ''
         }`}
@@ -421,6 +481,11 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                       : 'border-transparent hover:border-slate-300 focus:border-blue-500 text-slate-800'
                   }`}
                 />
+                {serviceId === 'cultural' && isRespondentDerivedColumn(targetMethodId, col.key) && String(row.source || '').startsWith(DERIVED_SOURCE_PREFIX) && (
+                  <div className="mt-0.5 text-[10px] leading-tight text-right text-indigo-600" title="Angka ini dihitung dari data responden. Mengetik ulang akan menjadikannya manual.">
+                    {String(row.source)}
+                  </div>
+                )}
               </td>
             );
           }
@@ -536,7 +601,18 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
         })}
 
         {/* 3. Action Column */}
-        <td className="py-1.5 px-2 text-center">
+        <td className="py-1.5 px-2 text-center whitespace-nowrap">
+          {serviceId === 'cultural' && (targetMethodId === 'tcm' || targetMethodId === 'cvm') && (
+            <button
+              type="button"
+              onClick={() => setDetailTarget({ method: targetMethodId, rowId: row.id })}
+              disabled={!String(row.item || '').trim()}
+              className="mr-1.5 px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded text-[11px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              title={String(row.item || '').trim() ? 'Input data mentah per responden untuk lokasi ini' : 'Isi nama lokasi dulu'}
+            >
+              Input Responden
+            </button>
+          )}
           {!isAdmin && (
             <button
               type="button"
@@ -549,6 +625,7 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
           )}
         </td>
       </tr>
+      </React.Fragment>
     );
   };
 
@@ -728,6 +805,47 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
               </button>
             )}
 
+            {/* Deleted rows: restore a row that was removed by mistake */}
+            {deletedHere(mId).length > 0 && (
+              <div className="relative inline-block text-left">
+                <button
+                  type="button"
+                  onClick={() => setDeletedMenuOpen((prev) => ({ ...prev, [mId]: !prev[mId] }))}
+                  className="px-3 py-1.5 bg-white hover:bg-amber-50 text-slate-700 border border-slate-300 rounded text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                  title="Baris yang dihapus bisa dikembalikan"
+                >
+                  <Undo2 className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Terhapus ({deletedHere(mId).length})</span>
+                  <ChevronDown className="w-3 h-3 text-slate-400" />
+                </button>
+                {deletedMenuOpen[mId] && (
+                  <div className="absolute right-0 mt-1 w-80 max-h-72 overflow-y-auto bg-white rounded-md shadow-lg border border-slate-200 py-1 z-30 text-xs">
+                    <div className="px-3 py-1 text-[10px] text-slate-400">Disimpan 14 hari di peramban ini. Ctrl+Z mengembalikan yang terakhir.</div>
+                    {deletedHere(mId).map((e) => (
+                      <div key={e.token} className="flex items-center justify-between gap-2 px-3 py-1.5 hover:bg-slate-50">
+                        <div className="min-w-0">
+                          <div className="truncate font-medium text-slate-800">{e.label}</div>
+                          <div className="text-[10px] text-slate-400">
+                            dihapus {new Date(e.deletedAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 gap-1">
+                          <button type="button" onClick={() => restoreRow(e.token).then(() => setUndoToast(null))}
+                            className="px-2 py-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold">
+                            Pulihkan
+                          </button>
+                          <button type="button" onClick={() => discardDeletedRow(e.token)} title="Buang dari daftar"
+                            className="px-1.5 py-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-600">
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Download Template (Excel, CSV, JSON) */}
             {serviceId === 'provisioning' ? (
               <div className="relative inline-block text-left">
@@ -874,22 +992,6 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                 )}
               </div>
             )}
-
-            {/* View Survey Questionnaire & Econometric Details for Cultural Methods (TCM & CVM) */}
-            {(mId === 'tcm' || mId === 'cvm') && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSurveyModalMethod(mId as 'tcm' | 'cvm');
-                  setIsSurveyModalOpen(true);
-                }}
-                className="px-3 py-1.5 bg-gradient-to-r from-indigo-50 to-blue-50 hover:from-indigo-100 hover:to-blue-100 text-indigo-700 border border-indigo-200 rounded text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-                title="Lihat data 12 responden kuesioner survei lapangan dan estimasi ekonometrika"
-              >
-                <FileQuestion className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Data Kuesioner ({mId.toUpperCase()})</span>
-              </button>
-            )}
           </div>
         </div>
 
@@ -993,6 +1095,15 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                               ? 'Jenis Biota (Flora / Fauna)'
                               : `${col.label} ${col.unit ? `(${col.unit})` : ''}`}
                           </span>
+                          {serviceId === 'cultural' && DERIVED_COLUMN_HELP[`${mId}:${col.key}`] && (
+                            <span
+                              className="shrink-0 cursor-help text-slate-400 hover:text-indigo-600"
+                              title={DERIVED_COLUMN_HELP[`${mId}:${col.key}`]}
+                              aria-label={DERIVED_COLUMN_HELP[`${mId}:${col.key}`]}
+                            >
+                              <HelpCircle className="w-3.5 h-3.5" />
+                            </span>
+                          )}
                         </div>
                       </th>
                     );
@@ -1047,7 +1158,7 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                     </th>
                   ))}
 
-                  <th className="py-2.5 px-3 w-14 text-center">Aksi</th>
+                  <th className={`py-2.5 px-3 text-center ${serviceId === 'cultural' && (mId === 'tcm' || mId === 'cvm') ? 'w-44' : 'w-14'}`}>Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -1298,14 +1409,40 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
         column={deletingColumn}
       />
 
-      {/* Modal Survey Questionnaire / Respondent (TCM & CVM) */}
-      <SurveyRespondentModal
-        isOpen={isSurveyModalOpen}
-        onClose={() => setIsSurveyModalOpen(false)}
-        projectId={currentProjId}
-        initialMethod={surveyModalMethod}
-        areaId={areaId}
-      />
+      {undoToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 rounded-lg bg-slate-900 text-white text-xs px-4 py-2.5 shadow-xl">
+          <span className="max-w-[320px] truncate">“{undoToast.label}” dihapus.</span>
+          <button
+            type="button"
+            onClick={() => restoreRow(undoToast.token).then(() => setUndoToast(null))}
+            className="font-bold text-amber-300 hover:text-amber-200 flex items-center gap-1"
+          >
+            <Undo2 className="w-3.5 h-3.5" /> Urungkan
+          </button>
+          <button type="button" onClick={() => setUndoToast(null)} className="text-slate-400 hover:text-white" aria-label="Tutup">✕</button>
+        </div>
+      )}
+
+      {/* Modal input data mentah per responden (TCM & CVM) */}
+      {detailTarget && (() => {
+        const row = getRows(currentProjId, areaId, serviceId, detailTarget.method, undefined).find((r) => r.id === detailTarget.rowId);
+        if (!row) return null;
+        return (
+          <RespondentDetailModal
+            isOpen
+            onClose={() => setDetailTarget(null)}
+            projectId={currentProjId}
+            method={detailTarget.method}
+            lokasi={String(row.item || '').trim()}
+            defaultTotal={Number(detailTarget.method === 'tcm' ? row.kunjungan : row.populasi) || undefined}
+            initialDetail={row.detail?.items?.length ? row.detail : undefined}
+            tableValue={Number(detailTarget.method === 'tcm' ? row.biayaPerjalanan : row.wtp) || undefined}
+            tableSource={String(row.source || '') || undefined}
+            onApply={(patch) => updateCell(currentProjId, areaId, serviceId, detailTarget.method, 'none', row.id, patch)}
+          />
+        );
+      })()}
+
     </div>
   );
 };

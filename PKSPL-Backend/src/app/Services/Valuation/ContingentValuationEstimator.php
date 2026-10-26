@@ -23,7 +23,9 @@ use App\Services\Valuation\Exceptions\ValuationException;
  */
 class ContingentValuationEstimator
 {
-    public const MIN_RESPONDENTS = 10;
+    /** See TravelCostEstimator: fewer respondents than parameters cannot be solved; small samples only warn. */
+    public const MIN_RESPONDENTS = 4;
+    public const SAMPLE_COMFORT = 30;
 
     private const EDUCATION_YEARS = [
         'tidak sekolah' => 0, 'sd' => 6, 'smp' => 9, 'sltp' => 9,
@@ -38,8 +40,9 @@ class ContingentValuationEstimator
     /**
      * @param  string  $model  logit | probit
      * @param  array<int, string>  $covariates  any of: income, education, age
+     * @param  string|null  $lokasi  restrict to one location's respondents; '' selects those saved without one
      */
-    public function estimate(Proyek $project, string $model, array $covariates = []): array
+    public function estimate(Proyek $project, string $model, array $covariates = [], ?string $lokasi = null): array
     {
         $rows = CvmData::where('id_proyek', $project->id_proyek)
             ->where(function ($q) {
@@ -47,6 +50,7 @@ class ContingentValuationEstimator
                   ->orWhere('elicitation_format', 'single_bounded');
             })
             ->whereNotNull('bid_amount')
+            ->when($lokasi !== null, fn ($q) => $lokasi === '' ? $q->whereNull('lokasi') : $q->where('lokasi', $lokasi))
             ->get();
 
         if ($rows->count() < self::MIN_RESPONDENTS) {
@@ -82,6 +86,30 @@ class ContingentValuationEstimator
             }
         }
 
+        $n = $rows->count();
+        $parameters = 2 + count($used); // intercept, bid, covariates
+        if ($n <= $parameters) {
+            return $this->failure(sprintf(
+                'Model memakai %d parameter (konstanta, bid%s) sehingga butuh minimal %d responden; saat ini %d.',
+                $parameters,
+                $used ? ', '.implode(', ', $used) : '',
+                $parameters + 1,
+                $n,
+            ));
+        }
+
+        $warnings = [];
+        if ($n < self::SAMPLE_COMFORT) {
+            $warnings[] = sprintf('Sampel kecil (%d responden; disarankan minimal %d). Estimasi logit dapat berubah banyak bila data bertambah.', $n, self::SAMPLE_COMFORT);
+        }
+        if ($dropped) {
+            $warnings[] = 'Variabel tanpa variasi dikeluarkan: '.implode(', ', $dropped).'.';
+        }
+        $levels = count(array_unique($bids));
+        if ($levels < 3) {
+            $warnings[] = sprintf('Baru %d tingkat bid; gunakan minimal 3 (idealnya 5) agar kurva WTP dapat dibentuk.', $levels);
+        }
+
         $observations = [];
         foreach ($rows->values() as $i => $row) {
             $socio = [];
@@ -106,7 +134,19 @@ class ContingentValuationEstimator
                 'model' => $model,
             ]);
         } catch (ValuationException $e) {
-            return $this->failure($e->getMessage());
+            // The logit may fail on a small or perfectly separated sample; the nonparametric
+            // estimates need no regression, so they are still reported.
+            return array_merge($this->failure($e->getMessage()), [
+                'respondent_count' => count($observations),
+                'yes_count' => $yesCount,
+                'no_count' => count($observations) - $yesCount,
+                'mean_bid' => array_sum($bids) / count($bids),
+                'warnings' => $warnings,
+                'nonparametric' => NonparametricWtp::estimate(
+                    $bids,
+                    $rows->map(fn ($r) => ($r->willingness_to_pay ?? $r->willing_to_pay) ? 1 : 0)->all(),
+                ),
+            ]);
         }
 
         $regression = $result['regression'];
@@ -137,6 +177,11 @@ class ContingentValuationEstimator
             'yes_count' => $yesCount,
             'no_count' => count($observations) - $yesCount,
             'mean_bid' => array_sum($bids) / count($bids),
+            'warnings' => $warnings,
+            'nonparametric' => NonparametricWtp::estimate(
+                $bids,
+                $rows->map(fn ($r) => ($r->willingness_to_pay ?? $r->willing_to_pay) ? 1 : 0)->all(),
+            ),
             'converged' => $regression['converged'] ?? true,
             'log_likelihood' => $regression['log_likelihood'] ?? null,
             'diagnostics' => [

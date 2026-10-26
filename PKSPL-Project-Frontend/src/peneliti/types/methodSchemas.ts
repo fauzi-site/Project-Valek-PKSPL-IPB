@@ -606,16 +606,15 @@ export const METHOD_SCHEMAS: Record<string, MethodSchema> = {
     methodId: 'tcm',
     methodName: 'Travel Cost Method (TCM)',
     subtitle: 'Metode Biaya Perjalanan Wisatawan Ekowisata',
-    formulaDescription: 'Total = Jumlah Kunjungan (orang/th) × (Rata-rata Biaya Perjalanan + Tiket Masuk)',
+    formulaDescription: 'Total = Total Kunjungan (kunjungan/th) × Surplus Konsumen per Kunjungan (Rp/kunjungan). Isi langsung, atau klik "Input Responden" untuk menghitung dari data mentah.',
     templateFileName: 'Cultural_TCM.xlsx',
     columns: [
       { key: 'no', label: 'No', type: 'number', width: 'w-12', align: 'center' },
-      { key: 'item', label: 'Lokasi / Klaster Pengunjung', type: 'text', width: 'min-w-[240px]', align: 'left', placeholder: 'Contoh: Wisatawan Mancanegara Ekowisata Benoa' },
-      { key: 'kunjungan', label: 'Jumlah Kunjungan (org/th)', type: 'number', width: 'w-36', align: 'right', placeholder: '0' },
-      { key: 'biayaPerjalanan', label: 'Biaya Travel (Rp/org)', type: 'number', width: 'w-36', align: 'right', placeholder: '0' },
-      { key: 'biayaTiket', label: 'Tiket Masuk (Rp/org)', type: 'number', width: 'w-32', align: 'right', placeholder: '0' },
+      { key: 'item', label: 'Lokasi Wisata', type: 'text', width: 'min-w-[220px]', align: 'left', placeholder: 'mis. Pulau Pramuka' },
+      { key: 'kunjungan', label: 'Total Kunjungan Kawasan (kunjungan/tahun)', type: 'number', width: 'w-40', align: 'right', placeholder: 'mis. 65.300' },
+      { key: 'biayaPerjalanan', label: 'Surplus Konsumen (Rp/kunjungan)', type: 'number', width: 'w-44', align: 'right', placeholder: 'mis. 250.000' },
       { key: 'totalNilai', label: 'Total Nilai (Rp)', type: 'readonly_calculated', width: 'min-w-[180px]', align: 'right', isTotal: true },
-      { key: 'source', label: 'Sumber Data', type: 'text', width: 'min-w-[180px]', align: 'left', placeholder: 'Survei Pengunjung 2024' },
+      { key: 'source', label: 'Sumber Data', type: 'text', width: 'min-w-[180px]', align: 'left', placeholder: 'mis. Survei pengunjung 2026, n = 60' },
     ],
     calculateRow: (r) => {
       const q = Number(r.kunjungan) || 0;
@@ -666,22 +665,20 @@ export const METHOD_SCHEMAS: Record<string, MethodSchema> = {
     methodId: 'cvm',
     methodName: 'Contingent Valuation Method (CVM)',
     subtitle: 'Kesediaan Membayar (WTP) Konservasi Hipotetis',
-    formulaDescription: 'Total = (Jumlah Populasi / Responden × Rata-rata WTP per Tahun) - Biaya Program',
+    formulaDescription: 'Total = Populasi × Rata-rata WTP. Isi langsung, atau klik "Input Responden" untuk menghitung dari data mentah.',
     templateFileName: 'Cultural_CVM.xlsx',
     columns: [
       { key: 'no', label: 'No', type: 'number', width: 'w-12', align: 'center' },
-      { key: 'item', label: 'Kelompok Responden / Masyarakat', type: 'text', width: 'min-w-[240px]', align: 'left', placeholder: 'Contoh: Rumah Tangga Pesisir Barat' },
-      { key: 'populasi', label: 'Jumlah Populasi / KK', type: 'number', width: 'w-32', align: 'right', placeholder: '0' },
-      { key: 'wtp', label: 'Rata-rata WTP (Rp/KK/th)', type: 'number', width: 'w-36', align: 'right', placeholder: '0' },
-      { key: 'biayaProgram', label: 'Biaya Program (Rp)', type: 'number', width: 'w-32', align: 'right', placeholder: '0' },
+      { key: 'item', label: 'Lokasi Wisata', type: 'text', width: 'min-w-[220px]', align: 'left', placeholder: 'mis. Pulau Pramuka' },
+      { key: 'populasi', label: 'Populasi Relevan (orang)', type: 'number', width: 'w-40', align: 'right', placeholder: 'mis. 25.000' },
+      { key: 'wtp', label: 'Rata-rata WTP (Rp/orang)', type: 'number', width: 'w-44', align: 'right', placeholder: 'mis. 10.000' },
       { key: 'totalNilai', label: 'Total Nilai (Rp)', type: 'readonly_calculated', width: 'min-w-[180px]', align: 'right', isTotal: true },
-      { key: 'source', label: 'Sumber Data', type: 'text', width: 'min-w-[180px]', align: 'left', placeholder: 'Kuesioner WTP 2024' },
+      { key: 'source', label: 'Sumber Data', type: 'text', width: 'min-w-[180px]', align: 'left', placeholder: 'mis. Kuesioner WTP 2026, n = 100' },
     ],
     calculateRow: (r) => {
       const pop = Number(r.populasi) || 0;
       const w = Number(r.wtp) || 0;
-      const c = Number(r.biayaProgram) || 0;
-      const total = Math.max(0, Math.round(pop * w - c));
+      const total = Math.round(pop * w);
       return { quantity: pop, total };
     },
     defaultNewRow: (no) => ({
@@ -690,7 +687,6 @@ export const METHOD_SCHEMAS: Record<string, MethodSchema> = {
       item: '',
       populasi: null,
       wtp: null,
-      biayaProgram: null,
       totalNilai: 0,
       source: ''
     }),
@@ -701,8 +697,7 @@ export const METHOD_SCHEMAS: Record<string, MethodSchema> = {
         item: 'Masyarakat Rumah Tangga Sekitar Pesisir',
         populasi: 4500,
         wtp: 120000,
-        biayaProgram: 45000000,
-        totalNilai: 495000000,
+        totalNilai: 540000000,
         source: 'Kuesioner WTP Masyarakat Lokal 2024'
       },
       {
@@ -711,8 +706,7 @@ export const METHOD_SCHEMAS: Record<string, MethodSchema> = {
         item: 'Pelaku Usaha Wisata & UMKM Pesisir',
         populasi: 280,
         wtp: 750000,
-        biayaProgram: 20000000,
-        totalNilai: 190000000,
+        totalNilai: 210000000,
         source: 'Kuesioner WTP Pelaku Usaha'
       }
     ]

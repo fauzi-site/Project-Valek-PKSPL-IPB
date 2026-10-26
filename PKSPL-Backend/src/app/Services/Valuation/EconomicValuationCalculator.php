@@ -42,9 +42,10 @@ class EconomicValuationCalculator
      * Poisson equidispersion assumption, and `ols` keeps the original linear
      * specification available for studies that were designed around it.
      *
-     * In every case CS per visit is -1/beta1 — the area under the estimated
-     * demand curve for one visit — so the downstream valuation is unchanged
-     * in meaning by the choice of link.
+     * For the log-linear models CS per visit is -1/beta1, the area under the
+     * estimated demand curve for one visit. For `ols` the demand is linear, so
+     * each respondent's surplus is V^2 / (-2*beta1) and CS per visit is the mean
+     * of those divided by mean visits — the method taught in the TCM exercise.
      *
      * @param  array{
      *     observations: array<int, array{visits: float|int, travel_cost: float|int, socio_economic?: array<string, float|int>}>,
@@ -54,6 +55,7 @@ class EconomicValuationCalculator
      * @return array{
      *     model: string,
      *     regression: array,
+     *     mean_sk_per_respondent: float|null,
      *     cs_per_visit: float,
      *     total_annual_visits: float,
      *     total_cs: float,
@@ -118,8 +120,20 @@ class EconomicValuationCalculator
             throw new ValuationException('TCM: "total_annual_visits" wajib diisi dan harus lebih besar dari 0.');
         }
 
-        // CS per visit = -1 / beta1 (the area under the estimated demand curve, per visit)
-        $csPerVisit = -1 / $beta1;
+        if ($model === 'ols') {
+            // Linear demand V = b0 + b1*TC + ...: the surplus of respondent i
+            // is the triangle under their own demand line, SK_i = V_i^2 / (-2*b1).
+            // The per-visit figure is the mean SK divided by the mean visits,
+            // and the site value is that times the annual visits to the site.
+            $surplus = array_map(fn ($v) => ($v ** 2) / (-2 * $beta1), $y);
+            $meanSk = array_sum($surplus) / count($surplus);
+            $csPerVisit = $meanSk / (array_sum($y) / count($y));
+        } else {
+            // Log-linear demand: CS per visit = -1 / beta1 (the area under the
+            // estimated demand curve, per visit).
+            $meanSk = null;
+            $csPerVisit = -1 / $beta1;
+        }
 
         // Total CS = CS per visit x total number of visits to the site in a year
         $totalCs = $csPerVisit * (float) $data['total_annual_visits'];
@@ -127,6 +141,7 @@ class EconomicValuationCalculator
         return [
             'model' => $model,
             'regression' => $regression,
+            'mean_sk_per_respondent' => $meanSk,
             'cs_per_visit' => $csPerVisit,
             'total_annual_visits' => (float) $data['total_annual_visits'],
             'total_cs' => $totalCs,

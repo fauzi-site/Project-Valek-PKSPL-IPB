@@ -7,6 +7,7 @@ export interface TcmSurveyRespondent {
   respondent_id: string;
   respondent_name?: string;
   origin: string;
+  distance?: number | string | null;
   distance_km?: number;
   group_size?: number;
   annual_visits: number;
@@ -48,27 +49,11 @@ export interface CvmSurveyRespondent {
   notes?: string;
 }
 
-export interface EconometricAnalysisSummary {
-  model_type: string;
-  dependent_variable: string;
-  independent_variables: string[];
-  coefficients?: Record<string, number>;
-  consumer_surplus_per_visit?: number;
-  total_recreation_value?: number;
-  median_wtp?: number;
-  mean_wtp?: number;
-  total_wtp_value?: number;
-  r_squared?: number;
-  pseudo_r_squared?: number;
-  n: number;
-  notes?: string;
-}
-
 const unwrap = (response: any) => response.data?.data || response.data;
 
-export async function getTcmSurveyData(projectId: string | number): Promise<TcmSurveyRespondent[]> {
+export async function getTcmSurveyData(projectId: string | number, lokasi?: string): Promise<TcmSurveyRespondent[]> {
   try {
-    const res = await api.get(`/proyek/${projectId}/tcm-data`);
+    const res = await api.get(`/proyek/${projectId}/tcm-data`, { params: lokasi === undefined ? {} : { lokasi } });
     return unwrap(res);
   } catch (error) {
     console.warn('[SurveyValuation] Error fetching TCM survey data:', error);
@@ -76,9 +61,9 @@ export async function getTcmSurveyData(projectId: string | number): Promise<TcmS
   }
 }
 
-export async function getCvmSurveyData(projectId: string | number): Promise<CvmSurveyRespondent[]> {
+export async function getCvmSurveyData(projectId: string | number, lokasi?: string): Promise<CvmSurveyRespondent[]> {
   try {
-    const res = await api.get(`/proyek/${projectId}/cvm-data`);
+    const res = await api.get(`/proyek/${projectId}/cvm-data`, { params: lokasi === undefined ? {} : { lokasi } });
     return unwrap(res);
   } catch (error) {
     console.warn('[SurveyValuation] Error fetching CVM survey data:', error);
@@ -86,24 +71,155 @@ export async function getCvmSurveyData(projectId: string | number): Promise<CvmS
   }
 }
 
-export async function getTcmAnalysis(projectId: string | number): Promise<EconometricAnalysisSummary | null> {
+export interface TcmRespondentPayload {
+  respondent_id: string;
+  annual_visits: number;
+  total_travel_cost: number;
+  /** One-way distance from the respondent's origin, in km. */
+  distance?: number;
+  socioeconomic_data: {
+    origin?: string;
+    education?: number;
+    income?: number;
+    trip_duration?: number;
+    // Components of total_travel_cost, kept when the researcher entered them one by one.
+    transport_cost?: number;
+    food_cost?: number;
+    accommodation_cost?: number;
+    ticket_fee?: number;
+    other_expenses?: number;
+  };
+}
+
+export interface CvmRespondentPayload {
+  respondent_id: string;
+  elicitation_format: 'dichotomous_choice';
+  bid_amount: number;
+  willingness_to_pay: boolean;
+  socioeconomic_data: { income?: number };
+}
+
+export interface TcmEstimate {
+  ok: boolean;
+  message: string | null;
+  coefficients: Record<string, number>;
+  cs_per_visit?: number | null;
+  mean_sk_per_respondent?: number | null;
+  total_annual_visits?: number | null;
+  total_cs?: number | null;
+  respondent_count: number;
+  /** Reliability notes; the estimate is still returned. */
+  warnings?: string[];
+  mean_travel_cost: number;
+  converged: boolean;
+  diagnostics: {
+    variables?: string[];
+    dropped_no_variation?: string[];
+    model?: string;
+    r_squared?: number | null;
+  };
+}
+
+export interface NonparametricBidRow {
+  bid: number;
+  n: number;
+  yes: number;
+  no: number;
+  accept_rate: number;
+  reject_rate: number;
+}
+
+export interface CvmEstimate {
+  ok: boolean;
+  message: string | null;
+  ewtp?: number | null;
+  coefficients: Record<string, number>;
+  respondent_count: number;
+  yes_count: number;
+  no_count: number;
+  warnings?: string[];
+  mean_bid: number;
+  nonparametric?: {
+    table: NonparametricBidRow[];
+    pooled: boolean;
+    median_wtp: number | null;
+    class_median: number;
+    turnbull: number;
+    kmt: number;
+  };
+  converged: boolean;
+  diagnostics: { variables?: string[]; model?: string };
+}
+
+export interface TcmAnalysisOptions {
+  lokasi?: string;
+  model?: 'ols' | 'poisson' | 'negative_binomial';
+  covariates?: string[];
+  totalAnnualVisits?: number;
+}
+
+export interface CvmAnalysisOptions {
+  lokasi?: string;
+  model?: 'logit' | 'probit';
+  covariates?: string[];
+}
+
+export interface BatchResult {
+  count: number;
+  message: string;
+}
+
+export async function getTcmAnalysis(
+  projectId: string | number,
+  options: TcmAnalysisOptions = {}
+): Promise<TcmEstimate | null> {
   try {
-    const res = await api.get(`/proyek/${projectId}/tcm-analysis`);
-    return unwrap(res);
+    const params: Record<string, string | number> = {};
+    if (options.model) params.model = options.model;
+    if (options.covariates) params.covariates = options.covariates.join(',');
+    if (options.totalAnnualVisits) params.total_annual_visits = options.totalAnnualVisits;
+    if (options.lokasi !== undefined) params.lokasi = options.lokasi;
+    const res = await api.get(`/proyek/${projectId}/tcm-analysis`, { params });
+    return res.data?.estimate ?? null;
   } catch (error) {
     console.warn('[SurveyValuation] Error fetching TCM analysis:', error);
     return null;
   }
 }
 
-export async function getCvmAnalysis(projectId: string | number): Promise<EconometricAnalysisSummary | null> {
+export async function getCvmAnalysis(
+  projectId: string | number,
+  options: CvmAnalysisOptions = {}
+): Promise<CvmEstimate | null> {
   try {
-    const res = await api.get(`/proyek/${projectId}/cvm-analysis`);
-    return unwrap(res);
+    const params: Record<string, string> = {};
+    if (options.model) params.model = options.model;
+    if (options.covariates) params.covariates = options.covariates.join(',');
+    if (options.lokasi !== undefined) params.lokasi = options.lokasi;
+    const res = await api.get(`/proyek/${projectId}/cvm-analysis`, { params });
+    return res.data?.estimate ?? null;
   } catch (error) {
     console.warn('[SurveyValuation] Error fetching CVM analysis:', error);
     return null;
   }
+}
+
+export async function batchSaveTcmRespondents(
+  projectId: string | number,
+  respondents: TcmRespondentPayload[],
+  lokasi?: string
+): Promise<BatchResult> {
+  const res = await api.post(`/proyek/${projectId}/tcm-data/batch`, { lokasi, respondents });
+  return res.data;
+}
+
+export async function batchSaveCvmRespondents(
+  projectId: string | number,
+  respondents: CvmRespondentPayload[],
+  lokasi?: string
+): Promise<BatchResult> {
+  const res = await api.post(`/proyek/${projectId}/cvm-data/batch`, { lokasi, respondents });
+  return res.data;
 }
 
 export async function createTcmRespondent(
@@ -130,18 +246,31 @@ export async function deleteCvmRespondent(projectId: string | number, idCvm: num
   await api.delete(`/proyek/${projectId}/cvm-data/${idCvm}`);
 }
 
-export async function runTcmAnalysis(
-  projectId: string | number,
-  areaId?: string | number
-): Promise<EconometricAnalysisSummary | null> {
-  const res = await api.post(`/proyek/${projectId}/tcm-analysis`, { id_jenis_tutupan_lahan: areaId });
-  return unwrap(res);
+export interface SurveyLocation {
+  /** Empty string for respondents saved before locations existed. */
+  lokasi: string;
+  total: number;
 }
 
-export async function runCvmAnalysis(
+export async function getSurveyLocations(
   projectId: string | number,
-  areaId?: string | number
-): Promise<EconometricAnalysisSummary | null> {
-  const res = await api.post(`/proyek/${projectId}/cvm-analysis`, { id_jenis_tutupan_lahan: areaId });
-  return unwrap(res);
+  method: 'tcm' | 'cvm'
+): Promise<SurveyLocation[]> {
+  try {
+    const res = await api.get(`/proyek/${projectId}/survey-locations`, { params: { method } });
+    return res.data?.data ?? [];
+  } catch (error) {
+    console.warn('[SurveyValuation] Error fetching survey locations:', error);
+    return [];
+  }
+}
+
+export async function renameSurveyLocation(
+  projectId: string | number,
+  method: 'tcm' | 'cvm',
+  from: string,
+  to: string
+): Promise<{ count: number; message: string }> {
+  const res = await api.post(`/proyek/${projectId}/survey-locations/rename`, { method, from, to });
+  return res.data;
 }

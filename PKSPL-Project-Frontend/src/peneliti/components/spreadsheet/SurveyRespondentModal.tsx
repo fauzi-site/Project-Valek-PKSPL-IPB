@@ -19,13 +19,8 @@ import { formatIDR, formatNumber } from '../../utils/formatter';
 import {
   TcmSurveyRespondent,
   CvmSurveyRespondent,
-  EconometricAnalysisSummary,
   getTcmSurveyData,
-  getCvmSurveyData,
-  getTcmAnalysis,
-  getCvmAnalysis,
-  runTcmAnalysis,
-  runCvmAnalysis
+  getCvmSurveyData
 } from '../../services/surveyValuationService';
 
 interface SurveyRespondentModalProps {
@@ -33,28 +28,23 @@ interface SurveyRespondentModalProps {
   onClose: () => void;
   projectId: string | number;
   initialMethod?: 'tcm' | 'cvm';
-  areaId?: string;
 }
 
 export const SurveyRespondentModal: React.FC<SurveyRespondentModalProps> = ({
   isOpen,
   onClose,
   projectId,
-  initialMethod = 'tcm',
-  areaId
+  initialMethod = 'tcm'
 }) => {
-  const [activeTab, setActiveTab] = useState<'respondents' | 'econometrics' | 'mapping'>('respondents');
+  const [activeTab, setActiveTab] = useState<'respondents' | 'mapping'>('respondents');
   const [methodFilter, setMethodFilter] = useState<'tcm' | 'cvm'>(initialMethod);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRespondent, setSelectedRespondent] = useState<TcmSurveyRespondent | CvmSurveyRespondent | null>(null);
 
   const [tcmData, setTcmData] = useState<TcmSurveyRespondent[]>([]);
   const [cvmData, setCvmData] = useState<CvmSurveyRespondent[]>([]);
-  const [tcmAnalysis, setTcmAnalysis] = useState<EconometricAnalysisSummary | null>(null);
-  const [cvmAnalysis, setCvmAnalysis] = useState<EconometricAnalysisSummary | null>(null);
 
   const [loading, setLoading] = useState(false);
-  const [runningAnalysis, setRunningAnalysis] = useState(false);
 
   useEffect(() => {
     if (initialMethod) {
@@ -66,16 +56,12 @@ export const SurveyRespondentModal: React.FC<SurveyRespondentModalProps> = ({
     if (!projectId) return;
     setLoading(true);
     try {
-      const [tcmRes, cvmRes, tcmA, cvmA] = await Promise.all([
+      const [tcmRes, cvmRes] = await Promise.all([
         getTcmSurveyData(projectId),
-        getCvmSurveyData(projectId),
-        getTcmAnalysis(projectId),
-        getCvmAnalysis(projectId)
+        getCvmSurveyData(projectId)
       ]);
       setTcmData(tcmRes);
       setCvmData(cvmRes);
-      setTcmAnalysis(tcmA);
-      setCvmAnalysis(cvmA);
     } catch (err) {
       console.error('[SurveyRespondentModal] Gagal memuat data kuesioner:', err);
     } finally {
@@ -88,24 +74,6 @@ export const SurveyRespondentModal: React.FC<SurveyRespondentModalProps> = ({
       loadData();
     }
   }, [isOpen, projectId]);
-
-  const handleRunAnalysis = async () => {
-    if (!projectId) return;
-    setRunningAnalysis(true);
-    try {
-      if (methodFilter === 'tcm') {
-        const res = await runTcmAnalysis(projectId, areaId);
-        setTcmAnalysis(res);
-      } else {
-        const res = await runCvmAnalysis(projectId, areaId);
-        setCvmAnalysis(res);
-      }
-    } catch (err) {
-      console.error('[SurveyRespondentModal] Error running analysis:', err);
-    } finally {
-      setRunningAnalysis(false);
-    }
-  };
 
   if (!isOpen) return null;
 
@@ -135,14 +103,11 @@ export const SurveyRespondentModal: React.FC<SurveyRespondentModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-white tracking-wide">
-                  Data Kuesioner Penelitian Lapangan Pulau Pramuka
+                  Data Responden Survei Lapangan (TCM & CVM)
                 </h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  Terintegrasi
-                </span>
               </div>
               <p className="text-xs text-blue-200/80 mt-0.5">
-                Integrasi 57 Blok Pertanyaan, 12 Responden Survei Lapangan, Estimasi TCM & CVM
+                Daftar responden survei lapangan. Untuk mengisi atau mengubah data, gunakan tombol “Input Responden” pada baris lokasi di tabel utama.
               </p>
             </div>
           </div>
@@ -169,18 +134,6 @@ export const SurveyRespondentModal: React.FC<SurveyRespondentModalProps> = ({
             >
               <Users className="w-4 h-4" />
               <span>Data Responden ({methodFilter === 'tcm' ? tcmData.length : cvmData.length})</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('econometrics')}
-              className={`py-3 px-4 text-xs font-semibold border-b-2 flex items-center gap-2 transition-colors cursor-pointer ${
-                activeTab === 'econometrics'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <Calculator className="w-4 h-4" />
-              <span>Hasil Estimasi Ekonometrika</span>
             </button>
             <button
               type="button"
@@ -285,9 +238,9 @@ export const SurveyRespondentModal: React.FC<SurveyRespondentModalProps> = ({
                       </p>
                     </div>
                     <div className="p-3 bg-indigo-50/60 rounded-xl border border-indigo-200/70">
-                      <span className="text-[11px] font-medium text-indigo-700">Asal Responden Terjauh</span>
+                      <span className="text-[11px] font-medium text-indigo-700">Total Kunjungan Sampel / Thn</span>
                       <p className="text-lg font-bold text-indigo-950 mt-0.5 truncate">
-                        Bandung (180 km)
+                        {tcmData.reduce((acc, r) => acc + (Number(r.annual_visits) || 0), 0).toLocaleString('id-ID')} kali
                       </p>
                     </div>
                   </>
@@ -434,156 +387,6 @@ export const SurveyRespondentModal: React.FC<SurveyRespondentModalProps> = ({
                       )}
                     </tbody>
                   </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 2: HASIL ESTIMASI EKONOMETRIKA */}
-          {activeTab === 'econometrics' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-800">
-                    Modul Perhitungan Ekonometrika (TCM & CVM)
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Estimasi fungsi permintaan rekreasi (Poisson) dan fungsi probabilitas kesediaan membayar (Logit)
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleRunAnalysis}
-                  disabled={runningAnalysis}
-                  className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${runningAnalysis ? 'animate-spin' : ''}`} />
-                  <span>{runningAnalysis ? 'Menghitung Ulang...' : 'Hitung Estimasi Ulang'}</span>
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* TCM Econometric Box */}
-                <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="p-1.5 rounded-lg bg-blue-100 text-blue-700">
-                        <TrendingUp className="w-4 h-4" />
-                      </span>
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-800">Travel Cost Method (TCM)</h4>
-                        <span className="text-[11px] text-slate-500">Model Permintaan Rekreasi (Poisson Regression)</span>
-                      </div>
-                    </div>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                      N = {tcmData.length} Sampel
-                    </span>
-                  </div>
-
-                  <div className="bg-slate-50 rounded-lg p-3 text-xs font-mono text-slate-700 space-y-1">
-                    <div className="font-semibold text-slate-900">Spesifikasi Model:</div>
-                    <div>ln(Visits) = β₀ + β₁·Cost + β₂·Income + β₃·Age + ε</div>
-                  </div>
-
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between py-1.5 border-b border-slate-100">
-                      <span className="text-slate-600">Koefisien Biaya Perjalanan (β₁):</span>
-                      <span className="font-mono font-bold text-slate-800">
-                        {tcmAnalysis?.coefficients?.travel_cost ? tcmAnalysis.coefficients.travel_cost.toExponential(4) : '-0.000000789'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between py-1.5 border-b border-slate-100">
-                      <span className="text-slate-600">Surplus Konsumen per Kunjungan (-1/β₁):</span>
-                      <span className="font-mono font-bold text-emerald-700">
-                        {formatIDR(tcmAnalysis?.consumer_surplus_per_visit || 1266667)} / kunjungan
-                      </span>
-                    </div>
-                    <div className="flex justify-between py-1.5 border-b border-slate-100">
-                      <span className="text-slate-600">Proyeksi Pengunjung Tahunan:</span>
-                      <span className="font-mono font-bold text-slate-800">
-                        25.000 pengunjung/tahun
-                      </span>
-                    </div>
-                    <div className="flex justify-between py-1.5 bg-blue-50/70 p-2 rounded-lg">
-                      <span className="font-semibold text-blue-900">Total Nilai Ekonomi Rekreasi (TCM):</span>
-                      <span className="font-mono font-extrabold text-blue-900 text-sm">
-                        {formatIDR(tcmAnalysis?.total_recreation_value || 32041675000)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* CVM Econometric Box */}
-                <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700">
-                        <CheckCircle2 className="w-4 h-4" />
-                      </span>
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-800">Contingent Valuation Method (CVM)</h4>
-                        <span className="text-[11px] text-slate-500">Model Valuasi Non-Guna Terumbu Karang (Logit)</span>
-                      </div>
-                    </div>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      N = {cvmData.length} Sampel
-                    </span>
-                  </div>
-
-                  <div className="bg-slate-50 rounded-lg p-3 text-xs font-mono text-slate-700 space-y-1">
-                    <div className="font-semibold text-slate-900">Spesifikasi Model:</div>
-                    <div>ln(P / (1 - P)) = α + β·Bid + γ·Income + δ·EnvScore</div>
-                  </div>
-
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between py-1.5 border-b border-slate-100">
-                      <span className="text-slate-600">Rata-rata WTP (Mean WTP):</span>
-                      <span className="font-mono font-bold text-emerald-700">
-                        {formatIDR(cvmAnalysis?.mean_wtp || 25000)} / orang
-                      </span>
-                    </div>
-                    <div className="flex justify-between py-1.5 border-b border-slate-100">
-                      <span className="text-slate-600">Median WTP:</span>
-                      <span className="font-mono font-bold text-slate-800">
-                        {formatIDR(cvmAnalysis?.median_wtp || 20000)} / orang
-                      </span>
-                    </div>
-                    <div className="flex justify-between py-1.5 border-b border-slate-100">
-                      <span className="text-slate-600">Biaya Pemeliharaan Ekosistem:</span>
-                      <span className="font-mono font-bold text-slate-800">
-                        Rp 75.000.000 / tahun
-                      </span>
-                    </div>
-                    <div className="flex justify-between py-1.5 bg-emerald-50/70 p-2 rounded-lg">
-                      <span className="font-semibold text-emerald-900">Total Nilai Konservasi (CVM):</span>
-                      <span className="font-mono font-extrabold text-emerald-900 text-sm">
-                        {formatIDR(cvmAnalysis?.total_wtp_value || 550000000)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Combined TEV Summary */}
-              <div className="bg-gradient-to-r from-blue-900 to-indigo-900 rounded-xl p-5 text-white flex flex-col md:flex-row items-center justify-between gap-4">
-                <div>
-                  <h4 className="text-sm font-bold text-blue-100">
-                    Total Nilai Jasa Ekosistem Budaya & Rekreasi (Cultural Services)
-                  </h4>
-                  <p className="text-xs text-blue-200/80 mt-1">
-                    Kombinasi Nilai Manfaat Rekreasi (TCM) + Nilai Keberadaan / Konservasi Terumbu Karang (CVM)
-                  </p>
-                </div>
-                <div className="text-right">
-                  <span className="text-xs text-blue-200">Total Nilai Tahunan (IDR):</span>
-                  <div className="text-xl md:text-2xl font-black text-amber-300">
-                    {formatIDR(
-                      (tcmAnalysis?.total_recreation_value || 32041675000) +
-                      (cvmAnalysis?.total_wtp_value || 550000000)
-                    )}
-                  </div>
                 </div>
               </div>
             </div>

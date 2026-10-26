@@ -15,6 +15,7 @@ class CvmData extends Model
     protected $fillable = [
         'id_proyek',
         'id_module',
+        'lokasi',
         'respondent_id',
         'elicitation_format',
         'bid_amount',

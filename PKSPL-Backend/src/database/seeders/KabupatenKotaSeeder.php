@@ -17,9 +17,10 @@ class KabupatenKotaSeeder extends Seeder
         // Sinkronkan seluruh kabupaten/kota dari administrative_boundaries jika tersedia
         if (\Illuminate\Support\Facades\Schema::hasTable('administrative_boundaries')) {
             $boundaries = DB::table('administrative_boundaries')->where('level', 2)->get();
+            $provMap = DB::table('provinsi')->pluck('id_provinsi', 'kode_provinsi')->all();
             foreach ($boundaries as $b) {
                 $provCode = substr($b->code, 0, 2);
-                $provId = DB::table('provinsi')->where('kode_provinsi', $provCode)->value('id_provinsi');
+                $provId = $provMap[$provCode] ?? null;
                 if ($provId) {
                     $isKota = (strlen($b->code) >= 3 && substr($b->code, 2, 1) === '7') || str_starts_with(strtolower($b->name), 'kota');
                     $tipe = $isKota ? 'Kota' : 'Kabupaten';

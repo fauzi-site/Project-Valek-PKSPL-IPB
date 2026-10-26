@@ -40,11 +40,15 @@ interface SpreadsheetContextType {
     methodId: string,
     biota: string,
     rowId: string,
-    field: string,
-    value: any
+    field: string | Record<string, any>,
+    value?: any
   ) => Promise<void>;
   addRow: (projectId: string, areaId: string, serviceId: string, methodId: string, biota?: string, areaHa?: number) => Promise<void>;
-  deleteRow: (projectId: string, areaId: string, serviceId: string, methodId: string, biota: string, rowId: string) => Promise<void>;
+  /** Returns the undo token of the removed row, or undefined when nothing was removed. */
+  deleteRow: (projectId: string, areaId: string, serviceId: string, methodId: string, biota: string, rowId: string) => Promise<string | undefined>;
+  deletedRows: DeletedRowEntry[];
+  restoreRow: (token: string) => Promise<boolean>;
+  discardDeletedRow: (token: string) => void;
   importRows: (projectId: string, areaId: string, serviceId: string, methodId: string, biota: string, newRows: Record<string, any>[]) => void;
   getServiceSubtotal: (projectId: string, areaId: string, serviceId: string, methodId: string, biota?: string) => number;
   getGrandTotalForArea: (
@@ -97,6 +101,24 @@ interface SpreadsheetContextType {
 }
 
 const STORAGE_KEY = 'pkspl_peneliti_multi_spreadsheet_store_v2';
+const STORAGE_KEY_DELETED = 'pkspl_peneliti_deleted_rows_v1';
+const DELETED_LIMIT = 50;
+const DELETED_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+
+/** A row removed from a table, kept so it can be put back where it was. */
+export interface DeletedRowEntry {
+  token: string;
+  projectId: string;
+  areaId: string;
+  serviceId: string;
+  methodId: string;
+  biota: string;
+  row: Record<string, any>;
+  /** Position in the table at the time of deletion (0-based). */
+  index: number;
+  label: string;
+  deletedAt: number;
+}
 const STORAGE_KEY_CUSTOM_COLS = 'pkspl_peneliti_custom_columns_v1';
 
 export const isMockProject = (projId?: string | number): boolean => {
@@ -155,6 +177,17 @@ export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [saveError, setSaveError] = useState<boolean>(false);
 
   const [backendRowIds, setBackendRowIds] = useState<Record<string, number>>({});
+  const [deletedRows, setDeletedRows] = useState<DeletedRowEntry[]>(() => {
+    const now = Date.now();
+    return loadFromStorage<DeletedRowEntry[]>(STORAGE_KEY_DELETED, []).filter((e) => now - e.deletedAt < DELETED_TTL_MS);
+  });
+  const rememberDeleted = useCallback((entry: DeletedRowEntry) => {
+    setDeletedRows((prev) => {
+      const next = [entry, ...prev].slice(0, DELETED_LIMIT);
+      saveToStorage(STORAGE_KEY_DELETED, next);
+      return next;
+    });
+  }, []);
 
   const hydrateAreaFromBackend = useCallback(async (
     projectId: string,
@@ -335,8 +368,8 @@ export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
     methodId: string,
     biota: string = 'none',
     rowId: string,
-    field: string,
-    value: any
+    field: string | Record<string, any>,
+    value?: any
   ) => {
     const key = makeKey(projectId, areaId, serviceId, methodId, biota);
     const schema = getMethodSchema(serviceId, methodId, biota);
@@ -345,7 +378,8 @@ export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const updatedRows = currentRows.map((r) => {
       if (r.id !== rowId) return r;
 
-      const updatedRow = { ...r, [field]: value };
+      // An object patches several fields in one store write (stale-closure safe).
+      const updatedRow = { ...r, ...(typeof field === 'string' ? { [field]: value } : field) };
       // Run automatic recalculation from method schema
       const calc = schema.calculateRow(updatedRow);
       updatedRow.totalNilai = calc.total;
@@ -441,6 +475,21 @@ export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const key = makeKey(projectId, areaId, serviceId, methodId, biota);
     const currentRows = getRows(projectId, areaId, serviceId, methodId, biota);
 
+    const removedIndex = currentRows.findIndex(r => r.id === rowId);
+    const removedRow = removedIndex >= 0 ? currentRows[removedIndex] : undefined;
+    let undoToken: string | undefined;
+    if (removedRow) {
+      undoToken = `del-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      rememberDeleted({
+        token: undoToken,
+        projectId, areaId, serviceId, methodId, biota,
+        row: removedRow,
+        index: removedIndex,
+        label: String(removedRow.item || removedRow.nama || `Baris ${removedIndex + 1}`),
+        deletedAt: Date.now(),
+      });
+    }
+
     const filtered = currentRows.filter(r => r.id !== rowId);
     const renumbered = filtered.map((r, idx) => ({ ...r, no: idx + 1 }));
 
@@ -458,7 +507,54 @@ export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
         }
       }
     }
-  }, [store, triggerAutosave, backendRowIds, getRows]);
+    return undoToken;
+  }, [store, triggerAutosave, backendRowIds, getRows, rememberDeleted]);
+
+  const discardDeletedRow = useCallback((token: string) => {
+    setDeletedRows((prev) => {
+      const next = prev.filter((e) => e.token !== token);
+      saveToStorage(STORAGE_KEY_DELETED, next);
+      return next;
+    });
+  }, []);
+
+  /** Puts a deleted row back at its old position (or the end if the table has shrunk). */
+  const restoreRow = useCallback(async (token: string): Promise<boolean> => {
+    const entry = deletedRows.find((e) => e.token === token);
+    if (!entry) return false;
+    const { projectId, areaId, serviceId, methodId, biota, row } = entry;
+    const key = makeKey(projectId, areaId, serviceId, methodId, biota);
+    const currentRows = getRows(projectId, areaId, serviceId, methodId, biota);
+
+    if (currentRows.some((r) => r.id === row.id)) {
+      discardDeletedRow(token);
+      return true;
+    }
+
+    const at = Math.min(Math.max(entry.index, 0), currentRows.length);
+    const restored = [...currentRows.slice(0, at), row, ...currentRows.slice(at)].map((r, idx) => ({ ...r, no: idx + 1 }));
+    const nextStore = { ...store, [key]: restored };
+    setStore(nextStore);
+    triggerAutosave(nextStore);
+    discardDeletedRow(token);
+
+    if (!isNaN(Number(areaId)) && Number(areaId) > 0) {
+      try {
+        const backendRow = await addValuationRow(areaId, {
+          service_id: serviceId,
+          method_id: methodId,
+          biota: serviceId === 'provisioning' ? biota : undefined,
+          row_order: at,
+          row_data: row,
+          total_nilai: Number(row.totalNilai) || 0,
+        });
+        setBackendRowIds((prev) => ({ ...prev, [row.id]: backendRow.id }));
+      } catch (err) {
+        console.warn('[ValuationData] Gagal sync restoreRow ke backend:', err);
+      }
+    }
+    return true;
+  }, [deletedRows, store, getRows, triggerAutosave, discardDeletedRow]);
 
   const importRows = useCallback((
     projectId: string,
@@ -978,6 +1074,9 @@ export const SpreadsheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
         updateCell,
         addRow,
         deleteRow,
+        deletedRows,
+        restoreRow,
+        discardDeletedRow,
         importRows,
         getServiceSubtotal,
         getGrandTotalForArea,

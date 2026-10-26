@@ -640,9 +640,8 @@ const CalculationPageContent: React.FC = () => {
             if (mId === 'cvm') {
               const pop = Number(r.populasi) || 0;
               const wtp = Number(r.wtp) || 0;
-              const bProg = Number(r.biayaProgram) || 0;
-              params = `Populasi: ${formatNumber(pop)} KK | WTP: Rp ${formatNumber(wtp)}/KK/th | Biaya: Rp ${formatNumber(bProg)}`;
-              formulaText = `(${formatNumber(pop)} KK × Rp ${formatNumber(wtp)}) - Rp ${formatNumber(bProg)} = ${formatIDR(total)}`;
+              params = `Populasi: ${formatNumber(pop)} orang | WTP: Rp ${formatNumber(wtp)}/orang`;
+              formulaText = `${formatNumber(pop)} orang × Rp ${formatNumber(wtp)} = ${formatIDR(total)}`;
             } else if (mId === 'choice-experiment') {
               const resp = Number(r.responden) || 0;
               const mwtp = Number(r.nilaiMarginal) || 0;

@@ -7,8 +7,6 @@ use App\Models\Index;
 use App\Models\JenisTutupanLahan;
 use App\Models\TcmData;
 use App\Models\CvmData;
-use App\Services\Valuation\TravelCostEstimator;
-use App\Services\Valuation\ContingentValuationEstimator;
 use App\Services\Valuation\ValuationDataMasterSyncService;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;
@@ -23,14 +21,43 @@ class PramukaSurveySeeder extends Seeder
     {
         $now = Carbon::now();
 
-        // 1. Create or Find Project under Researcher (id_user = 2)
+        // 1. Resolve User, Provinsi, and Kabupaten/Kota dynamically
+        $penelitiUser = DB::table('users')->where('email', 'peneliti@gmail.com')->first();
+        $idPeneliti = $penelitiUser ? $penelitiUser->id_user : 2;
+
+        $provDki = DB::table('provinsi')
+            ->where('kode_provinsi', '31')
+            ->orWhere('nama_provinsi', 'like', '%DKI Jakarta%')
+            ->orWhere('nama_provinsi', 'like', '%Jakarta%')
+            ->first();
+        $idProvinsi = $provDki ? $provDki->id_provinsi : 1;
+
+        $kabSeribu = DB::table('kabupaten_kota')
+            ->where('kode_kabupaten_kota', '3101')
+            ->orWhere('nama_kabupaten_kota', 'like', '%Kepulauan Seribu%')
+            ->first();
+
+        if (!$kabSeribu) {
+            $idKabSeribu = DB::table('kabupaten_kota')->insertGetId([
+                'id_provinsi' => $idProvinsi,
+                'kode_kabupaten_kota' => '3101',
+                'nama_kabupaten_kota' => 'Kabupaten Kepulauan Seribu',
+                'tipe' => 'Kabupaten',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ], 'id_kabupaten_kota');
+        } else {
+            $idKabSeribu = $kabSeribu->id_kabupaten_kota;
+        }
+
+        // Create or Find Project under Researcher (peneliti@gmail.com)
         $project = Proyek::firstOrNew(['kode_proyek' => 'PRJ-PRAMUKA']);
-        $project->id_user = 2; // peneliti@gmail.com
+        $project->id_user = $idPeneliti;
         $project->nama_proyek = 'Kajian Valuasi Ekonomi Wisata dan Ekosistem Pesisir Pulau Pramuka';
         $project->tujuan_valuasi = 'Valuasi Ekonomi Wisata Bahari (Travel Cost Method) dan Nilai Kesediaan Membayar Konservasi Ekosistem Terumbu Karang (Contingent Valuation Method) Pulau Pramuka, Kepulauan Seribu';
         $project->alamat_lengkap = 'Pulau Pramuka, Kelurahan Pulau Panggang, Kepulauan Seribu, DKI Jakarta';
-        $project->id_provinsi = 1;
-        $project->id_kabupaten_kota = 157;
+        $project->id_provinsi = $idProvinsi;
+        $project->id_kabupaten_kota = $idKabSeribu;
         $project->tahun = 2026;
         $project->luas = 79.86;
         $project->satuan_luas = 'Ha';
@@ -175,366 +202,73 @@ class PramukaSurveySeeder extends Seeder
             $moduleIdCvm = $moduleCvm->id_module;
         }
 
-        // 7. Seed 12 Respondents into tcm_data & cvm_data
-        $respondents = [
-            [
-                'id' => 'R-01',
-                'name' => 'Hendra Kurniawan',
-                'gender' => 'Laki-laki',
-                'age' => 28,
-                'education' => 'S1',
-                'job' => 'Karyawan Swasta',
-                'origin' => 'Jakarta',
-                'distance' => 45.0,
-                'visits' => 2,
-                'stay_days' => 2,
-                'income' => 8500000,
-                'transport_cost' => 350000,
-                'boat_cost' => 400000,
-                'lodging_cost' => 450000,
-                'consumption_cost' => 250000,
-                'travel_cost' => 1450000,
-                'time_cost' => 150000,
-                'substitute_cost' => 1800000,
-                'rating' => 4.5,
-                'cvm_bid' => 25000,
-                'cvm_wtp' => true,
-                'cvm_amount' => 25000,
-                'cvm_reason' => 'Peduli kelestarian ekosistem terumbu karang dan keanekaragaman hayati laut',
-            ],
-            [
-                'id' => 'R-02',
-                'name' => 'Siti Nurhaliza',
-                'gender' => 'Perempuan',
-                'age' => 24,
-                'education' => 'S1',
-                'job' => 'Mahasiswa / Fresh Graduate',
-                'origin' => 'Tangerang',
-                'distance' => 55.0,
-                'visits' => 1,
-                'stay_days' => 1,
-                'income' => 4500000,
-                'transport_cost' => 200000,
-                'boat_cost' => 350000,
-                'lodging_cost' => 250000,
-                'consumption_cost' => 150000,
-                'travel_cost' => 950000,
-                'time_cost' => 80000,
-                'substitute_cost' => 1200000,
-                'rating' => 4.0,
-                'cvm_bid' => 15000,
-                'cvm_wtp' => true,
-                'cvm_amount' => 20000,
-                'cvm_reason' => 'Ingin ekosistem terumbu karang tetap lestari untuk generasi masa depan',
-            ],
-            [
-                'id' => 'R-03',
-                'name' => 'Budi Santoso',
-                'gender' => 'Laki-laki',
-                'age' => 35,
-                'education' => 'D3',
-                'job' => 'Wiraswasta',
-                'origin' => 'Bekasi',
-                'distance' => 60.0,
-                'visits' => 3,
-                'stay_days' => 3,
-                'income' => 12000000,
-                'transport_cost' => 400000,
-                'boat_cost' => 450000,
-                'lodging_cost' => 600000,
-                'consumption_cost' => 350000,
-                'travel_cost' => 1800000,
-                'time_cost' => 250000,
-                'substitute_cost' => 2500000,
-                'rating' => 4.8,
-                'cvm_bid' => 35000,
-                'cvm_wtp' => true,
-                'cvm_amount' => 50000,
-                'cvm_reason' => 'Spot diving dan snorkeling sangat indah, perlu perawatan dan pengawasan rutin',
-            ],
-            [
-                'id' => 'R-04',
-                'name' => 'Dewi Anggraeni',
-                'gender' => 'Perempuan',
-                'age' => 30,
-                'education' => 'S1',
-                'job' => 'PNS',
-                'origin' => 'Depok',
-                'distance' => 50.0,
-                'visits' => 2,
-                'stay_days' => 2,
-                'income' => 6000000,
-                'transport_cost' => 300000,
-                'boat_cost' => 400000,
-                'lodging_cost' => 400000,
-                'consumption_cost' => 250000,
-                'travel_cost' => 1350000,
-                'time_cost' => 180000,
-                'substitute_cost' => 1700000,
-                'rating' => 4.2,
-                'cvm_bid' => 25000,
-                'cvm_wtp' => false,
-                'cvm_amount' => 0,
-                'cvm_reason' => 'Biaya hidup di Jakarta cukup tinggi, lebih memprioritaskan kebutuhan pokok',
-            ],
-            [
-                'id' => 'R-05',
-                'name' => 'Rizky Ramadhan',
-                'gender' => 'Laki-laki',
-                'age' => 22,
-                'education' => 'SMA',
-                'job' => 'Mahasiswa',
-                'origin' => 'Jakarta',
-                'distance' => 40.0,
-                'visits' => 1,
-                'stay_days' => 1,
-                'income' => 2500000,
-                'transport_cost' => 150000,
-                'boat_cost' => 350000,
-                'lodging_cost' => 150000,
-                'consumption_cost' => 150000,
-                'travel_cost' => 800000,
-                'time_cost' => 50000,
-                'substitute_cost' => 1000000,
-                'rating' => 4.0,
-                'cvm_bid' => 10000,
-                'cvm_wtp' => true,
-                'cvm_amount' => 10000,
-                'cvm_reason' => 'Mendukung kebersihan pulau dan program pelestarian penyu sisik',
-            ],
-            [
-                'id' => 'R-06',
-                'name' => 'Anisa Rahmawati',
-                'gender' => 'Perempuan',
-                'age' => 27,
-                'education' => 'S1',
-                'job' => 'Tenaga Pendidik / Guru',
-                'origin' => 'Bogor',
-                'distance' => 70.0,
-                'visits' => 1,
-                'stay_days' => 2,
-                'income' => 5000000,
-                'transport_cost' => 250000,
-                'boat_cost' => 400000,
-                'lodging_cost' => 300000,
-                'consumption_cost' => 150000,
-                'travel_cost' => 1100000,
-                'time_cost' => 120000,
-                'substitute_cost' => 1500000,
-                'rating' => 4.3,
-                'cvm_bid' => 20000,
-                'cvm_wtp' => true,
-                'cvm_amount' => 20000,
-                'cvm_reason' => 'Edukasi lingkungan maritim bagi generasi penerus dan anak didik',
-            ],
-            [
-                'id' => 'R-07',
-                'name' => 'Fajar Prasetyo',
-                'gender' => 'Laki-laki',
-                'age' => 32,
-                'education' => 'S1',
-                'job' => 'Pegawai BUMN',
-                'origin' => 'Bandung',
-                'distance' => 180.0,
-                'visits' => 2,
-                'stay_days' => 3,
-                'income' => 15000000,
-                'transport_cost' => 600000,
-                'boat_cost' => 500000,
-                'lodging_cost' => 650000,
-                'consumption_cost' => 350000,
-                'travel_cost' => 2100000,
-                'time_cost' => 300000,
-                'substitute_cost' => 2800000,
-                'rating' => 4.7,
-                'cvm_bid' => 50000,
-                'cvm_wtp' => true,
-                'cvm_amount' => 50000,
-                'cvm_reason' => 'Biaya rehabilitasi dan transplantasi karang membutuhkan alokasi dana riil',
-            ],
-            [
-                'id' => 'R-08',
-                'name' => 'Maya Indah',
-                'gender' => 'Perempuan',
-                'age' => 26,
-                'education' => 'S1',
-                'job' => 'Arsitek',
-                'origin' => 'Jakarta',
-                'distance' => 42.0,
-                'visits' => 3,
-                'stay_days' => 2,
-                'income' => 7500000,
-                'transport_cost' => 350000,
-                'boat_cost' => 450000,
-                'lodging_cost' => 450000,
-                'consumption_cost' => 300000,
-                'travel_cost' => 1550000,
-                'time_cost' => 200000,
-                'substitute_cost' => 2000000,
-                'rating' => 4.6,
-                'cvm_bid' => 35000,
-                'cvm_wtp' => false,
-                'cvm_amount' => 0,
-                'cvm_reason' => 'Nilai tawaran Rp 35.000 per orang dirasa cukup membebani bila berkunjung rombongan keluarga',
-            ],
-            [
-                'id' => 'R-09',
-                'name' => 'Eko Wahyudi',
-                'gender' => 'Laki-laki',
-                'age' => 40,
-                'education' => 'SMA',
-                'job' => 'Wiraswasta / Pedagang',
-                'origin' => 'Cirebon',
-                'distance' => 220.0,
-                'visits' => 1,
-                'stay_days' => 2,
-                'income' => 7000000,
-                'transport_cost' => 500000,
-                'boat_cost' => 450000,
-                'lodging_cost' => 400000,
-                'consumption_cost' => 250000,
-                'travel_cost' => 1600000,
-                'time_cost' => 150000,
-                'substitute_cost' => 2100000,
-                'rating' => 4.1,
-                'cvm_bid' => 15000,
-                'cvm_wtp' => true,
-                'cvm_amount' => 15000,
-                'cvm_reason' => 'Tempat rekreasi bahari yang asri harus dijaga kelestariannya bersama-sama',
-            ],
-            [
-                'id' => 'R-10',
-                'name' => 'Putri Lestari',
-                'gender' => 'Perempuan',
-                'age' => 23,
-                'education' => 'D3',
-                'job' => 'Staf Administrasi',
-                'origin' => 'Bekasi',
-                'distance' => 58.0,
-                'visits' => 2,
-                'stay_days' => 1,
-                'income' => 5000000,
-                'transport_cost' => 250000,
-                'boat_cost' => 400000,
-                'lodging_cost' => 250000,
-                'consumption_cost' => 150000,
-                'travel_cost' => 1050000,
-                'time_cost' => 100000,
-                'substitute_cost' => 1400000,
-                'rating' => 4.2,
-                'cvm_bid' => 20000,
-                'cvm_wtp' => true,
-                'cvm_amount' => 20000,
-                'cvm_reason' => 'Suka wisata alam bahari dan ingin ikut berpartisipasi menjaga keindahan karang',
-            ],
-            [
-                'id' => 'R-11',
-                'name' => 'Dimas Wicaksono',
-                'gender' => 'Laki-laki',
-                'age' => 29,
-                'education' => 'S2',
-                'job' => 'Peneliti / Dosen',
-                'origin' => 'Yogyakarta',
-                'distance' => 500.0,
-                'visits' => 1,
-                'stay_days' => 3,
-                'income' => 9000000,
-                'transport_cost' => 800000,
-                'boat_cost' => 500000,
-                'lodging_cost' => 600000,
-                'consumption_cost' => 350000,
-                'travel_cost' => 2250000,
-                'time_cost' => 350000,
-                'substitute_cost' => 3200000,
-                'rating' => 4.9,
-                'cvm_bid' => 50000,
-                'cvm_wtp' => false,
-                'cvm_amount' => 0,
-                'cvm_reason' => 'Tawaran Rp 50.000 per orang terlalu tinggi dibandingkan fasilitas konservasi saat ini',
-            ],
-            [
-                'id' => 'R-12',
-                'name' => 'Luki Pratama',
-                'gender' => 'Laki-laki',
-                'age' => 31,
-                'education' => 'S1',
-                'job' => 'Karyawan Swasta',
-                'origin' => 'Jakarta',
-                'distance' => 45.0,
-                'visits' => 1,
-                'stay_days' => 2,
-                'income' => 8000000,
-                'transport_cost' => 300000,
-                'boat_cost' => 400000,
-                'lodging_cost' => 300000,
-                'consumption_cost' => 200000,
-                'travel_cost' => 1200000,
-                'time_cost' => 150000,
-                'substitute_cost' => 1600000,
-                'rating' => 3.8,
-                'cvm_bid' => 25000,
-                'cvm_wtp' => false,
-                'cvm_amount' => 0,
-                'cvm_reason' => 'Merasa konservasi adalah kewajiban pemerintah melalui anggaran APBD/APBN (Protest Zero)',
-            ],
+        // 7. Respondents from the field questionnaire (Google Forms), keyed by name.
+        $lokasi = 'Pulau Pramuka';
+
+        // Remove respondents seeded earlier with invented data (coded R-01.. and the twelve named profiles).
+        $dummyNames = [
+            'Hendra Kurniawan', 'Siti Nurhaliza', 'Budi Santoso', 'Dewi Anggraeni', 'Rizky Ramadhan', 'Anisa Rahmawati',
+            'Fajar Prasetyo', 'Maya Indah', 'Eko Wahyudi', 'Putri Lestari', 'Dimas Wicaksono', 'Luki Pratama',
+        ];
+        foreach ([TcmData::class, CvmData::class] as $model) {
+            $model::where('id_proyek', $idProyek)
+                ->where(fn ($q) => $q->whereIn('respondent_id', $dummyNames)->orWhere('respondent_id', 'like', 'R-%'))
+                ->delete();
+        }
+
+        // TCM: visits per year and the cost of one visit (travel cost + entrance ticket), as answered in the form.
+        // Education, income and length of stay were not asked, so they stay empty until the researcher fills them.
+        $tcmRespondents = [
+            ['name' => 'Hwang',   'origin' => 'China',          'purpose' => 'Wisata Alam & Bahari',         'port' => 'Pelabuhan Sunda Kelapa', 'mode' => 'Pribadi', 'visits' => 1,   'travel' => 3060000, 'ticket' => 0],
+            ['name' => 'Ismail',  'origin' => 'Jakarta Pusat',  'purpose' => 'Snorkeling',                   'port' => 'Pelabuhan Sunda Kelapa', 'mode' => 'Kantor',  'visits' => 1,   'travel' => 8500000, 'ticket' => 1700000],
+            ['name' => 'Rizal',   'origin' => 'Bogor',          'purpose' => 'Bisnis',                       'port' => 'Pelabuhan Sunda Kelapa', 'mode' => 'Kantor',  'visits' => 2,   'travel' => 2800000, 'ticket' => 0],
+            ['name' => 'fikri',   'origin' => 'Jakarta',        'purpose' => 'Sekolah',                      'port' => 'Pelabuhan Sunda Kelapa', 'mode' => 'Kantor',  'visits' => 50,  'travel' => 2775000, 'ticket' => 0],
+            ['name' => 'Fauzan',  'origin' => 'Jakarta',        'purpose' => 'Wisata Alam & Snorkeling',     'port' => 'Pelabuhan Sunda Kelapa', 'mode' => 'Kantor',  'visits' => 1,   'travel' => 2245000, 'ticket' => 35000],
+            ['name' => 'Boncell', 'origin' => 'P. Panggang',    'purpose' => 'Bisnis',                       'port' => 'Pelabuhan P. Panggang',  'mode' => 'Pribadi', 'visits' => 140, 'travel' => 110000,  'ticket' => 0],
         ];
 
-        foreach ($respondents as $resp) {
-            // TCM
+        foreach ($tcmRespondents as $r) {
             TcmData::updateOrCreate(
-                [
-                    'id_proyek' => $idProyek,
-                    'respondent_id' => $resp['id'],
-                ],
+                ['id_proyek' => $idProyek, 'lokasi' => $lokasi, 'respondent_id' => $r['name']],
                 [
                     'id_module' => $moduleIdTcm,
-                    'distance' => $resp['distance'],
-                    'total_travel_cost' => $resp['travel_cost'],
-                    'annual_visits' => $resp['visits'],
-                    'time_cost' => $resp['time_cost'],
+                    'annual_visits' => $r['visits'],
+                    'total_travel_cost' => $r['travel'] + $r['ticket'],
                     'socioeconomic_data' => [
-                        'name' => $resp['name'],
-                        'gender' => $resp['gender'],
-                        'age' => $resp['age'],
-                        'education' => $resp['education'],
-                        'education_level' => $resp['education'],
-                        'job' => $resp['job'],
-                        'origin' => $resp['origin'],
-                        'income' => $resp['income'],
-                        'household_income' => $resp['income'],
-                        'stay_days' => $resp['stay_days'],
-                        'transport_cost' => $resp['transport_cost'],
-                        'boat_cost' => $resp['boat_cost'],
-                        'lodging_cost' => $resp['lodging_cost'],
-                        'consumption_cost' => $resp['consumption_cost'],
-                        'substitute_site_cost' => $resp['substitute_cost'],
-                        'site_rating' => $resp['rating'],
+                        'origin' => $r['origin'],
+                        'visit_purpose' => $r['purpose'],
+                        'departure_port' => $r['port'],
+                        'transport_mode' => $r['mode'],
+                        'transport_cost' => $r['travel'],
+                        'ticket_fee' => $r['ticket'],
                     ],
                 ]
             );
+        }
 
-            // CVM
+        // CVM: the bid shown to the respondent and the answer (dichotomous choice).
+        $cvmRespondents = [
+            ['name' => 'Ibu Wuri',         'job' => 'Pedagang',          'bid' => 5000,  'wtp' => false, 'reason' => 'Tanggung jawab pemerintah'],
+            ['name' => 'Anonim (T1 004)',  'job' => 'Pekerja Lepas',     'bid' => 5000,  'wtp' => false, 'reason' => 'Tanggung jawab pemerintah'],
+            ['name' => 'Muhammas Safiq',   'job' => 'Dinas SDA',         'bid' => 5000,  'wtp' => false, 'reason' => 'Lainnya'],
+            ['name' => 'Rudi',             'job' => 'Pedagang',          'bid' => 50000, 'wtp' => true,  'reason' => 'Lainnya'],
+            ['name' => 'Pak Teguh',        'job' => 'Nelayan',           'bid' => 20000, 'wtp' => true,  'reason' => 'Lainnya'],
+            ['name' => 'Ibu Suhaah',       'job' => 'Pedagang Es Cendol', 'bid' => 20000, 'wtp' => true,  'reason' => 'Lainnya'],
+        ];
+
+        foreach ($cvmRespondents as $r) {
             CvmData::updateOrCreate(
-                [
-                    'id_proyek' => $idProyek,
-                    'respondent_id' => $resp['id'],
-                ],
+                ['id_proyek' => $idProyek, 'lokasi' => $lokasi, 'respondent_id' => $r['name']],
                 [
                     'id_module' => $moduleIdCvm,
                     'elicitation_format' => 'dichotomous_choice',
-                    'bid_amount' => $resp['cvm_bid'],
-                    'willingness_to_pay' => $resp['cvm_wtp'],
-                    'wtp_amount' => $resp['cvm_amount'],
+                    'bid_amount' => $r['bid'],
+                    'willingness_to_pay' => $r['wtp'],
+                    'wtp_amount' => $r['wtp'] ? $r['bid'] : 0,
                     'socioeconomic_data' => [
-                        'name' => $resp['name'],
-                        'age' => $resp['age'],
-                        'education' => $resp['education'],
-                        'education_level' => $resp['education'],
-                        'income' => $resp['income'],
-                        'household_income' => $resp['income'],
-                        'reason' => $resp['cvm_reason'],
-                        'is_protest' => !$resp['cvm_wtp'],
-                        'payment_vehicle' => 'Tiket Retribusi Konservasi Karang',
+                        'job' => $r['job'],
+                        'reason' => $r['reason'],
+                        'is_protest' => ! $r['wtp'],
                     ],
                 ]
             );
@@ -605,275 +339,53 @@ class PramukaSurveySeeder extends Seeder
             $syncService->syncRow($idLandCover, 'provisioning', 'fauna', $r, (float) ($r['totalNilai'] ?? 0));
         }
 
-        // B. CVM Rows (6 Responden Kuesioner Konservasi Terumbu Karang)
-        $cvmSpreadsheetRows = [
-            [
-                'id' => 'ROW-CUL-CVM-1792741625012-2-d4dnq',
-                'no' => 1,
-                'item' => 'Responden T1 001 - Ibu Wuri (Pedagang)',
-                'populasi' => 1,
-                'wtp' => 0,
-                'biayaProgram' => 0,
-                'totalNilai' => 0,
-                'source' => 'Kuesioner Google Forms (BID: Rp 5.000, WTP: Tidak, Alasan: Tanggung jawab pemerintah)',
-                'jumlah' => 1,
+        // B. Cultural rows: one row per location. Figures are left empty on purpose: the questionnaire
+        // has 6 TCM and 6 CVM respondents and the estimates need at least 10 (with education, income and
+        // length of stay for TCM). The row fills itself once the researcher completes the respondents
+        // and presses "Simpan & Hitung".
+        DB::table('valuation_rows')
+            ->where('id_jenis_tutupan_lahan', $idLandCover)
+            ->where('service_id', 'cultural')
+            ->whereIn('method_id', ['tcm', 'cvm'])
+            ->delete();
+
+        $waiting = fn (int $n) => "Menunggu data responden lengkap ({$n} responden tersimpan). Buka Input Responden lalu Simpan & Hitung";
+        $rows = [
+            'tcm' => [
+                'id' => 'ROW-CUL-TCM-PRAMUKA-001', 'no' => 1, 'item' => $lokasi,
+                'kunjungan' => null, 'biayaPerjalanan' => null, 'totalNilai' => 0,
+                'source' => $waiting(count($tcmRespondents)), 'jumlah' => 0,
             ],
-            [
-                'id' => 'ROW-CUL-CVM-1792744557043-3-8glfp',
-                'no' => 2,
-                'item' => 'Responden T1 004 - Anonim (Pekerja Lepas)',
-                'populasi' => 1,
-                'wtp' => 0,
-                'biayaProgram' => 0,
-                'totalNilai' => 0,
-                'source' => 'Kuesioner Google Forms (BID: Rp 5.000, WTP: Tidak, Alasan: Tanggung jawab pemerintah)',
-                'jumlah' => 1,
-            ],
-            [
-                'id' => 'ROW-CUL-CVM-1792744700363-4-aj8q9',
-                'no' => 3,
-                'item' => 'Responden 4 - Muhammas Safiq (Dinas SDA)',
-                'populasi' => 1,
-                'wtp' => 0,
-                'biayaProgram' => 0,
-                'totalNilai' => 0,
-                'source' => 'Kuesioner Google Forms (BID: Rp 5.000, WTP: Tidak, Alasan: Lainnya)',
-                'jumlah' => 1,
-            ],
-            [
-                'id' => 'ROW-CUL-CVM-1792744700825-5-v6o11',
-                'no' => 4,
-                'item' => 'Responden 1 - Rudi (Pedagang)',
-                'populasi' => 1,
-                'wtp' => 50000,
-                'biayaProgram' => 0,
-                'totalNilai' => 50000,
-                'source' => 'Kuesioner Google Forms (BID: Rp 50.000, WTP: Ya, Alasan: Lainnya)',
-                'jumlah' => 1,
-            ],
-            [
-                'id' => 'ROW-CUL-CVM-1792744701260-6-1ji04',
-                'no' => 5,
-                'item' => 'Responden T1 005 - Pak Teguh (Nelayan)',
-                'populasi' => 1,
-                'wtp' => 20000,
-                'biayaProgram' => 0,
-                'totalNilai' => 20000,
-                'source' => 'Kuesioner Google Forms (BID: Rp 20.000, WTP: Ya, Alasan: Lainnya)',
-                'jumlah' => 1,
-            ],
-            [
-                'id' => 'ROW-CUL-CVM-1792744701818-7-6cky7',
-                'no' => 6,
-                'item' => 'Responden T1 006 - Ibu Suhaah (Pedagang Es Cendol)',
-                'populasi' => 1,
-                'wtp' => 20000,
-                'biayaProgram' => 0,
-                'totalNilai' => 20000,
-                'source' => 'Kuesioner Google Forms (BID: Rp 20.000, WTP: Ya, Alasan: Lainnya)',
-                'jumlah' => 1,
+            'cvm' => [
+                'id' => 'ROW-CUL-CVM-PRAMUKA-001', 'no' => 1, 'item' => $lokasi,
+                'populasi' => null, 'wtp' => null, 'totalNilai' => 0,
+                'source' => $waiting(count($cvmRespondents)), 'jumlah' => 0,
             ],
         ];
-
-        foreach ($cvmSpreadsheetRows as $idx => $r) {
-            DB::table('valuation_rows')->updateOrInsert(
-                [
-                    'id_jenis_tutupan_lahan' => $idLandCover,
-                    'service_id' => 'cultural',
-                    'method_id' => 'cvm',
-                    'row_order' => $idx,
-                ],
-                [
-                    'biota' => null,
-                    'row_data' => json_encode($r),
-                    'total_nilai' => $r['totalNilai'] ?? 0,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]
-            );
-            $syncService->syncRow($idLandCover, 'cultural', null, $r, (float) ($r['totalNilai'] ?? 0));
+        foreach ($rows as $methodId => $r) {
+            DB::table('valuation_rows')->insert([
+                'id_jenis_tutupan_lahan' => $idLandCover,
+                'service_id' => 'cultural',
+                'method_id' => $methodId,
+                'row_order' => 0,
+                'biota' => null,
+                'row_data' => json_encode($r),
+                'total_nilai' => 0,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
         }
 
-        // C. TCM Rows (6 Responden Kuesioner Wisata Ekowisata Bahari)
-        $tcmSpreadsheetRows = [
-            [
-                'id' => 'ROW-CUL-TCM-1792744772331-2-74dfp',
-                'no' => 1,
-                'item' => 'Responden 1 - Hwang (China, Wisata Alam & Bahari)',
-                'kunjungan' => 1,
-                'biayaPerjalanan' => 3060000,
-                'biayaTiket' => 0,
-                'totalNilai' => 3060000,
-                'source' => 'Kuesioner Google Forms (Pelabuhan Sunda Kelapa, Pribadi)',
-                'jumlah' => 1,
-            ],
-            [
-                'id' => 'ROW-CUL-TCM-1792744772781-3-j692t',
-                'no' => 2,
-                'item' => 'Responden 2 - Ismail (Jakarta Pusat, Snorkeling)',
-                'kunjungan' => 1,
-                'biayaPerjalanan' => 8500000,
-                'biayaTiket' => 1700000,
-                'totalNilai' => 10200000,
-                'source' => 'Kuesioner Google Forms (Pelabuhan Sunda Kelapa, Kantor)',
-                'jumlah' => 1,
-            ],
-            [
-                'id' => 'ROW-CUL-TCM-1792744773248-4-j35ow',
-                'no' => 3,
-                'item' => 'Responden 3 - Rizal (Bogor, Bisnis)',
-                'kunjungan' => 2,
-                'biayaPerjalanan' => 2800000,
-                'biayaTiket' => 0,
-                'totalNilai' => 5600000,
-                'source' => 'Kuesioner Google Forms (Pelabuhan Sunda Kelapa, Kantor)',
-                'jumlah' => 2,
-            ],
-            [
-                'id' => 'ROW-CUL-TCM-1792744773769-5-qcbz5',
-                'no' => 4,
-                'item' => 'Responden 5 - fikri (Jakarta, Sekolah)',
-                'kunjungan' => 50,
-                'biayaPerjalanan' => 2775000,
-                'biayaTiket' => 0,
-                'totalNilai' => 138750000,
-                'source' => 'Kuesioner Google Forms (Pelabuhan Sunda Kelapa, Kantor)',
-                'jumlah' => 50,
-            ],
-            [
-                'id' => 'ROW-CUL-TCM-1792744774700-7-14rqf',
-                'no' => 5,
-                'item' => 'Responden 7 - Fauzan (Jakarta, Wisata Alam & Snorkeling)',
-                'kunjungan' => 1,
-                'biayaPerjalanan' => 2245000,
-                'biayaTiket' => 35000,
-                'totalNilai' => 2280000,
-                'source' => 'Kuesioner Google Forms (Pelabuhan Sunda Kelapa, Kantor)',
-                'jumlah' => 1,
-            ],
-            [
-                'id' => 'ROW-CUL-TCM-1792744774236-6-fj1bh',
-                'no' => 6,
-                'item' => 'Responden 6 - Boncell (P. Panggang, Bisnis)',
-                'kunjungan' => 140,
-                'biayaPerjalanan' => 110000,
-                'biayaTiket' => 0,
-                'totalNilai' => 15400000,
-                'source' => 'Kuesioner Google Forms (Pelabuhan P. Panggang, Pribadi)',
-                'jumlah' => 140,
-            ],
-        ];
+        // Results derived from invented respondents are removed: analyses, Data Master entry and CBA benefits.
+        DB::table('tcm_analyses')->where('id_proyek', $idProyek)->where('id_module', $moduleIdTcm)->delete();
+        DB::table('cvm_analyses')->where('id_proyek', $idProyek)->where('id_module', $moduleIdCvm)->delete();
+        DB::table('benefits')->where('id_proyek', $idProyek)->where('category', 'Cultural')
+            ->whereIn('source_module', ['tcm', 'cvm'])->delete();
+        DB::table('cultural_service')->where('id_jenis_tutupan_lahan', $idLandCover)
+            ->whereRaw('LOWER(TRIM(nama_aktivitas)) = ?', [strtolower($lokasi)])->delete();
 
-        foreach ($tcmSpreadsheetRows as $idx => $r) {
-            DB::table('valuation_rows')->updateOrInsert(
-                [
-                    'id_jenis_tutupan_lahan' => $idLandCover,
-                    'service_id' => 'cultural',
-                    'method_id' => 'tcm',
-                    'row_order' => $idx,
-                ],
-                [
-                    'biota' => null,
-                    'row_data' => json_encode($r),
-                    'total_nilai' => $r['totalNilai'] ?? 0,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]
-            );
-            $syncService->syncRow($idLandCover, 'cultural', null, $r, (float) ($r['totalNilai'] ?? 0));
-        }
-
-        // 9. Sync rows to Data Master (cultural_service)
-        $syncService = app(ValuationDataMasterSyncService::class);
+        // 9. Sync the remaining rows to Data Master (cultural_service)
         $syncService->reconcileProject($project);
-
-        // 10. Run Econometric Estimations
-        $tcmEstimator = app(TravelCostEstimator::class);
-        $tcmRes = $tcmEstimator->estimate($project, 'poisson', ['income', 'age']);
-        if ($tcmRes['ok']) {
-            DB::table('tcm_analyses')->updateOrInsert(
-                [
-                    'id_proyek' => $idProyek,
-                    'id_module' => $moduleIdTcm,
-                ],
-                [
-                    'model_type' => 'poisson',
-                    'dependent_variable' => 'annual_visits',
-                    'independent_variables' => json_encode(['travel_cost', 'income', 'age']),
-                    'coefficients' => json_encode($tcmRes['coefficients'] ?? []),
-                    'consumer_surplus_per_visit' => $tcmRes['cs_per_visit'] ?? 780000,
-                    'total_recreation_value' => 32041675000,
-                    'r_squared' => $tcmRes['diagnostics']['r_squared'] ?? 0.8245,
-                    'n' => 12,
-                    'notes' => 'Estimasi Poisson Regression berdasarkan 12 responden kuesioner lapangan Pulau Pramuka',
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]
-            );
-        }
-
-        $cvmEstimator = app(ContingentValuationEstimator::class);
-        $cvmRes = $cvmEstimator->estimate($project, 'logit', ['income']);
-        if ($cvmRes['ok']) {
-            DB::table('cvm_analyses')->updateOrInsert(
-                [
-                    'id_proyek' => $idProyek,
-                    'id_module' => $moduleIdCvm,
-                ],
-                [
-                    'analysis_type' => 'logit_dichotomous_choice',
-                    'population' => 25000,
-                    'independent_variables' => json_encode(['bid', 'income']),
-                    'coefficients' => json_encode($cvmRes['coefficients'] ?? []),
-                    'median_wtp' => $cvmRes['ewtp'] ?? 29260,
-                    'mean_wtp' => $cvmRes['ewtp'] ?? 29260,
-                    'total_wtp' => ($cvmRes['ewtp'] ?? 29260) * 25000,
-                    'n' => 12,
-                    'notes' => 'Estimasi Logit Dichotomous Choice berdasarkan 12 responden kuesioner lapangan Pulau Pramuka (8 setuju, 4 tidak)',
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]
-            );
-        }
-
-        // 11. Add Benefits & Costs for CBA / Analytics
-        DB::table('benefits')->updateOrInsert(
-            [
-                'id_proyek' => $idProyek,
-                'category' => 'Cultural',
-                'subcategory' => 'Ekowisata Bahari (TCM)',
-            ],
-            [
-                'ecosystem_service_group' => 'Jasa Budaya / Rekreasi',
-                'value' => 32041675000.00,
-                'period_year' => 2025,
-                'pv_value' => 32041675000.00,
-                'data_source' => 'Survei Kuesioner TCM Pulau Pramuka PKSPL IPB',
-                'source_module' => 'tcm',
-                'description' => 'Nilai ekonomi rekreasi tahunan Pulau Pramuka dari total biaya perjalanan dan tiket pengunjung',
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]
-        );
-
-        DB::table('benefits')->updateOrInsert(
-            [
-                'id_proyek' => $idProyek,
-                'category' => 'Cultural',
-                'subcategory' => 'Konservasi Terumbu Karang (CVM)',
-            ],
-            [
-                'ecosystem_service_group' => 'Jasa Budaya / Nilai Keberadaan & Konservasi',
-                'value' => 550000000.00,
-                'period_year' => 2025,
-                'pv_value' => 550000000.00,
-                'data_source' => 'Survei Kuesioner CVM Pulau Pramuka PKSPL IPB',
-                'source_module' => 'cvm',
-                'description' => 'Nilai kesediaan membayar (WTP) masyarakat dan wisatawan untuk program konservasi terumbu karang dikurangi biaya operasional program',
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]
-        );
 
         $this->command->info('Pulau Pramuka survey research data successfully integrated into project PRJ-PRAMUKA!');
     }

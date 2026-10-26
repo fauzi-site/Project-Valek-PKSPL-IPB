@@ -18,11 +18,11 @@ class DatabaseSeeder extends Seeder
         $this->call([
             RoleSeeder::class,
             UserSeeder::class,
+            AdministrativeBoundarySeeder::class,
             ProvinsiSeeder::class,
             KabupatenKotaSeeder::class,
             KecamatanSeeder::class,
             DesaKelurahanSeeder::class,
-            AdministrativeBoundarySeeder::class,
             EkosistemSeeder::class,
             MetodeValuasiSeeder::class,
             ProyekSeeder::class,

@@ -34,13 +34,96 @@ class SurveyValuationController extends Controller
     }
 
     /**
+     * Locations that have saved respondents for a method, with their counts. A NULL location
+     * (rows saved before locations existed) is reported as an empty string.
+     */
+    public function locations(Request $request, Proyek $proyek): JsonResponse
+    {
+        if ($denied = $this->checkAccess($request, $proyek)) return $denied;
+
+        $method = $request->query('method');
+        $model = match ($method) {
+            'tcm' => TcmData::class,
+            'cvm' => CvmData::class,
+            default => null,
+        };
+        if ($model === null) {
+            return response()->json(['message' => 'Parameter method harus tcm atau cvm.'], 422);
+        }
+
+        $rows = $model::where('id_proyek', $proyek->id_proyek)
+            ->selectRaw('lokasi, count(*) as total')
+            ->groupBy('lokasi')
+            ->orderBy('lokasi')
+            ->get()
+            ->map(fn ($r) => ['lokasi' => $r->lokasi ?? '', 'total' => (int) $r->total])
+            ->values();
+
+        return response()->json(['data' => $rows]);
+    }
+
+    /**
+     * Moves every respondent of one location to another name, for when a location is renamed
+     * in the main table. Refuses when a respondent ID already exists under the new name.
+     */
+    public function renameLocation(Request $request, Proyek $proyek): JsonResponse
+    {
+        if ($denied = $this->checkAccess($request, $proyek)) return $denied;
+
+        $validated = $request->validate([
+            'method' => ['required', 'in:tcm,cvm'],
+            'from' => ['present', 'nullable', 'string', 'max:150'],
+            'to' => ['required', 'string', 'max:150'],
+        ]);
+        $from = ($validated['from'] ?? '') === '' ? null : $validated['from'];
+        $to = trim($validated['to']);
+        if ($to === '' || $from === $to) {
+            return response()->json(['message' => 'Nama lokasi tujuan tidak valid.'], 422);
+        }
+
+        $model = $validated['method'] === 'tcm' ? TcmData::class : CvmData::class;
+        $scope = fn ($lokasi) => $model::where('id_proyek', $proyek->id_proyek)
+            ->when($lokasi === null, fn ($q) => $q->whereNull('lokasi'), fn ($q) => $q->where('lokasi', $lokasi));
+
+        $moving = $scope($from)->pluck('respondent_id');
+        $clash = $scope($to)->whereIn('respondent_id', $moving)->pluck('respondent_id');
+        if ($clash->isNotEmpty()) {
+            return response()->json([
+                'message' => 'Tidak dapat memindahkan: ID responden berikut sudah ada di lokasi "'.$to.'": '.$clash->take(10)->implode(', ').'.',
+            ], 422);
+        }
+
+        $moved = $scope($from)->update(['lokasi' => $to]);
+
+        return response()->json(['count' => $moved, 'message' => "{$moved} responden dipindahkan ke {$to}."]);
+    }
+
+    /**
+     * Respondents are grouped by tourism location. `?lokasi=` narrows a query to one
+     * location; an empty value selects the respondents saved without a location.
+     */
+    private function lokasiFrom(Request $request): ?string
+    {
+        return $request->has('lokasi') ? (string) $request->query('lokasi') : null;
+    }
+
+    private function scopeLokasi($query, ?string $lokasi)
+    {
+        if ($lokasi === null) {
+            return $query;
+        }
+
+        return $lokasi === '' ? $query->whereNull('lokasi') : $query->where('lokasi', $lokasi);
+    }
+
+    /**
      * Get all TCM respondents for a project with summary stats.
      */
     public function getTcmData(Request $request, Proyek $proyek): JsonResponse
     {
         if ($denied = $this->checkAccess($request, $proyek)) return $denied;
 
-        $rows = TcmData::where('id_proyek', $proyek->id_proyek)
+        $rows = $this->scopeLokasi(TcmData::where('id_proyek', $proyek->id_proyek), $this->lokasiFrom($request))
             ->orderBy('id_tcm', 'asc')
             ->get();
 
@@ -72,6 +155,7 @@ class SurveyValuationController extends Controller
 
         $validated = $request->validate([
             'id_tcm' => ['nullable', 'integer'],
+            'lokasi' => ['nullable', 'string', 'max:150'],
             'respondent_id' => ['required', 'string', 'max:100'],
             'annual_visits' => ['required', 'integer', 'min:1'],
             'total_travel_cost' => ['required', 'numeric', 'min:0'],
@@ -82,6 +166,7 @@ class SurveyValuationController extends Controller
 
         $data = [
             'id_proyek' => $proyek->id_proyek,
+            'lokasi' => $validated['lokasi'] ?? null,
             'respondent_id' => $validated['respondent_id'],
             'annual_visits' => $validated['annual_visits'],
             'total_travel_cost' => $validated['total_travel_cost'],
@@ -95,7 +180,7 @@ class SurveyValuationController extends Controller
             $row->update($data);
         } else {
             $row = TcmData::updateOrCreate(
-                ['id_proyek' => $proyek->id_proyek, 'respondent_id' => $validated['respondent_id']],
+                ['id_proyek' => $proyek->id_proyek, 'lokasi' => $validated['lokasi'] ?? null, 'respondent_id' => $validated['respondent_id']],
                 $data
             );
         }
@@ -114,6 +199,7 @@ class SurveyValuationController extends Controller
         if ($denied = $this->checkAccess($request, $proyek)) return $denied;
 
         $validated = $request->validate([
+            'lokasi' => ['nullable', 'string', 'max:150'],
             'respondents' => ['required', 'array', 'min:1'],
             'respondents.*.respondent_id' => ['required', 'string'],
             'respondents.*.annual_visits' => ['required', 'integer', 'min:1'],
@@ -125,9 +211,10 @@ class SurveyValuationController extends Controller
         $saved = [];
         foreach ($validated['respondents'] as $r) {
             $saved[] = TcmData::updateOrCreate(
-                ['id_proyek' => $proyek->id_proyek, 'respondent_id' => $r['respondent_id']],
+                ['id_proyek' => $proyek->id_proyek, 'lokasi' => $validated['lokasi'] ?? null, 'respondent_id' => $r['respondent_id']],
                 [
                     'id_proyek' => $proyek->id_proyek,
+                    'lokasi' => $validated['lokasi'] ?? null,
                     'respondent_id' => $r['respondent_id'],
                     'annual_visits' => $r['annual_visits'],
                     'total_travel_cost' => $r['total_travel_cost'],
@@ -165,17 +252,22 @@ class SurveyValuationController extends Controller
     {
         if ($denied = $this->checkAccess($request, $proyek)) return $denied;
 
-        $model = $request->query('model', 'poisson');
+        // Defaults follow the TCM exercise: linear demand on travel cost,
+        // education, income and trip duration.
+        $model = $request->query('model', 'ols');
         $covariates = $request->has('covariates')
             ? array_values(array_filter(explode(',', $request->query('covariates'))))
-            : ['income', 'age'];
+            : ['education', 'income', 'trip_duration'];
+        $totalVisits = $request->filled('total_annual_visits') ? (float) $request->query('total_annual_visits') : null;
 
-        $estimate = $this->tcmEstimator->estimate($proyek, $model, $covariates);
+        $lokasi = $this->lokasiFrom($request);
+        $estimate = $this->tcmEstimator->estimate($proyek, $model, $covariates, $totalVisits, $lokasi);
 
         // Fetch or create persistent record
         $latestAnalysis = TcmAnalysis::where('id_proyek', $proyek->id_proyek)->latest()->first();
 
-        if ($estimate['ok']) {
+        // The stored record is per project and model; a per-location run would overwrite another's.
+        if ($estimate['ok'] && $lokasi === null) {
             $analysis = TcmAnalysis::updateOrCreate(
                 ['id_proyek' => $proyek->id_proyek, 'model_type' => $model],
                 [
@@ -205,7 +297,7 @@ class SurveyValuationController extends Controller
     {
         if ($denied = $this->checkAccess($request, $proyek)) return $denied;
 
-        $rows = CvmData::where('id_proyek', $proyek->id_proyek)
+        $rows = $this->scopeLokasi(CvmData::where('id_proyek', $proyek->id_proyek), $this->lokasiFrom($request))
             ->orderBy('id_cvm', 'asc')
             ->get();
 
@@ -245,6 +337,7 @@ class SurveyValuationController extends Controller
 
         $validated = $request->validate([
             'id_cvm' => ['nullable', 'integer'],
+            'lokasi' => ['nullable', 'string', 'max:150'],
             'respondent_id' => ['required', 'string', 'max:100'],
             'elicitation_format' => ['required', 'string', 'max:100'],
             'bid_amount' => ['required', 'numeric', 'min:0'],
@@ -255,6 +348,7 @@ class SurveyValuationController extends Controller
 
         $data = [
             'id_proyek' => $proyek->id_proyek,
+            'lokasi' => $validated['lokasi'] ?? null,
             'respondent_id' => $validated['respondent_id'],
             'elicitation_format' => $validated['elicitation_format'],
             'bid_amount' => $validated['bid_amount'],
@@ -268,7 +362,7 @@ class SurveyValuationController extends Controller
             $row->update($data);
         } else {
             $row = CvmData::updateOrCreate(
-                ['id_proyek' => $proyek->id_proyek, 'respondent_id' => $validated['respondent_id']],
+                ['id_proyek' => $proyek->id_proyek, 'lokasi' => $validated['lokasi'] ?? null, 'respondent_id' => $validated['respondent_id']],
                 $data
             );
         }
@@ -287,6 +381,7 @@ class SurveyValuationController extends Controller
         if ($denied = $this->checkAccess($request, $proyek)) return $denied;
 
         $validated = $request->validate([
+            'lokasi' => ['nullable', 'string', 'max:150'],
             'respondents' => ['required', 'array', 'min:1'],
             'respondents.*.respondent_id' => ['required', 'string'],
             'respondents.*.elicitation_format' => ['required', 'string'],
@@ -299,9 +394,10 @@ class SurveyValuationController extends Controller
         $saved = [];
         foreach ($validated['respondents'] as $r) {
             $saved[] = CvmData::updateOrCreate(
-                ['id_proyek' => $proyek->id_proyek, 'respondent_id' => $r['respondent_id']],
+                ['id_proyek' => $proyek->id_proyek, 'lokasi' => $validated['lokasi'] ?? null, 'respondent_id' => $r['respondent_id']],
                 [
                     'id_proyek' => $proyek->id_proyek,
+                    'lokasi' => $validated['lokasi'] ?? null,
                     'respondent_id' => $r['respondent_id'],
                     'elicitation_format' => $r['elicitation_format'],
                     'bid_amount' => $r['bid_amount'],
@@ -344,11 +440,12 @@ class SurveyValuationController extends Controller
             ? array_values(array_filter(explode(',', $request->query('covariates'))))
             : ['income'];
 
-        $estimate = $this->cvmEstimator->estimate($proyek, $model, $covariates);
+        $lokasi = $this->lokasiFrom($request);
+        $estimate = $this->cvmEstimator->estimate($proyek, $model, $covariates, $lokasi);
 
         $latestAnalysis = CvmAnalysis::where('id_proyek', $proyek->id_proyek)->latest()->first();
 
-        if ($estimate['ok']) {
+        if ($estimate['ok'] && $lokasi === null) {
             $analysis = CvmAnalysis::updateOrCreate(
                 ['id_proyek' => $proyek->id_proyek, 'analysis_type' => $model],
                 [

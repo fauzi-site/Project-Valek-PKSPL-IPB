@@ -15,6 +15,7 @@ class TcmData extends Model
     protected $fillable = [
         'id_proyek',
         'id_module',
+        'lokasi',
         'respondent_id',
         'distance',
         'total_travel_cost',
@@ -68,6 +69,12 @@ class TcmData extends Model
     public function getEducationLevelAttribute()
     {
         return $this->socioeconomic_data['education_level'] ?? $this->socioeconomic_data['education'] ?? null;
+    }
+
+    /** LPJ: lama perjalanan, as entered on the survey. */
+    public function getTripDurationAttribute()
+    {
+        return $this->socioeconomic_data['trip_duration'] ?? null;
     }
 
     public function getSubstituteSiteCostAttribute()
