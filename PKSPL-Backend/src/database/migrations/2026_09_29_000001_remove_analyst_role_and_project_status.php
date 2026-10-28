@@ -15,7 +15,9 @@ return new class extends Migration
     public function up(): void
     {
         // 1. Drop check constraint and column status from proyek
-        DB::statement('ALTER TABLE proyek DROP CONSTRAINT IF EXISTS proyek_status_check');
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE proyek DROP CONSTRAINT IF EXISTS proyek_status_check');
+        }
 
         if (Schema::hasColumn('proyek', 'status')) {
             Schema::table('proyek', function (Blueprint $table): void {
@@ -88,22 +90,24 @@ return new class extends Migration
                 $table->string('status', 50)->default('Draft');
             });
 
-            DB::statement("
-                ALTER TABLE proyek
-                ADD CONSTRAINT proyek_status_check
-                CHECK (
-                    status::text = ANY (ARRAY[
-                        'Draft'::character varying,
-                        'Proses'::character varying,
-                        'Selesai'::character varying,
-                        'Dibatalkan'::character varying,
-                        'Submitted'::character varying,
-                        'Need Revision'::character varying,
-                        'Approved'::character varying,
-                        'Published'::character varying
-                    ]::text[])
-                )
-            ");
+            if (DB::getDriverName() === 'pgsql') {
+                DB::statement("
+                    ALTER TABLE proyek
+                    ADD CONSTRAINT proyek_status_check
+                    CHECK (
+                        status::text = ANY (ARRAY[
+                            'Draft'::character varying,
+                            'Proses'::character varying,
+                            'Selesai'::character varying,
+                            'Dibatalkan'::character varying,
+                            'Submitted'::character varying,
+                            'Need Revision'::character varying,
+                            'Approved'::character varying,
+                            'Published'::character varying
+                        ]::text[])
+                    )
+                ");
+            }
         }
 
         // 2. Re-rename Super Admin to Admin

@@ -14,6 +14,74 @@ export interface FieldMeta {
   text?: boolean;
 }
 
+/** Structured Indonesian education level options for TCM survey respondents. */
+export const EDUCATION_OPTIONS = [
+  'Tidak Sekolah',
+  'Tidak Tamat SD',
+  'SD/Sederajat',
+  'SMP/Sederajat',
+  'SMA/SMK/Sederajat',
+  'Diploma I (D1)',
+  'Diploma II (D2)',
+  'Diploma III (D3)',
+  'Diploma IV (D4)/Sarjana Terapan',
+  'Sarjana (S1)',
+  'Magister (S2)',
+  'Doktor (S3)',
+  'Tidak Diketahui',
+] as const;
+
+export type EducationOption = (typeof EDUCATION_OPTIONS)[number];
+
+/**
+ * Maps any legacy education input (years of schooling, abbreviations, or strings)
+ * into a canonical EDUCATION_OPTIONS item, while safely preserving unrecognized custom values.
+ */
+export function normalizeEducationLevel(raw: unknown): string {
+  if (raw === null || raw === undefined) return '';
+  const text = String(raw).trim();
+  if (text === '') return '';
+
+  // 1. Direct match with canonical options (case-insensitive)
+  const exact = EDUCATION_OPTIONS.find((opt) => opt.toLowerCase() === text.toLowerCase());
+  if (exact) return exact;
+
+  // 2. Numeric schooling years (e.g. from legacy DB entries or Excel import)
+  const numVal = Number(text.replace(',', '.'));
+  if (!Number.isNaN(numVal) && /^-?\d+(\.\d+)?$/.test(text.trim())) {
+    if (numVal <= 0) return 'Tidak Sekolah';
+    if (numVal < 6) return 'Tidak Tamat SD';
+    if (numVal === 6) return 'SD/Sederajat';
+    if (numVal < 10) return 'SMP/Sederajat';
+    if (numVal <= 12) return 'SMA/SMK/Sederajat';
+    if (numVal === 13) return 'Diploma I (D1)';
+    if (numVal === 14) return 'Diploma II (D2)';
+    if (numVal === 15) return 'Diploma III (D3)';
+    if (numVal === 16) return 'Sarjana (S1)';
+    if (numVal <= 18) return 'Magister (S2)';
+    return 'Doktor (S3)';
+  }
+
+  // 3. Keyword / abbreviation matching
+  const lower = text.toLowerCase();
+  if (lower.includes('tidak sekolah') || lower.includes('belum sekolah')) return 'Tidak Sekolah';
+  if (lower.includes('tidak tamat') || lower.includes('belum tamat') || lower.includes('putus sekolah')) return 'Tidak Tamat SD';
+  if (lower.includes('s3') || lower.includes('doktor') || lower.includes('phd') || lower.includes('s-3')) return 'Doktor (S3)';
+  if (lower.includes('s2') || lower.includes('magister') || lower.includes('master') || lower.includes('s-2')) return 'Magister (S2)';
+  if (lower.includes('d4') || lower.includes('d-4') || lower.includes('diploma 4') || lower.includes('diploma iv') || lower.includes('sarjana terapan')) return 'Diploma IV (D4)/Sarjana Terapan';
+  if (lower.includes('s1') || lower.includes('s-1') || lower.includes('sarjana') || lower.includes('bachelor') || lower.includes('universitas') || lower.includes('perguruan tinggi')) return 'Sarjana (S1)';
+  if (lower.includes('d3') || lower.includes('d-3') || lower.includes('diploma 3') || lower.includes('diploma iii') || lower.includes('diploma') || lower.includes('akademi')) return 'Diploma III (D3)';
+  if (lower.includes('d2') || lower.includes('d-2') || lower.includes('diploma 2') || lower.includes('diploma ii')) return 'Diploma II (D2)';
+  if (lower.includes('d1') || lower.includes('d-1') || lower.includes('diploma 1') || lower.includes('diploma i')) return 'Diploma I (D1)';
+  if (lower.includes('sma') || lower.includes('smk') || lower.includes('slta') || lower.includes('ma') || lower.includes('aliyah') || lower.includes('stm') || lower.includes('smea')) return 'SMA/SMK/Sederajat';
+  if (lower.includes('smp') || lower.includes('sltp') || lower.includes('mts')) return 'SMP/Sederajat';
+  if (lower.includes('sd') || lower.includes('mi') || lower.includes('dasar')) return 'SD/Sederajat';
+  if (lower.includes('tidak tahu') || lower.includes('tidak diketahui') || lower.includes('unknown') || text === '-') return 'Tidak Diketahui';
+
+  // 4. Safely preserve custom legacy text
+  return text;
+}
+
 /** Column definitions shared by the input modal and the downloadable template. */
 export const TCM_FIELDS: FieldMeta[] = [
   {
@@ -32,9 +100,9 @@ export const TCM_FIELDS: FieldMeta[] = [
     why: 'Ini variabel harga (X utama). Koefisiennya (β₁) menentukan kemiringan kurva permintaan dan menjadi pembagi surplus konsumen, jadi tanpa biaya perjalanan nilai ekonomi kawasan tidak dapat dihitung. Rincian biaya sendiri boleh dikosongkan bila total diisi.',
   },
   {
-    key: 'education', label: 'Pendidikan', unit: 'tahun sekolah', example: '12', required: true, width: 'w-24',
-    hint: 'SD = 6, SMP = 9, SMA = 12, D3 = 15, S1 = 16, S2 = 18.',
-    why: 'Variabel kontrol dalam model. Tanpa mengendalikannya, pengaruh biaya (β₁) bercampur dengan pengaruh karakteristik responden sehingga surplus konsumen bias. Harus terisi di semua responden: sel kosong akan terbaca 0 dan merusak koefisien.',
+    key: 'education', label: 'Pendidikan', unit: 'jenjang', example: 'SMA/SMK/Sederajat', required: true, width: 'w-48', text: true,
+    hint: 'Pilih jenjang pendidikan responden (Tidak Sekolah s.d. Doktor S3).',
+    why: 'Variabel kontrol dalam model regresi TCM. Tanpa mengendalikannya, pengaruh biaya perjalanan (β₁) bercampur dengan karakteristik responden sehingga estimasi surplus konsumen bias.',
   },
   {
     key: 'income', label: 'Pendapatan', unit: 'Rp / bulan', example: '3.500.000', required: true, width: 'w-32',

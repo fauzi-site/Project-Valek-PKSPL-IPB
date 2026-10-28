@@ -26,6 +26,7 @@ class DatabaseSeeder extends Seeder
             EkosistemSeeder::class,
             MetodeValuasiSeeder::class,
             ProyekSeeder::class,
+            AreaTerdampakSeeder::class,
             IndexSeeder::class,
             JenisTutupanLahanSeeder::class,
             ReferensiSeeder::class,

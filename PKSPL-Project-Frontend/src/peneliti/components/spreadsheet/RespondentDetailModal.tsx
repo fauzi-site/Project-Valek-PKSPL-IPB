@@ -1,5 +1,29 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, AlertTriangle, CheckCircle2, ChevronDown, Copy, Download, FileCode, FileDown, FileSpreadsheet, FileText, HelpCircle, Loader2, Plus, Rows3, Save, Trash2, Undo2, Upload, X } from 'lucide-react';
+import {
+  AlertCircle,
+  AlertTriangle,
+  Calculator,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Download,
+  FileCode,
+  FileDown,
+  FileSpreadsheet,
+  FileText,
+  HelpCircle,
+  Loader2,
+  Maximize2,
+  Minimize2,
+  Plus,
+  Save,
+  Trash2,
+  Undo2,
+  Upload,
+  X,
+} from 'lucide-react';
+import toast from 'react-hot-toast';
 import {
   getSurveyLocations,
   renameSurveyLocation,
@@ -16,7 +40,7 @@ import {
   type TcmRespondentPayload,
 } from '../../services/surveyValuationService';
 import type { SurveyMethod } from '../../utils/respondentParser';
-import { CVM_FIELDS, TCM_FIELDS } from '../../utils/respondentFields';
+import { CVM_FIELDS, TCM_FIELDS, EDUCATION_OPTIONS, normalizeEducationLevel } from '../../utils/respondentFields';
 import { downloadRespondentTemplate } from '../../utils/respondentTemplate';
 import type { CvmEstimate } from '../../services/surveyValuationService';
 import { exportRespondents, rowKeys } from '../../utils/respondentFiles';
@@ -140,10 +164,10 @@ function buildPayloads(method: SurveyMethod, lines: Line[]): { payloads?: any[];
         const v = num(l[k]);
         if (v !== undefined) parts[map[k]] = v;
       }
-      const education = num(l.education);
+      const eduVal = l.education.trim();
       const income = num(l.income);
       const duration = num(l.duration);
-      if (education === undefined || income === undefined || duration === undefined) {
+      if (!eduVal || income === undefined || duration === undefined) {
         return { error: `${label} (${id}): pendidikan, pendapatan dan lama di lokasi wajib diisi.` };
       }
       const distance = num(l.distance);
@@ -152,8 +176,16 @@ function buildPayloads(method: SurveyMethod, lines: Line[]): { payloads?: any[];
         respondent_id: id,
         annual_visits: visits,
         total_travel_cost: cost,
+        education_level: eduVal,
         ...(distance !== undefined ? { distance } : {}),
-        socioeconomic_data: { ...(origin ? { origin } : {}), education, income, trip_duration: duration, ...parts },
+        socioeconomic_data: {
+          ...(origin ? { origin } : {}),
+          education: eduVal,
+          education_level: eduVal,
+          income,
+          trip_duration: duration,
+          ...parts,
+        },
       } satisfies TcmRespondentPayload);
     } else {
       const l = line as CvmLine;
@@ -203,12 +235,10 @@ function lineIssues(method: SurveyMethod, line: Line, strict: boolean, duplicate
     check('visits', l.visits, { min: 1, int: true }, 'Kunjungan');
     for (const k of COST_PARTS) check(k, l[k], { min: 0, required: false }, 'Biaya');
     if (!hasParts(l)) check('cost', l.cost, { min: 0 }, 'Total biaya');
-    check('education', l.education, { min: 0 }, 'Pendidikan');
+    if (strict && l.education.trim() === '') issues.education = 'Pilih jenjang pendidikan';
     check('income', l.income, { min: 0 }, 'Pendapatan');
     check('duration', l.duration, { min: 0 }, 'Lama di lokasi');
     check('distance', l.distance, { min: 0, required: false }, 'Jarak');
-    const edu = num(l.education);
-    if (edu !== undefined && edu > 25 && !issues.education) issues.education = 'Pendidikan dalam tahun sekolah (mis. SMA = 12), bukan kode';
   } else {
     const l = line as CvmLine;
     check('bid', l.bid, { gt: 0 }, 'Bid');
@@ -283,12 +313,25 @@ export const RespondentDetailModal: React.FC<RespondentDetailModalProps> = ({
   const [strict, setStrict] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [comfy, setComfy] = useState(true);
+  const [isFullView, setIsFullView] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showTemplateMenu, setShowTemplateMenu] = useState(false);
+  const [isToolbarVisible, setIsToolbarVisible] = useState(true);
+  const [isScrolled, setIsScrolled] = useState(false);
   const [tcmModel, setTcmModel] = useState<TcmModelId>('ols');
   const [cvmBasis, setCvmBasis] = useState('logit_income');
   const dirty = useRef(false);
+  const bodyRef = useRef<HTMLDivElement>(null);
+
+  const handleBodyScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const top = e.currentTarget.scrollTop;
+    if (top > 8 && !isScrolled) {
+      setIsScrolled(true);
+    } else if (top <= 8 && isScrolled) {
+      setIsScrolled(false);
+    }
+  };
 
   const estimate = useCallback(async (): Promise<{ patch?: MainRowPatch; problem?: string }> => {
     if (method === 'tcm') {
@@ -359,7 +402,8 @@ export const RespondentDetailModal: React.FC<RespondentDetailModalProps> = ({
             visits: str(r.annual_visits), transport: str(sd.transport_cost), food: str(sd.food_cost),
             lodging: str(sd.accommodation_cost), ticket: str(sd.ticket_fee), other: str(sd.other_expenses),
             cost: hasBreakdown ? '' : str(r.total_travel_cost != null ? Number(r.total_travel_cost) : ''),
-            education: str(sd.education ?? sd.education_level), income: str(sd.income ?? sd.household_income),
+            education: normalizeEducationLevel(sd.education_level ?? sd.education ?? r.education_level),
+            income: str(sd.income ?? sd.household_income),
             duration: str(sd.trip_duration),
             origin: str(sd.origin), distance: str(r.distance != null ? Number(r.distance) : ''),
           } as TcmLine;
@@ -391,6 +435,7 @@ export const RespondentDetailModal: React.FC<RespondentDetailModalProps> = ({
       setShowImport(false);
       setStrict(false);
       setRemovedLines([]);
+      setIsScrolled(false);
       load();
     }
   }, [isOpen, load]);
@@ -539,23 +584,78 @@ export const RespondentDetailModal: React.FC<RespondentDetailModalProps> = ({
     }
   };
 
-  const applyFromPanel = (value: AppliedValue) => {
+  const applyFromPanel = async (value: AppliedValue) => {
+    // 1. Validasi input kelengkapan data
+    if (lines.length === 0 && savedCount === 0) {
+      toast.error('Data responden masih kosong. Tambahkan responden terlebih dahulu.');
+      return;
+    }
+
+    if (value.method === 'tcm') {
+      if (!value.totalAnnualVisits || value.totalAnnualVisits <= 0) {
+        toast.error('Total kunjungan tahunan harus diisi dan lebih besar dari 0.');
+        return;
+      }
+      if (value.csPerVisit == null || isNaN(value.csPerVisit)) {
+        toast.error('Surplus konsumen per kunjungan belum terhitung.');
+        return;
+      }
+    } else {
+      if (!value.population || value.population <= 0) {
+        toast.error('Total populasi harus diisi dan lebih besar dari 0.');
+        return;
+      }
+      if (value.meanWtp == null || isNaN(value.meanWtp)) {
+        toast.error('Nilai rata-rata WTP belum terhitung.');
+        return;
+      }
+    }
+
+    // 2. Simpan perubahan jika ada baris responden yang belum disimpan
+    if (dirty.current && lines.length > 0) {
+      const { payloads, error } = buildPayloads(method, lines);
+      if (error) {
+        toast.error(`Periksa data responden: ${error}`);
+        return;
+      }
+      try {
+        if (payloads && payloads.length > 0) {
+          if (method === 'tcm') await batchSaveTcmRespondents(projectId, payloads as TcmRespondentPayload[], lokasi);
+          else await batchSaveCvmRespondents(projectId, payloads as CvmRespondentPayload[], lokasi);
+          dirty.current = false;
+        }
+      } catch (err: any) {
+        toast.error(err?.response?.data?.message || 'Gagal menyimpan perubahan data responden.');
+        return;
+      }
+    }
+
+    // 3. Sinkronisasi data estimasi ke spreadsheet utama Data Valuasi
     if (value.method === 'tcm') {
       onApply({
         kunjungan: value.totalAnnualVisits,
         biayaPerjalanan: Math.round(value.csPerVisit),
-        source: `Dari ${savedCount} responden (${value.model})`,
-        detail: detail ?? detailOf([{ label: 'Responden (N)', value: String(savedCount) }, { label: 'Model', value: value.model }]),
+        source: `Dari ${savedCount || lines.length} responden (${value.model})`,
+        detail: detail ?? detailOf([{ label: 'Responden (N)', value: String(savedCount || lines.length) }, { label: 'Model', value: value.model }]),
       });
     } else {
       onApply({
         populasi: value.population,
         wtp: Math.round(value.meanWtp),
-        source: `Dari ${savedCount} responden (${value.basis})`,
-        detail: detail ?? detailOf([{ label: 'Responden (N)', value: String(savedCount) }, { label: 'Metode dipakai', value: value.basis }]),
+        source: `Dari ${savedCount || lines.length} responden (${value.basis})`,
+        detail: detail ?? detailOf([{ label: 'Responden (N)', value: String(savedCount || lines.length) }, { label: 'Metode dipakai', value: value.basis }]),
       });
     }
-    setNotice({ tone: 'ok', text: 'Hasil diterapkan ke tabel utama.' });
+
+    // 4. Notifikasi sukses
+    toast.success(
+      value.method === 'tcm'
+        ? 'Data estimasi TCM berhasil disimpan ke spreadsheet valuasi!'
+        : 'Data estimasi CVM berhasil disimpan ke spreadsheet valuasi!'
+    );
+
+    // 5. Auto-close popup dan kembalikan user ke halaman Data Valuasi
+    onClose();
   };
 
   const fields = method === 'tcm' ? TCM_FIELDS : CVM_FIELDS;
@@ -628,6 +728,52 @@ export const RespondentDetailModal: React.FC<RespondentDetailModalProps> = ({
           onChange={(e) => edit(l.key, { [key]: e.target.value })}
         />
         {issue && <div className="px-1 pt-0.5 text-[10px] leading-tight text-rose-600 text-right">{issue}</div>}
+      </td>
+    );
+  };
+
+  const educationSelect = (l: TcmLine) => {
+    const meta = fieldByKey['education'];
+    const issue = issuesByLine.get(l.key)?.education;
+    const val = l.education;
+    const isCustom = val !== '' && !EDUCATION_OPTIONS.includes(val as any);
+
+    return (
+      <td key="education" className="py-1 px-1 align-top">
+        <div className="relative">
+          <select
+            className={`w-full ${comfy ? 'px-2.5 py-2 text-sm' : 'px-2 py-1 text-xs'} font-sans text-left border rounded transition-colors cursor-pointer appearance-none pr-6 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+              issue
+                ? 'border-rose-400 bg-rose-50 text-rose-900 focus:border-rose-500'
+                : val === ''
+                  ? 'border-slate-200 bg-slate-50/50 text-slate-400 hover:border-slate-300 focus:bg-white focus:text-slate-800'
+                  : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300 focus:border-blue-500'
+            }`}
+            value={val}
+            aria-label={`${meta?.label ?? 'Pendidikan'} (${meta?.unit ?? 'jenjang'})`}
+            aria-invalid={!!issue}
+            title={issue ? `${issue}. ${meta?.hint ?? ''}` : meta?.hint}
+            onChange={(e) => edit(l.key, { education: e.target.value })}
+          >
+            <option value="" disabled className="text-slate-400">
+              Pilih pendidikan…
+            </option>
+            {EDUCATION_OPTIONS.map((opt) => (
+              <option key={opt} value={opt} className="text-slate-800">
+                {opt}
+              </option>
+            ))}
+            {isCustom && (
+              <option key={val} value={val} className="text-amber-700 italic">
+                {val} (Nilai tersimpan)
+              </option>
+            )}
+          </select>
+          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1.5 text-slate-400">
+            <ChevronDown className="w-3.5 h-3.5" />
+          </div>
+        </div>
+        {issue && <div className="px-1 pt-0.5 text-[10px] leading-tight text-rose-600 text-left">{issue}</div>}
       </td>
     );
   };
@@ -742,98 +888,263 @@ export const RespondentDetailModal: React.FC<RespondentDetailModalProps> = ({
         </div>
       )}
 
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-[97vw] max-w-[1920px] h-[94vh] flex flex-col overflow-hidden">
-        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+      <div className={`bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden transition-all duration-300 ease-in-out ${
+        isFullView
+          ? 'w-[98vw] max-w-[1920px] h-[96vh]'
+          : 'w-full max-w-6xl h-[88vh]'
+      }`}>
+        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
           <div>
-            <h2 className="text-base font-bold">
-              Input Responden {method.toUpperCase()} — {lokasi}
+            <h2 className="text-base font-bold flex items-center gap-2">
+              <span>Input Responden {method.toUpperCase()}</span>
+              <span className="text-slate-400 font-normal">—</span>
+              <span className="text-indigo-300 font-medium">{lokasi}</span>
             </h2>
             <p className="text-xs text-slate-300 mt-0.5">
               Satu baris per responden. Setelah disimpan, hasil perhitungan masuk otomatis ke tabel utama.
             </p>
           </div>
-          <button type="button" onClick={close} className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10" aria-label="Tutup">
+          <button type="button" onClick={close} className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors" aria-label="Tutup">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex-1 min-h-0 flex flex-col gap-4 p-6 overflow-y-auto">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className="text-xs text-slate-600">
-              {lines.length} responden{loading ? ' (memuat…)' : ''}
-              {invalidCount > 0 && <span className="ml-2 font-semibold text-rose-600">· {invalidCount} baris perlu diperbaiki</span>}
-            </span>
-            <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => setShowHelp((v) => !v)}
-                className="px-3 py-1.5 border border-slate-300 hover:bg-slate-50 rounded-lg text-xs font-semibold flex items-center gap-1.5">
-                <HelpCircle className="w-3.5 h-3.5" /> Panduan Pengisian
-              </button>
-              <div className="relative inline-block text-left">
-                <button type="button" onClick={() => setShowTemplateMenu((v) => !v)}
-                  className="px-3 py-1.5 border border-slate-300 hover:bg-slate-50 rounded-lg text-xs font-semibold flex items-center gap-1.5"
-                  title="Unduh template Excel untuk diisi di luar aplikasi">
-                  <Download className="w-3.5 h-3.5 text-emerald-600" /> Download Template
-                  <ChevronDown className="w-3 h-3 text-slate-400" />
-                </button>
-                {showTemplateMenu && (
-                  <div className="absolute right-0 mt-1 w-56 bg-white rounded-md shadow-lg border border-slate-200 py-1 z-30">
-                    <button type="button"
-                      onClick={() => { setShowTemplateMenu(false); downloadRespondentTemplate(method, lokasi, 'xlsx'); }}
-                      className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 flex items-center gap-2">
-                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" /> Excel dengan petunjuk (.xlsx)
-                    </button>
-                    <button type="button"
-                      onClick={() => { setShowTemplateMenu(false); downloadRespondentTemplate(method, lokasi, 'csv'); }}
-                      className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-amber-50 hover:text-amber-800 flex items-center gap-2">
-                      <FileText className="w-3.5 h-3.5 text-amber-600" /> Kolom saja (.csv)
-                    </button>
-                    <button type="button"
-                      onClick={() => { setShowTemplateMenu(false); downloadRespondentTemplate(method, lokasi, 'json'); }}
-                      className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-purple-50 hover:text-purple-800 flex items-center gap-2">
-                      <FileCode className="w-3.5 h-3.5 text-purple-600" /> Struktur data (.json)
-                    </button>
-                  </div>
+        {/* Toolbar Sub-Navbar (Sticky & Stabil di bawah Header) */}
+        {isToolbarVisible ? (
+          <div className={`bg-white border-b px-6 py-2.5 shrink-0 z-30 transition-all duration-200 ${
+            isScrolled ? 'shadow-md border-slate-300' : 'shadow-xs border-slate-200'
+          }`}>
+            <div className="flex flex-wrap items-center justify-between gap-2.5">
+              {/* Status Responden */}
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                  {lines.length} Responden{loading ? ' (memuat…)' : ''}
+                </span>
+                {invalidCount > 0 && (
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                    {invalidCount} baris perlu diperbaiki
+                  </span>
                 )}
               </div>
-              <div className="relative inline-block text-left">
-                <button type="button" onClick={() => setShowExportMenu((v) => !v)} disabled={lines.length === 0}
-                  className="px-3 py-1.5 border border-slate-300 hover:bg-slate-50 rounded-lg text-xs font-semibold flex items-center gap-1.5 disabled:opacity-40"
-                  title="Unduh data responden yang sedang tampil">
-                  <FileDown className="w-3.5 h-3.5 text-blue-600" /> Ekspor Data
-                  <ChevronDown className="w-3 h-3 text-slate-400" />
-                </button>
-                {showExportMenu && (
-                  <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-slate-200 py-1 z-30">
-                    {([['xlsx', 'Excel (.xlsx)', FileSpreadsheet, 'text-emerald-600'], ['csv', 'CSV (.csv)', FileText, 'text-amber-600'], ['json', 'JSON (.json)', FileCode, 'text-purple-600']] as const).map(([fmt, label, Icon, color]) => (
-                      <button key={fmt} type="button"
-                        onClick={() => { setShowExportMenu(false); exportRespondents(method, lokasi, exportRows(), fmt); }}
-                        className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2">
-                        <Icon className={`w-3.5 h-3.5 ${color}`} /> {label}
-                      </button>
-                    ))}
+
+              {/* Tombol-tombol Aksi Terkelompok */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Grup 1: Aksi Bantuan & Template */}
+                <div className="flex items-center gap-1 p-0.5 bg-slate-100/80 border border-slate-200 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => setShowHelp((v) => !v)}
+                    className={`px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                      showHelp ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-700 hover:bg-white/60'
+                    }`}
+                    title="Panduan pengisian data survei"
+                  >
+                    <HelpCircle className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Panduan</span>
+                  </button>
+                  <div className="relative inline-block text-left">
+                    <button
+                      type="button"
+                      onClick={() => { setShowTemplateMenu((v) => !v); setShowExportMenu(false); }}
+                      className="px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 text-slate-700 hover:bg-white/60 transition-colors"
+                      title="Unduh template data responden (Excel, CSV, JSON)"
+                    >
+                      <Download className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Download Template</span>
+                      <ChevronDown className="w-3 h-3 text-slate-400" />
+                    </button>
+                    {showTemplateMenu && (
+                      <div className="absolute right-0 mt-1 w-56 bg-white rounded-lg shadow-xl border border-slate-200 py-1 z-40">
+                        <button
+                          type="button"
+                          onClick={() => { setShowTemplateMenu(false); downloadRespondentTemplate(method, lokasi, 'xlsx'); }}
+                          className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 flex items-center gap-2"
+                        >
+                          <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" /> Excel dengan petunjuk (.xlsx)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setShowTemplateMenu(false); downloadRespondentTemplate(method, lokasi, 'csv'); }}
+                          className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-amber-50 hover:text-amber-800 flex items-center gap-2"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-amber-600" /> Kolom saja (.csv)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setShowTemplateMenu(false); downloadRespondentTemplate(method, lokasi, 'json'); }}
+                          className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-purple-50 hover:text-purple-800 flex items-center gap-2"
+                        >
+                          <FileCode className="w-3.5 h-3.5 text-purple-600" /> Struktur data (.json)
+                        </button>
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
+
+                {/* Grup 2: Aksi Data */}
+                <div className="flex items-center gap-1 p-0.5 bg-slate-100/80 border border-slate-200 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => setShowImport((v) => !v)}
+                    className={`px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                      showImport ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-700 hover:bg-white/60'
+                    }`}
+                    title="Impor data responden dari file"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Impor Data</span>
+                  </button>
+                  <div className="relative inline-block text-left">
+                    <button
+                      type="button"
+                      onClick={() => { setShowExportMenu((v) => !v); setShowTemplateMenu(false); }}
+                      disabled={lines.length === 0}
+                      className="px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 text-slate-700 hover:bg-white/60 disabled:opacity-40 transition-colors"
+                      title="Unduh data responden yang sedang tampil"
+                    >
+                      <FileDown className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Ekspor Data</span>
+                      <ChevronDown className="w-3 h-3 text-slate-400" />
+                    </button>
+                    {showExportMenu && (
+                      <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-xl border border-slate-200 py-1 z-40">
+                        {([['xlsx', 'Excel (.xlsx)', FileSpreadsheet, 'text-emerald-600'], ['csv', 'CSV (.csv)', FileText, 'text-amber-600'], ['json', 'JSON (.json)', FileCode, 'text-purple-600']] as const).map(([fmt, label, Icon, color]) => (
+                          <button
+                            key={fmt}
+                            type="button"
+                            onClick={() => { setShowExportMenu(false); exportRespondents(method, lokasi, exportRows(), fmt); }}
+                            className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                          >
+                            <Icon className={`w-3.5 h-3.5 ${color}`} /> {label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Grup 3: Aksi Tabel */}
+                <div className="flex items-center gap-1 p-0.5 bg-slate-100/80 border border-slate-200 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={addLine}
+                    className="px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 text-slate-700 hover:bg-white hover:shadow-xs transition-colors"
+                    title="Tambah baris responden baru"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Tambah Responden</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsFullView((v) => !v)}
+                    className="px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 text-slate-700 hover:bg-white hover:shadow-xs transition-colors"
+                    title={isFullView ? 'Kembali ke ukuran modal ringkas' : 'Perbesar modal ke tampilan penuh'}
+                  >
+                    {isFullView ? (
+                      <>
+                        <Minimize2 className="w-3.5 h-3.5 text-slate-600" />
+                        <span>Tampilan Ringkas</span>
+                      </>
+                    ) : (
+                      <>
+                        <Maximize2 className="w-3.5 h-3.5 text-slate-600" />
+                        <span>Tampilan Penuh</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Grup 4: Aksi Analisis (Hasil Estimasi) */}
+                <div className="flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowResults((v) => !v)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all border ${
+                      showResults
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm hover:bg-indigo-700'
+                        : 'bg-white text-indigo-700 border-indigo-300 hover:bg-indigo-50 hover:border-indigo-400'
+                    }`}
+                    title="Buka / tutup panel hasil estimasi ekonometrika"
+                  >
+                    <Calculator className="w-3.5 h-3.5" />
+                    <span>Hasil Estimasi</span>
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${showResults ? 'rotate-180' : ''}`} />
+                  </button>
+                </div>
+
+                {/* Grup 5: Aksi Simpan */}
+                <div className="flex items-center">
+                  <button
+                    type="button"
+                    onClick={requestSave}
+                    disabled={saving || loading}
+                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-colors disabled:cursor-not-allowed"
+                    title="Simpan perubahan data responden dan hitung estimasi"
+                  >
+                    {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                    <span>Simpan &amp; Hitung</span>
+                  </button>
+                </div>
+
+                {/* Pemisah & Tombol Sembunyikan Toolbar */}
+                <div className="h-6 w-px bg-slate-200 mx-0.5 hidden sm:block" />
+                <button
+                  type="button"
+                  onClick={() => setIsToolbarVisible(false)}
+                  className="px-2 py-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-slate-200 text-xs font-medium flex items-center gap-1 transition-colors"
+                  title="Sembunyikan toolbar (luaskan area kerja responden)"
+                >
+                  <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
+                  <span className="hidden xl:inline text-[11px]">Sembunyikan</span>
+                </button>
               </div>
-              <button type="button" onClick={() => setComfy((v) => !v)}
-                className="px-3 py-1.5 border border-slate-300 hover:bg-slate-50 rounded-lg text-xs font-semibold flex items-center gap-1.5"
-                title="Ganti kerapatan tabel">
-                <Rows3 className="w-3.5 h-3.5" /> {comfy ? 'Tampilan Lega' : 'Tampilan Ringkas'}
-              </button>
-              <button type="button" onClick={() => setShowImport((v) => !v)}
-                className="px-3 py-1.5 border border-slate-300 hover:bg-slate-50 rounded-lg text-xs font-semibold flex items-center gap-1.5">
-                <Upload className="w-3.5 h-3.5" /> Impor Data
-              </button>
-              <button type="button" onClick={addLine}
-                className="px-3 py-1.5 border border-slate-300 hover:bg-slate-50 rounded-lg text-xs font-semibold flex items-center gap-1.5">
-                <Plus className="w-3.5 h-3.5" /> Tambah Responden
-              </button>
-              <button type="button" onClick={requestSave} disabled={saving || loading}
-                className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 disabled:opacity-40">
-                {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                Simpan & Hitung
-              </button>
             </div>
           </div>
+        ) : (
+          /* Trigger Bar saat Toolbar Disembunyikan */
+          <div className="bg-slate-50 border-b border-slate-200 px-6 py-1.5 shrink-0 flex items-center justify-between text-xs transition-all duration-200 z-30">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-200 text-slate-700">
+                {lines.length} Responden{loading ? ' (memuat…)' : ''}
+              </span>
+              {invalidCount > 0 && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                  {invalidCount} baris perlu diperbaiki
+                </span>
+              )}
+              <span className="text-slate-400 text-[11px] hidden md:inline">
+                Toolbar disembunyikan untuk memperluas area kerja
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsToolbarVisible(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold transition-colors shadow-2xs"
+              title="Tampilkan kembali navbar toolbar"
+            >
+              <ChevronDown className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Tampilkan Toolbar</span>
+            </button>
+          </div>
+        )}
+
+        {/* Backdrop untuk Menutup Menu Dropdown saat Klik di Luar */}
+        {(showTemplateMenu || showExportMenu) && (
+          <div
+            className="fixed inset-0 z-35 bg-transparent"
+            onClick={() => {
+              setShowTemplateMenu(false);
+              setShowExportMenu(false);
+            }}
+          />
+        )}
+
+        {/* Modal Body Container with overflow-y-auto */}
+        <div
+          ref={bodyRef}
+          onScroll={handleBodyScroll}
+          className="flex-1 min-h-0 flex flex-col gap-4 p-6 overflow-y-auto"
+        >
 
           {showHelp && (
             <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 space-y-3 text-xs text-slate-700">
@@ -979,7 +1290,7 @@ export const RespondentDetailModal: React.FC<RespondentDetailModalProps> = ({
                     <div className="text-[10px] font-normal text-slate-500">nama atau inisial</div>
                   </th>
                   {fields.map((f) => (
-                    <th key={f.key} className={`py-2 px-2 text-right align-bottom ${f.width}`} title={f.why ? `Wajib: ${f.why}` : f.hint}>
+                    <th key={f.key} className={`py-2 px-2 ${f.text ? 'text-left' : 'text-right'} align-bottom ${f.width}`} title={f.why ? `Wajib: ${f.why}` : f.hint}>
                       <div className="font-bold whitespace-nowrap">
                         {f.label}
                         {f.required && <span className="text-rose-600" aria-label="wajib diisi"> *</span>}
@@ -1028,7 +1339,7 @@ export const RespondentDetailModal: React.FC<RespondentDetailModalProps> = ({
                           ) : (
                             field(line, 'cost')
                           )}
-                          {field(line, 'education')}
+                          {educationSelect(line as TcmLine)}
                           {field(line, 'income')}
                           {field(line, 'duration')}
                           {field(line, 'origin')}
@@ -1073,15 +1384,7 @@ export const RespondentDetailModal: React.FC<RespondentDetailModalProps> = ({
 
           {lines.length > 0 && <div className="flex flex-wrap gap-2">{stats}</div>}
 
-          {savedCount > 0 && (
-            <button type="button" onClick={() => setShowResults((v) => !v)}
-              className="self-start px-3 py-1.5 border border-slate-300 hover:bg-slate-50 rounded-lg text-xs font-semibold flex items-center gap-1.5">
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showResults ? 'rotate-180' : ''}`} />
-              {showResults ? 'Sembunyikan Hasil Estimasi' : 'Tampilkan Hasil Estimasi'}
-            </button>
-          )}
-
-          {savedCount > 0 && showResults && (
+          {showResults && (
             <div className="border-t border-slate-200 pt-5">
               <ValuationAnalysisPanel
                 key={`${method}-${lokasi}-${savedCount}`}

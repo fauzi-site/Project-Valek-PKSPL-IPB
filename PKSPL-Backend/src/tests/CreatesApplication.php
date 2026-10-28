@@ -17,10 +17,21 @@ trait CreatesApplication
 
         $app->make(Kernel::class)->bootstrap();
 
-        if ($app->environment('testing')) {
-            config(['database.default' => 'sqlite']);
-            config(['database.connections.sqlite.database' => ':memory:']);
-        }
+        putenv('APP_ENV=testing');
+        $_ENV['APP_ENV'] = 'testing';
+        $_SERVER['APP_ENV'] = 'testing';
+
+        config([
+            'database.default' => 'sqlite',
+            'database.connections.sqlite.database' => ':memory:',
+            'database.connections.pgsql.host' => '127.0.0.1',
+            'database.connections.pgsql.port' => 9999,
+            'database.connections.pgsql.database' => 'pkspl_blocked_for_testing',
+            'database.connections.pgsql.username' => 'blocked_in_tests',
+            'database.connections.pgsql.password' => 'blocked_in_tests',
+            'session.driver' => 'array',
+            'cache.default' => 'array',
+        ]);
 
         return $app;
     }

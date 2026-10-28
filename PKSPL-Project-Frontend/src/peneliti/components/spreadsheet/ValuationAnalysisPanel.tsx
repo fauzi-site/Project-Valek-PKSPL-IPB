@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AlertCircle, Calculator, Loader2, Send } from 'lucide-react';
+import { AlertCircle, Calculator, Loader2, Save } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { formatIDR } from '../../utils/formatter';
 import {
   getCvmAnalysis,
@@ -59,7 +60,7 @@ interface ValuationAnalysisPanelProps {
   cvmBasis: string;
   onCvmBasisChange: (basis: string) => void;
   /** Writes the result into the valuation spreadsheet; absent when the modal is opened read-only. */
-  onApply?: (value: AppliedValue) => void;
+  onApply?: (value: AppliedValue) => void | Promise<void | boolean>;
 }
 
 const COEFFICIENT_LABELS: Record<string, string> = {
@@ -114,6 +115,19 @@ export const ValuationAnalysisPanel: React.FC<ValuationAnalysisPanelProps> = ({
 }) => {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleApply = async (val: AppliedValue) => {
+    if (!onApply || isSaving) return;
+    try {
+      setIsSaving(true);
+      await onApply(val);
+    } catch (err: any) {
+      toast.error(err?.message || 'Gagal menyimpan data.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // TCM
   const asText = (n?: number) => (n ? n.toLocaleString('id-ID') : '');
@@ -294,15 +308,36 @@ export const ValuationAnalysisPanel: React.FC<ValuationAnalysisPanelProps> = ({
                   Isi total kunjungan kawasan per tahun untuk mendapat nilai ekonomi kawasan.
                 </p>
               )}
-              {onApply && tcm.cs_per_visit != null && visits > 0 && (
+              {onApply && tcm.cs_per_visit != null && (
                 <button
                   type="button"
-                  onClick={() =>
-                    onApply({ method: 'tcm', totalAnnualVisits: visits, csPerVisit: tcm.cs_per_visit!, model: TCM_MODEL_INFO[tcmModel].name })
-                  }
-                  className="mt-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5"
+                  disabled={isSaving}
+                  onClick={() => {
+                    if (visits <= 0) {
+                      toast.error('Silakan isi total kunjungan kawasan per tahun terlebih dahulu.');
+                      return;
+                    }
+                    handleApply({
+                      method: 'tcm',
+                      totalAnnualVisits: visits,
+                      csPerVisit: tcm.cs_per_visit!,
+                      model: TCM_MODEL_INFO[tcmModel].name,
+                    });
+                  }}
+                  className="mt-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 disabled:cursor-not-allowed text-white rounded-lg text-xs font-semibold flex items-center gap-2 shadow-sm transition-colors"
+                  title="Simpan data estimasi ke spreadsheet valuasi"
                 >
-                  <Send className="w-3.5 h-3.5" /> Terapkan ke Spreadsheet Valuasi
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Menyimpan...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5" />
+                      Simpan Data
+                    </>
+                  )}
                 </button>
               )}
             </>
@@ -392,15 +427,36 @@ export const ValuationAnalysisPanel: React.FC<ValuationAnalysisPanelProps> = ({
                   value={pop ? formatIDR(Math.round(chosenCvm.value * pop)) : 'isi populasi'}
                   strong
                 />
-                {onApply && pop > 0 && (
+                {onApply && chosenCvm.value != null && (
                   <button
                     type="button"
-                    onClick={() =>
-                      onApply({ method: 'cvm', population: pop, meanWtp: chosenCvm.value!, basis: chosenCvm.label })
-                    }
-                    className="mt-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5"
+                    disabled={isSaving}
+                    onClick={() => {
+                      if (pop <= 0) {
+                        toast.error('Silakan isi total populasi terlebih dahulu.');
+                        return;
+                      }
+                      handleApply({
+                        method: 'cvm',
+                        population: pop,
+                        meanWtp: chosenCvm.value!,
+                        basis: chosenCvm.label,
+                      });
+                    }}
+                    className="mt-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 disabled:cursor-not-allowed text-white rounded-lg text-xs font-semibold flex items-center gap-2 shadow-sm transition-colors"
+                    title="Simpan data estimasi ke spreadsheet valuasi"
                   >
-                    <Send className="w-3.5 h-3.5" /> Terapkan ke Spreadsheet Valuasi
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Menyimpan...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-3.5 h-3.5" />
+                        Simpan Data
+                      </>
+                    )}
                   </button>
                 )}
               </>

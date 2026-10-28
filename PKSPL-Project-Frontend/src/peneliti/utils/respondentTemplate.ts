@@ -30,9 +30,9 @@ const dataHeaders = (method: SurveyMethod): string[] => [
 /** Realistic filled rows shown on the "Contoh" sheet only; they are never imported. */
 const EXAMPLE_ROWS: Record<SurveyMethod, (string | number)[][]> = {
   tcm: [
-    ['Budi Santoso', 3, 150000, 75000, 200000, 25000, 50000, '', 12, 3500000, 3, 'Jakarta Barat', 45],
-    ['Siti Aminah', 2, 180000, 90000, 0, 25000, 0, '', 16, 5200000, 2, 'Bogor', 60],
-    ['Rudi H.', 4, '', '', '', '', '', 350000, 9, 1800000, 4, 'Tangerang', 30],
+    ['Budi Santoso', 3, 150000, 75000, 200000, 25000, 50000, '', 'SMA/SMK/Sederajat', 3500000, 3, 'Jakarta Barat', 45],
+    ['Siti Aminah', 2, 180000, 90000, 0, 25000, 0, '', 'Sarjana (S1)', 5200000, 2, 'Bogor', 60],
+    ['Rudi H.', 4, '', '', '', '', '', 350000, 'SMP/Sederajat', 1800000, 4, 'Tangerang', 30],
   ],
   cvm: [
     ['Budi Santoso', 5000, 1, 2500000],

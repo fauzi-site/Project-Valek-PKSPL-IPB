@@ -1,4 +1,5 @@
 import type { CvmRespondentPayload, TcmRespondentPayload } from '../services/surveyValuationService';
+import { normalizeEducationLevel } from './respondentFields';
 
 export type SurveyMethod = 'tcm' | 'cvm';
 
@@ -26,7 +27,7 @@ export const FIELD_SPECS: Record<SurveyMethod, FieldSpec[]> = {
     { key: 'lodging', label: 'Biaya Penginapan', aliases: ['penginapan', 'biayapenginapan', 'akomodasi', 'accommodationcost'], required: false },
     { key: 'ticket', label: 'Tiket Masuk', aliases: ['tiket', 'tiketmasuk', 'ticketfee'], required: false },
     { key: 'other', label: 'Biaya Lainnya', aliases: ['lainnya', 'biayalainnya', 'lain', 'otherexpenses'], required: false },
-    { key: 'education', label: 'Pendidikan (EDU, tahun)', aliases: ['edu', 'pendidikan', 'education'], required: true },
+    { key: 'education', label: 'Pendidikan (EDU)', aliases: ['edu', 'pendidikan', 'education', 'jenjang', 'tingkatpendidikan'], required: true },
     { key: 'income', label: 'Pendapatan (INC)', aliases: ['inc', 'pendapatan', 'income'], required: true },
     { key: 'duration', label: 'Lama di Lokasi (LPJ)', aliases: ['lpj', 'lamadilokasi', 'lamaperjalanan', 'lamatinggal', 'durasi', 'tripduration'], required: true },
     { key: 'origin', label: 'Asal Responden', aliases: ['asal', 'asalresponden', 'kotaasal', 'daerahasal', 'origin'], required: false },
@@ -165,7 +166,15 @@ export function parseRespondents(grid: unknown[][], method: SurveyMethod): Parse
       const total = num('cost', 'Biaya perjalanan', { min: 0, required: false });
       const cost = total ?? (listed.length ? listed.reduce((a, b) => a + b, 0) : undefined);
       if (cost === undefined) errors.push('Biaya perjalanan (TC) atau rincian biayanya wajib diisi');
-      const education = num('education', 'Pendidikan', { min: 0 });
+      const rawEdu = get('education');
+      const eduStr = String(rawEdu ?? '').trim();
+      let education: string | number | undefined = undefined;
+      if (!eduStr) {
+        errors.push('Pendidikan wajib diisi');
+      } else {
+        const normalized = normalizeEducationLevel(rawEdu);
+        education = normalized || eduStr;
+      }
       const income = num('income', 'Pendapatan', { min: 0 });
       const duration = num('duration', 'Lama di lokasi', { min: 0 });
       const distance = num('distance', 'Jarak', { min: 0, required: false });
@@ -183,6 +192,7 @@ export function parseRespondents(grid: unknown[][], method: SurveyMethod): Parse
               socioeconomic_data: {
                 ...(origin ? { origin } : {}),
                 education,
+                education_level: typeof education === 'string' ? education : undefined,
                 income,
                 trip_duration: duration,
                 ...Object.fromEntries(Object.entries(components).filter(([, v]) => v !== undefined)),

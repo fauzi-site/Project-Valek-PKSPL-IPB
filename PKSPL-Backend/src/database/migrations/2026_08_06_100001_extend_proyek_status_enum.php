@@ -20,26 +20,28 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Drop the existing CHECK constraint (created by the original migration).
-        DB::statement('ALTER TABLE proyek DROP CONSTRAINT IF EXISTS proyek_status_check');
+        if (DB::getDriverName() === 'pgsql') {
+            // Drop the existing CHECK constraint (created by the original migration).
+            DB::statement('ALTER TABLE proyek DROP CONSTRAINT IF EXISTS proyek_status_check');
 
-        // Re-add with all allowed values: original + Review module additions.
-        DB::statement("
-            ALTER TABLE proyek
-            ADD CONSTRAINT proyek_status_check
-            CHECK (
-                status::text = ANY (ARRAY[
-                    'Draft'::character varying,
-                    'Proses'::character varying,
-                    'Selesai'::character varying,
-                    'Dibatalkan'::character varying,
-                    'Submitted'::character varying,
-                    'Need Revision'::character varying,
-                    'Approved'::character varying,
-                    'Published'::character varying
-                ]::text[])
-            )
-        ");
+            // Re-add with all allowed values: original + Review module additions.
+            DB::statement("
+                ALTER TABLE proyek
+                ADD CONSTRAINT proyek_status_check
+                CHECK (
+                    status::text = ANY (ARRAY[
+                        'Draft'::character varying,
+                        'Proses'::character varying,
+                        'Selesai'::character varying,
+                        'Dibatalkan'::character varying,
+                        'Submitted'::character varying,
+                        'Need Revision'::character varying,
+                        'Approved'::character varying,
+                        'Published'::character varying
+                    ]::text[])
+                )
+            ");
+        }
     }
 
     /**
@@ -51,19 +53,21 @@ return new class extends Migration
      */
     public function down(): void
     {
-        DB::statement('ALTER TABLE proyek DROP CONSTRAINT IF EXISTS proyek_status_check');
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE proyek DROP CONSTRAINT IF EXISTS proyek_status_check');
 
-        DB::statement("
-            ALTER TABLE proyek
-            ADD CONSTRAINT proyek_status_check
-            CHECK (
-                status::text = ANY (ARRAY[
-                    'Draft'::character varying,
-                    'Proses'::character varying,
-                    'Selesai'::character varying,
-                    'Dibatalkan'::character varying
-                ]::text[])
-            )
-        ");
+            DB::statement("
+                ALTER TABLE proyek
+                ADD CONSTRAINT proyek_status_check
+                CHECK (
+                    status::text = ANY (ARRAY[
+                        'Draft'::character varying,
+                        'Proses'::character varying,
+                        'Selesai'::character varying,
+                        'Dibatalkan'::character varying
+                    ]::text[])
+                )
+            ");
+        }
     }
 };

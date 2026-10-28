@@ -77,9 +77,11 @@ export interface TcmRespondentPayload {
   total_travel_cost: number;
   /** One-way distance from the respondent's origin, in km. */
   distance?: number;
+  education_level?: string;
   socioeconomic_data: {
     origin?: string;
-    education?: number;
+    education?: number | string;
+    education_level?: string;
     income?: number;
     trip_duration?: number;
     // Components of total_travel_cost, kept when the researcher entered them one by one.

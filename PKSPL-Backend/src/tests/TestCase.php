@@ -12,10 +12,17 @@ abstract class TestCase extends BaseTestCase
     {
         parent::setUp();
 
-        // Safety Guard: Prevent test suite RefreshDatabase from ever touching active database 'pkspl'
-        if (config('database.connections.pgsql.database') === 'pkspl' && config('database.default') === 'pgsql') {
-            config(['database.default' => 'sqlite']);
-            config(['database.connections.sqlite.database' => ':memory:']);
-        }
+        // Reinforce test isolation in config
+        config([
+            'database.default' => 'sqlite',
+            'database.connections.sqlite.database' => ':memory:',
+            'database.connections.pgsql.host' => '127.0.0.1',
+            'database.connections.pgsql.port' => 9999,
+            'database.connections.pgsql.database' => 'pkspl_blocked_for_testing',
+            'database.connections.pgsql.username' => 'blocked_in_tests',
+            'database.connections.pgsql.password' => 'blocked_in_tests',
+            'session.driver' => 'array',
+            'cache.default' => 'array',
+        ]);
     }
 }
