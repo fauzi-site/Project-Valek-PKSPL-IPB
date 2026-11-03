@@ -23,6 +23,12 @@ class DataMasterSeeder extends Seeder
         '3101' => 1.10, // Kab. Kepulauan Seribu
     ];
 
+    /** Item provisioning yang tergolong flora; selain ini dianggap fauna. */
+    private const FLORA = ['Bambu', 'Bambu betung', 'Kunyit (tanaman obat)', 'Talas bogor', 'Pala', 'Rumput laut'];
+
+    /** Item yang satuan hasilnya bukan kg. */
+    private const SATUAN_HASIL = ['Bambu' => 'batang', 'Bambu betung' => 'batang'];
+
     /** Tambahan khusus wilayah: [kode kabupaten][kategori ekosistem]['provisioning'] => daftar item. */
     private function tambahanWilayah(): array
     {
@@ -254,6 +260,8 @@ class DataMasterSeeder extends Seeder
                 array_merge([
                     'nama_latin' => $latin,
                     'nama_daerah' => $daerah,
+                    'jenis_biota' => in_array($nama, self::FLORA, true) ? 'flora' : 'fauna',
+                    'satuan_hasil' => self::SATUAN_HASIL[$nama] ?? 'kg',
                     'produktivitas' => $produktivitas,
                     'harga_pasar' => $harga,
                     'luas_pemanfaatan' => 1,

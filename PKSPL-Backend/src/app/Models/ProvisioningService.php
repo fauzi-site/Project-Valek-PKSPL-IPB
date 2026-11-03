@@ -10,7 +10,7 @@ class ProvisioningService extends Model
 {
     protected $table = 'provisioning_service';
     protected $primaryKey = 'id_provisioning';
-    protected $fillable = ['id_jenis_tutupan_lahan', 'nama_objek', 'nama_latin', 'nama_daerah', 'produktivitas', 'harga_pasar', 'luas_pemanfaatan', 'satuan_luas', 'referensi', 'nilai', 'kategori_tev', 'id_provinsi', 'id_kabupaten_kota', 'id_kecamatan', 'id_desa_kelurahan'];
+    protected $fillable = ['id_jenis_tutupan_lahan', 'nama_objek', 'nama_latin', 'nama_daerah', 'jenis_biota', 'satuan_hasil', 'produktivitas', 'harga_pasar', 'luas_pemanfaatan', 'satuan_luas', 'referensi', 'nilai', 'kategori_tev', 'id_provinsi', 'id_kabupaten_kota', 'id_kecamatan', 'id_desa_kelurahan'];
 
     /** Mengubah nilai pengukuran jasa penyediaan ke presisi numerik. */
     protected function casts(): array

@@ -238,6 +238,8 @@ class ProjectDataMasterController extends Controller
             'harga_pasar' => ['nullable', 'numeric'],
             'nilai' => ['nullable', 'numeric'],
             'kategori_tev' => ['nullable', 'string', 'max:10'],
+            'jenis_biota' => ['nullable', 'string', 'in:flora,fauna'],
+            'satuan_hasil' => ['nullable', 'string', 'max:30'],
         ]);
 
         $proyek->loadMissing('indexes.jenisTutupanLahan');
@@ -302,11 +304,15 @@ class ProjectDataMasterController extends Controller
                 'nama_objek' => $validated['nama_indonesia'],
                 'nama_latin' => $validated['nama_latin'] ?? null,
                 'nama_daerah' => $validated['nama_daerah'] ?? null,
-                'produktivitas' => $validated['produktivitas'] ?? 1.0,
-                'harga_pasar' => $validated['harga_pasar'] ?? 10000,
+                'jenis_biota' => $validated['jenis_biota'] ?? null,
+                'satuan_hasil' => $validated['satuan_hasil'] ?? $validated['satuan'] ?? null,
+                'referensi' => $validated['deskripsi'] ?? null,
+                // Produktivitas dan harga boleh kosong: disimpan 0 sampai peneliti melengkapinya.
+                'produktivitas' => $validated['produktivitas'] ?? 0,
+                'harga_pasar' => $validated['harga_pasar'] ?? 0,
                 'luas_pemanfaatan' => 1.0,
                 'satuan_luas' => 'Hektar',
-                'nilai' => $validated['nilai'] ?? (($validated['produktivitas'] ?? 1.0) * ($validated['harga_pasar'] ?? 10000)),
+                'nilai' => $validated['nilai'] ?? (($validated['produktivitas'] ?? 0) * ($validated['harga_pasar'] ?? 0)),
                 'kategori_tev' => $validated['kategori_tev'] ?? 'DUV',
             ]));
         } elseif ($category === 'Regulating') {
@@ -328,8 +334,8 @@ class ProjectDataMasterController extends Controller
                 'jenis_regulating' => $validated['nama_indonesia'],
                 'indikator' => $validated['nama_latin'] ?? 'Indikator fungsi pengaturan',
                 'satuan' => $validated['satuan'] ?? ($validated['nama_daerah'] ?? 'Hektar'),
-                'nilai_indikator' => 1.0,
-                'nilai' => $validated['nilai'] ?? 10000000,
+                'nilai_indikator' => 0,
+                'nilai' => $validated['nilai'] ?? 0,
                 'kategori_tev' => $validated['kategori_tev'] ?? 'IUV',
             ]));
         } elseif ($category === 'Supporting') {
@@ -350,7 +356,7 @@ class ProjectDataMasterController extends Controller
             $created = SupportingService::create(array_merge($baseData, [
                 'fungsi_pendukung' => $validated['nama_indonesia'],
                 'deskripsi' => $validated['deskripsi'] ?? ($validated['nama_latin'] ?? 'Fungsi pendukung ekosistem'),
-                'nilai' => $validated['nilai'] ?? 5000000,
+                'nilai' => $validated['nilai'] ?? 0,
                 'kategori_tev' => $validated['kategori_tev'] ?? 'OV',
             ]));
         } else {
@@ -371,11 +377,12 @@ class ProjectDataMasterController extends Controller
             $created = CulturalService::create(array_merge($baseData, [
                 'nama_aktivitas' => $validated['nama_indonesia'],
                 'deskripsi' => $validated['deskripsi'] ?? ($validated['nama_latin'] ?? 'Aktivitas nilai budaya dan wisata'),
-                'jumlah_pengunjung' => 1000,
-                'biaya_perjalanan' => 100000,
+                // Angka kosong disimpan 0 sampai peneliti melengkapinya (bukan angka karangan).
+                'jumlah_pengunjung' => 0,
+                'biaya_perjalanan' => 0,
                 'frekuensi' => 1,
-                'referensi' => 'Survei Valuasi Jasa Wisata',
-                'nilai' => $validated['nilai'] ?? 5000000,
+                'referensi' => $validated['deskripsi'] ?? null,
+                'nilai' => $validated['nilai'] ?? 0,
                 'kategori_tev' => $validated['kategori_tev'] ?? 'DUV',
             ]));
         }
@@ -427,6 +434,8 @@ class ProjectDataMasterController extends Controller
             'nilai' => ['nullable', 'numeric'],
             'id_jenis_tutupan_lahan' => ['nullable', 'integer'],
             'kategori_tev' => ['nullable', 'string', 'max:10'],
+            'jenis_biota' => ['nullable', 'string', 'in:flora,fauna'],
+            'satuan_hasil' => ['nullable', 'string', 'max:30'],
         ]);
 
         // Jika id_jenis_tutupan_lahan diubah, pastikan milik proyek ini
@@ -447,6 +456,8 @@ class ProjectDataMasterController extends Controller
                 'nama_objek' => $validated['nama_indonesia'],
                 'nama_latin' => $validated['nama_latin'] ?? $item->nama_latin,
                 'nama_daerah' => $validated['nama_daerah'] ?? $item->nama_daerah,
+                'jenis_biota' => $validated['jenis_biota'] ?? $item->jenis_biota,
+                'satuan_hasil' => $validated['satuan_hasil'] ?? $validated['satuan'] ?? $item->satuan_hasil,
                 'id_jenis_tutupan_lahan' => array_key_exists('id_jenis_tutupan_lahan', $validated) ? $validated['id_jenis_tutupan_lahan'] : $item->id_jenis_tutupan_lahan,
                 'produktivitas' => $validated['produktivitas'] ?? $item->produktivitas,
                 'harga_pasar' => $validated['harga_pasar'] ?? $item->harga_pasar,
@@ -762,7 +773,8 @@ class ProjectDataMasterController extends Controller
         // Klasifikasi biota_type (flora vs fauna) untuk kategori Provisioning
         $biotaType = null;
         if ($category === 'Provisioning') {
-            $biotaType = $this->classifyBiotaType($namaIndonesia, $namaLatin, $namaDaerah);
+            // Kategori yang disimpan peneliti diutamakan; tebakan kata kunci hanya untuk data lama.
+            $biotaType = $item->jenis_biota ?: $this->classifyBiotaType($namaIndonesia, $namaLatin, $namaDaerah);
         }
 
         return [

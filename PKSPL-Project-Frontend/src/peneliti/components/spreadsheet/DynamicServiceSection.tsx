@@ -51,31 +51,66 @@ interface DynamicServiceSectionProps {
   highlightedRowId?: string | null;
 }
 
+/** Kategori Data Master untuk tiap layanan ekosistem. */
+type MasterCategory = 'Provisioning' | 'Regulating' | 'Supporting' | 'Cultural';
+const SERVICE_MASTER_CATEGORY: Record<string, MasterCategory> = {
+  provisioning: 'Provisioning',
+  regulating: 'Regulating',
+  supporting: 'Supporting',
+  cultural: 'Cultural',
+};
+/** Metode yang kolom namanya bukan entri katalog master (mis. skenario kebijakan), jadi tanpa peringatan. */
+const METHODS_WITHOUT_MASTER = new Set(['choice-experiment']);
+
 interface BiotaAutocompleteProps {
   value: string;
   onChange: (v: string) => void;
   options: any[];
+  /** Seluruh master provisioning (flora + fauna) untuk pengecekan keberadaan nama. */
+  allOptions?: any[];
+  /** Peringatan hanya ditampilkan setelah master selesai dimuat. */
+  masterStatus?: 'idle' | 'loading' | 'ready' | 'error';
   placeholder?: string;
   isHighlighted?: boolean;
   activeLocation?: string;
   onRequestAddMaster?: (typedValue: string, bType: 'flora' | 'fauna') => void;
   biotaType: 'flora' | 'fauna';
+  /** Tampilkan nama latin pada saran/label (hanya relevan untuk provisioning). */
+  showLatin?: boolean;
 }
 
 const BiotaAutocomplete: React.FC<BiotaAutocompleteProps> = ({
   value,
   onChange,
   options,
+  allOptions,
+  masterStatus = 'ready',
   placeholder,
   isHighlighted,
   activeLocation,
   onRequestAddMaster,
   biotaType = 'flora',
+  showLatin = true,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [showWarningIndicator, setShowWarningIndicator] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const debounceTimerRef = useRef<any>(null);
+
+  // Nilai yang dievaluasi untuk peringatan. Saat pengguna mengetik, evaluasi ditunda 600 ms;
+  // nilai dari luar (data yang dimuat/di-refresh) dievaluasi langsung.
+  const [checkedValue, setCheckedValue] = useState(value || '');
+  const typingRef = useRef(false);
+
+  useEffect(() => {
+    if (!typingRef.current) {
+      setCheckedValue(value || '');
+      return;
+    }
+    const timer = setTimeout(() => {
+      typingRef.current = false;
+      setCheckedValue(value || '');
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [value]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -102,14 +137,14 @@ const BiotaAutocomplete: React.FC<BiotaAutocompleteProps> = ({
       .filter((opt) => {
         const namaIndo = opt.namaIndonesia || opt.nama_indonesia || opt.apiData?.namaIndonesia || '';
         const namaLatin = opt.namaLatin || opt.nama_latin || opt.apiData?.namaLatin || '';
-        const label = namaLatin && namaLatin !== '-' ? `${namaIndo} (${namaLatin})` : namaIndo;
+        const label = showLatin && namaLatin && namaLatin !== '-' ? `${namaIndo} (${namaLatin})` : namaIndo;
         if (!label) return false;
 
         if (!value) return true;
         const lowerVal = value.toLowerCase().trim();
         const lowerLabel = label.toLowerCase();
         const lowerIndo = namaIndo.toLowerCase();
-        const lowerLatin = namaLatin.toLowerCase();
+        const lowerLatin = showLatin ? namaLatin.toLowerCase() : '';
 
         return (
           lowerLabel.includes(lowerVal) ||
@@ -125,62 +160,44 @@ const BiotaAutocomplete: React.FC<BiotaAutocompleteProps> = ({
     const trimmed = (valToCheck || '').trim().toLowerCase();
     if (!trimmed) return true;
 
-    return options.some((opt) => {
+    return (allOptions ?? options).some((opt) => {
       const namaIndo = (opt.namaIndonesia || opt.nama_indonesia || opt.apiData?.namaIndonesia || '').trim().toLowerCase();
       const namaLatin = (opt.namaLatin || opt.nama_latin || opt.apiData?.namaLatin || '').trim().toLowerCase();
       const namaDaerah = (opt.namaDaerah || opt.nama_daerah || opt.apiData?.namaDaerah || '').trim().toLowerCase();
-      const label = (namaLatin && namaLatin !== '-' ? `${namaIndo} (${namaLatin})` : namaIndo).toLowerCase();
+      const label = (showLatin && namaLatin && namaLatin !== '-' ? `${namaIndo} (${namaLatin})` : namaIndo).toLowerCase();
 
       return (
         trimmed === namaIndo ||
-        (namaLatin !== '-' && trimmed === namaLatin) ||
-        (namaDaerah !== '-' && trimmed === namaDaerah) ||
+        (showLatin && namaLatin !== '-' && trimmed === namaLatin) ||
+        (showLatin && namaDaerah !== '-' && trimmed === namaDaerah) ||
         trimmed === label
       );
     });
   };
 
-  const evaluateWarningIndicator = (val: string) => {
-    const trimmed = (val || '').trim();
-    if (trimmed.length >= 3 && !isValueInMaster(trimmed)) {
-      setShowWarningIndicator(true);
-    } else {
-      setShowWarningIndicator(false);
-    }
+  // Diturunkan dari data (bukan state), sehingga tetap benar setelah refresh.
+  const showWarningIndicator =
+    masterStatus === 'ready' && checkedValue.trim().length >= 3 && !isValueInMaster(checkedValue);
+
+  const settleNow = () => {
+    typingRef.current = false;
+    setCheckedValue(value || '');
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newVal = e.target.value;
-    onChange(newVal);
+    typingRef.current = true;
+    onChange(e.target.value);
     setIsOpen(true);
-    setShowWarningIndicator(false);
-
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-
-    // Debounce 600ms: periksa setelah pengguna selesai mengetik
-    if (newVal.trim().length >= 3) {
-      debounceTimerRef.current = setTimeout(() => {
-        evaluateWarningIndicator(newVal);
-      }, 600);
-    }
   };
 
   const handleInputBlur = () => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-    evaluateWarningIndicator(value);
+    settleNow();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
       setIsOpen(false);
-      evaluateWarningIndicator(value);
+      settleNow();
     }
   };
 
@@ -231,20 +248,20 @@ const BiotaAutocomplete: React.FC<BiotaAutocompleteProps> = ({
           {filteredOptions.map((opt, i) => {
             const namaIndo = opt.namaIndonesia || opt.nama_indonesia || opt.apiData?.namaIndonesia || '';
             const namaLatin = opt.namaLatin || opt.nama_latin || opt.apiData?.namaLatin || '';
-            const label = namaLatin && namaLatin !== '-' ? `${namaIndo} (${namaLatin})` : namaIndo;
+            const label = showLatin && namaLatin && namaLatin !== '-' ? `${namaIndo} (${namaLatin})` : namaIndo;
             return (
               <li
                 key={i}
                 onClick={() => {
+                  typingRef.current = false;
                   onChange(label);
                   setIsOpen(false);
-                  setShowWarningIndicator(false);
                 }}
                 className="px-3 py-2 cursor-pointer hover:bg-blue-50 hover:text-blue-700 border-b border-slate-100 last:border-0"
               >
                 <div className="flex flex-col">
                   <span>{namaIndo}</span>
-                  {namaLatin && namaLatin !== '-' && (
+                  {showLatin && namaLatin && namaLatin !== '-' && (
                     <span className="text-[10px] text-slate-400 italic font-normal">{namaLatin}</span>
                   )}
                 </div>
@@ -338,72 +355,62 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
   const [downloadDropdownOpen, setDownloadDropdownOpen] = useState<Record<string, boolean>>({});
 
   // Data Master Autocomplete State (Murni dari Data Master, tanpa mock hardcoded)
-  const [masterBiotaList, setMasterBiotaList] = useState<{ flora: any[]; fauna: any[] }>({ flora: [], fauna: [] });
+  // Seluruh item Data Master untuk kategori layanan ini (provisioning/regulating/supporting/cultural).
+  const [masterItems, setMasterItems] = useState<any[]>([]);
+  const masterCategory = SERVICE_MASTER_CATEGORY[serviceId];
+  // Provisioning dipilah flora/fauna menurut kategori yang tersimpan di master.
+  const masterBiotaList = useMemo(
+    () => ({
+      flora: masterItems.filter((item: any) => item.biota_type !== 'fauna'),
+      fauna: masterItems.filter((item: any) => item.biota_type === 'fauna'),
+    }),
+    [masterItems]
+  );
+  // Peringatan "belum ada di master" hanya valid setelah master selesai dimuat.
+  const [masterStatus, setMasterStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
 
   // Quick Add Master Biota Modal State
   const [isAddMasterModalOpen, setIsAddMasterModalOpen] = useState(false);
   const [addMasterCandidate, setAddMasterCandidate] = useState<{
     name: string;
+    category: MasterCategory;
     biotaType: 'flora' | 'fauna';
     targetMethodId?: string;
     rowId?: string;
   }>({
     name: '',
+    category: 'Provisioning',
     biotaType: 'flora',
   });
 
   const loadProjectDataMaster = () => {
-    if (serviceId === 'provisioning' && currentProjId) {
-      getProjectDataMaster(currentProjId)
-        .then((res: any) => {
-          const prov = res?.data?.provisioning || res?.provisioning;
-          if (Array.isArray(prov)) {
-            // Strictly classify flora vs fauna without mock data fallback
-            const flora = prov.filter((item: any) => {
-              if (item.biota_type) return item.biota_type === 'flora';
-              const name = (item.name || item.item || '').toLowerCase();
-              return (
-                name.includes('kayu') ||
-                name.includes('rhizophora') ||
-                name.includes('avicennia') ||
-                name.includes('sonneratia') ||
-                name.includes('bruguiera') ||
-                name.includes('nipah') ||
-                name.includes('mangrove') ||
-                name.includes('tanaman') ||
-                name.includes('daun')
-              );
-            });
+    if (!masterCategory || !currentProjId) return;
 
-            const fauna = prov.filter((item: any) => {
-              if (item.biota_type) return item.biota_type === 'fauna';
-              const name = (item.name || item.item || '').toLowerCase();
-              return !(
-                name.includes('kayu') ||
-                name.includes('rhizophora') ||
-                name.includes('avicennia') ||
-                name.includes('sonneratia') ||
-                name.includes('bruguiera') ||
-                name.includes('nipah') ||
-                name.includes('mangrove') ||
-                name.includes('tanaman') ||
-                name.includes('daun')
-              );
-            });
+    setMasterStatus('loading');
+    getProjectDataMaster(currentProjId)
+      .then((res: any) => {
+        // Backend mengirim daftar datar di `data`, tiap item punya `category`.
+        const items: any[] | undefined = Array.isArray(res?.data)
+          ? res.data.filter((item: any) => item.category === masterCategory)
+          : res?.data?.[masterCategory.toLowerCase()] || res?.[masterCategory.toLowerCase()];
 
-            setMasterBiotaList({ flora, fauna });
-          } else {
-            setMasterBiotaList({ flora: [], fauna: [] });
-          }
-        })
-        .catch(() => {
-          setMasterBiotaList({ flora: [], fauna: [] });
-        });
-    }
+        if (!Array.isArray(items)) {
+          setMasterItems([]);
+          setMasterStatus('error');
+          return;
+        }
+
+        setMasterItems(items);
+        setMasterStatus('ready');
+      })
+      .catch(() => {
+        setMasterItems([]);
+        setMasterStatus('error');
+      });
   };
 
   useEffect(() => {
-    if (serviceId === 'provisioning' && isOpen) {
+    if (masterCategory && isOpen) {
       loadProjectDataMaster();
     }
   }, [serviceId, currentProjId, isOpen]);
@@ -414,7 +421,7 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
     targetMethodId?: string,
     rowId?: string
   ) => {
-    setAddMasterCandidate({ name, biotaType: bType, targetMethodId, rowId });
+    setAddMasterCandidate({ name, category: masterCategory || 'Provisioning', biotaType: bType, targetMethodId, rowId });
     setIsAddMasterModalOpen(true);
   };
 
@@ -424,7 +431,8 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
     if (addMasterCandidate.rowId && addMasterCandidate.targetMethodId) {
       const rowId = addMasterCandidate.rowId;
       const tMethodId = addMasterCandidate.targetMethodId;
-      const bType = addMasterCandidate.biotaType;
+      // Baris non-provisioning tidak dipilah flora/fauna (kunci 'none').
+      const bType = addMasterCandidate.category === 'Provisioning' ? addMasterCandidate.biotaType : 'none';
       const masterId = createdItem?.id || createdItem?.raw_id;
       if (masterId) {
         updateCell(
@@ -437,6 +445,12 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
           {
             data_master_id: masterId,
             item: createdItem.nama_indonesia || addMasterCandidate.name,
+            ...(addMasterCandidate.category === 'Provisioning'
+              ? {
+                  nama_latin: createdItem.nama_latin && createdItem.nama_latin !== '-' ? createdItem.nama_latin : undefined,
+                  nama_daerah: createdItem.nama_daerah && createdItem.nama_daerah !== '-' ? createdItem.nama_daerah : undefined,
+                }
+              : {}),
           }
         );
       }
@@ -697,7 +711,8 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
             );
           }
 
-          const isBiotaItem = col.key === 'item' && serviceId === 'provisioning';
+          const isBiotaItem =
+            col.key === 'item' && !!masterCategory && !METHODS_WITHOUT_MASTER.has(targetMethodId || '');
           
           return (
             <td key={col.key} className="py-1 px-2 border-r border-slate-200">
@@ -705,8 +720,23 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                 <BiotaAutocomplete
                   value={val || ''}
                   onChange={(v) => handleCellChange(targetMethodId, row.id, col.key, v, rowBiota)}
-                  options={rowBiota === 'fauna' ? masterBiotaList.fauna : masterBiotaList.flora}
-                  placeholder={rowBiota === 'fauna' ? 'Contoh: Ikan Tongkol, Kepiting Bakau (Scylla serrata)' : 'Contoh: Rhizophora apiculata'}
+                  options={
+                    serviceId !== 'provisioning'
+                      ? masterItems
+                      : rowBiota === 'fauna'
+                      ? masterBiotaList.fauna
+                      : masterBiotaList.flora
+                  }
+                  allOptions={masterItems}
+                  masterStatus={masterStatus}
+                  showLatin={serviceId === 'provisioning'}
+                  placeholder={
+                    serviceId !== 'provisioning'
+                      ? col.placeholder
+                      : rowBiota === 'fauna'
+                      ? 'Contoh: Ikan Tongkol, Kepiting Bakau (Scylla serrata)'
+                      : 'Contoh: Rhizophora apiculata'
+                  }
                   isHighlighted={isHighlighted}
                   activeLocation={activeProject?.location}
                   biotaType={rowBiota === 'fauna' ? 'fauna' : 'flora'}
@@ -1660,8 +1690,10 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
           isOpen={isAddMasterModalOpen}
           onClose={() => setIsAddMasterModalOpen(false)}
           projectId={currentProjId}
+          category={addMasterCandidate.category}
           biotaType={addMasterCandidate.biotaType}
           biotaName={addMasterCandidate.name}
+          landCoverId={areaId}
           onSuccess={handleMasterAdded}
         />
       )}
