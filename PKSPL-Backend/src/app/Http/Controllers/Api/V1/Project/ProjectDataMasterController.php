@@ -280,7 +280,32 @@ class ProjectDataMasterController extends Controller
 
         $category = $validated['category'];
 
+        // Cek duplikasi sebelum INSERT untuk mencegah data ganda di Data Master
+        $namaIndo = trim($validated['nama_indonesia']);
+        $namaLatin = isset($validated['nama_latin']) ? trim($validated['nama_latin']) : null;
+        $lowerIndo = strtolower($namaIndo);
+        $lowerLatin = $namaLatin ? strtolower($namaLatin) : null;
+
         if ($category === 'Provisioning') {
+            $duplicate = ProvisioningService::where('id_jenis_tutupan_lahan', $landCoverId)
+                ->where(function ($q) use ($lowerIndo, $lowerLatin) {
+                    $q->whereRaw('LOWER(TRIM(nama_objek)) = ?', [$lowerIndo]);
+                    if ($lowerLatin) {
+                        $q->orWhereRaw('LOWER(TRIM(COALESCE(nama_latin, \'\'))) = ?', [$lowerLatin]);
+                    }
+                })
+                ->first();
+
+            if ($duplicate) {
+                $duplicate->loadMissing(['jenisTutupanLahan.index', 'kabupatenKota']);
+                $defaultDaerah = $proyek->kabupatenKota?->nama_kabupaten_kota ?? 'Wilayah Proyek';
+                return response()->json([
+                    'message' => 'Data biota dengan nama tersebut sudah ada di Data Master.',
+                    'data' => $this->transformItem($category, $duplicate, $proyek, $defaultDaerah),
+                    'already_exists' => true,
+                ], Response::HTTP_OK);
+            }
+
             $created = ProvisioningService::create(array_merge($baseData, [
                 'nama_objek' => $validated['nama_indonesia'],
                 'nama_latin' => $validated['nama_latin'] ?? null,
@@ -293,6 +318,20 @@ class ProjectDataMasterController extends Controller
                 'kategori_tev' => $validated['kategori_tev'] ?? 'DUV',
             ]));
         } elseif ($category === 'Regulating') {
+            $duplicate = RegulatingService::where('id_jenis_tutupan_lahan', $landCoverId)
+                ->whereRaw('LOWER(TRIM(jenis_regulating)) = ?', [$lowerIndo])
+                ->first();
+
+            if ($duplicate) {
+                $duplicate->loadMissing(['jenisTutupanLahan.index', 'kabupatenKota']);
+                $defaultDaerah = $proyek->kabupatenKota?->nama_kabupaten_kota ?? 'Wilayah Proyek';
+                return response()->json([
+                    'message' => 'Data jasa pengaturan tersebut sudah ada di Data Master.',
+                    'data' => $this->transformItem($category, $duplicate, $proyek, $defaultDaerah),
+                    'already_exists' => true,
+                ], Response::HTTP_OK);
+            }
+
             $created = RegulatingService::create(array_merge($baseData, [
                 'jenis_regulating' => $validated['nama_indonesia'],
                 'indikator' => $validated['nama_latin'] ?? 'Indikator fungsi pengaturan',
@@ -302,6 +341,20 @@ class ProjectDataMasterController extends Controller
                 'kategori_tev' => $validated['kategori_tev'] ?? 'IUV',
             ]));
         } elseif ($category === 'Supporting') {
+            $duplicate = SupportingService::where('id_jenis_tutupan_lahan', $landCoverId)
+                ->whereRaw('LOWER(TRIM(fungsi_pendukung)) = ?', [$lowerIndo])
+                ->first();
+
+            if ($duplicate) {
+                $duplicate->loadMissing(['jenisTutupanLahan.index', 'kabupatenKota']);
+                $defaultDaerah = $proyek->kabupatenKota?->nama_kabupaten_kota ?? 'Wilayah Proyek';
+                return response()->json([
+                    'message' => 'Data fungsi pendukung tersebut sudah ada di Data Master.',
+                    'data' => $this->transformItem($category, $duplicate, $proyek, $defaultDaerah),
+                    'already_exists' => true,
+                ], Response::HTTP_OK);
+            }
+
             $created = SupportingService::create(array_merge($baseData, [
                 'fungsi_pendukung' => $validated['nama_indonesia'],
                 'deskripsi' => $validated['deskripsi'] ?? ($validated['nama_latin'] ?? 'Fungsi pendukung ekosistem'),
@@ -309,6 +362,20 @@ class ProjectDataMasterController extends Controller
                 'kategori_tev' => $validated['kategori_tev'] ?? 'OV',
             ]));
         } else {
+            $duplicate = CulturalService::where('id_jenis_tutupan_lahan', $landCoverId)
+                ->whereRaw('LOWER(TRIM(nama_aktivitas)) = ?', [$lowerIndo])
+                ->first();
+
+            if ($duplicate) {
+                $duplicate->loadMissing(['jenisTutupanLahan.index', 'kabupatenKota']);
+                $defaultDaerah = $proyek->kabupatenKota?->nama_kabupaten_kota ?? 'Wilayah Proyek';
+                return response()->json([
+                    'message' => 'Data aktivitas budaya/wisata tersebut sudah ada di Data Master.',
+                    'data' => $this->transformItem($category, $duplicate, $proyek, $defaultDaerah),
+                    'already_exists' => true,
+                ], Response::HTTP_OK);
+            }
+
             $created = CulturalService::create(array_merge($baseData, [
                 'nama_aktivitas' => $validated['nama_indonesia'],
                 'deskripsi' => $validated['deskripsi'] ?? ($validated['nama_latin'] ?? 'Aktivitas nilai budaya dan wisata'),
@@ -700,10 +767,17 @@ class ProjectDataMasterController extends Controller
             $tipeEkosistem = $lcName;
         }
 
+        // Klasifikasi biota_type (flora vs fauna) untuk kategori Provisioning
+        $biotaType = null;
+        if ($category === 'Provisioning') {
+            $biotaType = $this->classifyBiotaType($namaIndonesia, $namaLatin, $namaDaerah);
+        }
+
         return [
             'id' => $meta['prefix'] . '-' . $rawId,
             'raw_id' => $rawId,
             'category' => $category,
+            'biota_type' => $biotaType,
             'nama_indonesia' => $namaIndonesia,
             'nama_latin' => $namaLatin,
             'nama_daerah' => $namaDaerah,
@@ -714,6 +788,30 @@ class ProjectDataMasterController extends Controller
             'usage' => $this->formatUsage($item, $proyek),
             'raw' => $item,
         ];
+    }
+
+    /**
+     * Mengklasifikasikan apakah suatu item Provisioning tergolong Flora atau Fauna.
+     */
+    private function classifyBiotaType(string $namaIndo, string $namaLatin, string $namaDaerah): string
+    {
+        $text = strtolower($namaIndo . ' ' . $namaLatin . ' ' . $namaDaerah);
+
+        $faunaKeywords = [
+            'ikan', 'tongkol', 'bandeng', 'kepiting', 'udang', 'cumi', 'kerang', 'rajungan',
+            'penyu', 'dugong', 'teripang', 'burung', 'elang', 'walet', 'babi', 'celeng',
+            'kadal', 'bunglon', 'perling', 'madu', 'coracina', 'haliastur', 'scylla', 'chanos',
+            'euthynnus', 'chelonia', 'holothuria', 'sus scrofa', 'bronchocela', 'carlia',
+            'fauna', 'satwa', 'hewan', 'reptil', 'aves', 'mamalia', 'amfibi', 'pisces'
+        ];
+
+        foreach ($faunaKeywords as $kw) {
+            if (str_contains($text, $kw)) {
+                return 'fauna';
+            }
+        }
+
+        return 'flora';
     }
 
     /**

@@ -3,13 +3,13 @@ import { useSpreadsheet } from '../../context/SpreadsheetContext';
 import { useProject } from '../../context/ProjectContext';
 import { getMethodSchema, ColumnDefinition, CustomColumnDefinition, CustomColumnType, getFaunaRowUnits } from '../../types/methodSchemas';
 import { ECOSYSTEM_SERVICES_CONFIG } from '../../mock/valuationMock';
-import { PROVISIONING_DATA } from '../../mock/dataMasterMock';
 import { downloadContextTemplate, TemplateFileFormat } from '../../utils/excelEngine';
 import { formatIDR } from '../../utils/formatter';
 import { getProjectDataMaster } from '../../../services/dataMasterService';
 import { CustomColumnModal } from './CustomColumnModal';
 import { DeleteColumnConfirmModal } from './DeleteColumnConfirmModal';
 import { FormattedNumberInput } from './FormattedNumberInput';
+import { MasterBiotaWarningModal } from './MasterBiotaWarningModal';
 import {
   ChevronDown,
   ChevronUp,
@@ -24,7 +24,10 @@ import {
   FileText,
   FileCode,
   HelpCircle,
-  Undo2
+  Undo2,
+  AlertTriangle,
+  Sparkles,
+  Check
 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { RespondentDetailModal } from './RespondentDetailModal';
@@ -48,10 +51,32 @@ interface DynamicServiceSectionProps {
   highlightedRowId?: string | null;
 }
 
-const BiotaAutocomplete = ({ value, onChange, options, placeholder, isHighlighted, activeLocation }: { value: string, onChange: (v: string) => void, options: any[], placeholder: string, isHighlighted: boolean, activeLocation?: string }) => {
+interface BiotaAutocompleteProps {
+  value: string;
+  onChange: (v: string) => void;
+  options: any[];
+  placeholder?: string;
+  isHighlighted?: boolean;
+  activeLocation?: string;
+  onRequestAddMaster?: (typedValue: string, bType: 'flora' | 'fauna') => void;
+  biotaType: 'flora' | 'fauna';
+}
+
+const BiotaAutocomplete: React.FC<BiotaAutocompleteProps> = ({
+  value,
+  onChange,
+  options,
+  placeholder,
+  isHighlighted,
+  activeLocation,
+  onRequestAddMaster,
+  biotaType = 'flora',
+}) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [showWarningIndicator, setShowWarningIndicator] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  
+  const debounceTimerRef = useRef<any>(null);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
@@ -66,58 +91,162 @@ const BiotaAutocomplete = ({ value, onChange, options, placeholder, isHighlighte
     let locationFiltered = options;
     if (activeLocation) {
       const projLoc = activeLocation.toLowerCase();
-      const matched = options.filter(opt => {
+      const matched = options.filter((opt) => {
         const optLoc = (opt.daerah || opt.apiData?.daerah || '').toLowerCase();
         return optLoc && (optLoc.includes(projLoc) || projLoc.includes(optLoc));
       });
       if (matched.length > 0) locationFiltered = matched;
     }
-    
-    return locationFiltered.filter(opt => {
-      const namaIndo = opt.namaIndonesia || opt.nama_indonesia || opt.apiData?.namaIndonesia || '';
-      const namaLatin = opt.namaLatin || opt.nama_latin || opt.apiData?.namaLatin || '';
-      const label = namaLatin ? `${namaIndo} (${namaLatin})` : namaIndo;
-      if (!label) return false;
-      
-      if (!value) return true;
-      const lowerVal = value.toLowerCase();
-      const lowerLabel = label.toLowerCase();
-      
-      return lowerLabel.startsWith(lowerVal) || lowerLabel.includes(` ${lowerVal}`) || lowerLabel.includes(`(${lowerVal}`);
-    }).slice(0, 10);
+
+    return locationFiltered
+      .filter((opt) => {
+        const namaIndo = opt.namaIndonesia || opt.nama_indonesia || opt.apiData?.namaIndonesia || '';
+        const namaLatin = opt.namaLatin || opt.nama_latin || opt.apiData?.namaLatin || '';
+        const label = namaLatin && namaLatin !== '-' ? `${namaIndo} (${namaLatin})` : namaIndo;
+        if (!label) return false;
+
+        if (!value) return true;
+        const lowerVal = value.toLowerCase().trim();
+        const lowerLabel = label.toLowerCase();
+        const lowerIndo = namaIndo.toLowerCase();
+        const lowerLatin = namaLatin.toLowerCase();
+
+        return (
+          lowerLabel.includes(lowerVal) ||
+          lowerIndo.includes(lowerVal) ||
+          lowerLatin.includes(lowerVal)
+        );
+      })
+      .slice(0, 10);
   }, [options, value, activeLocation]);
 
+  // Evaluasi apakah nilai yang sedang terisi ADA di dalam Data Master
+  const isValueInMaster = (valToCheck: string) => {
+    const trimmed = (valToCheck || '').trim().toLowerCase();
+    if (!trimmed) return true;
+
+    return options.some((opt) => {
+      const namaIndo = (opt.namaIndonesia || opt.nama_indonesia || opt.apiData?.namaIndonesia || '').trim().toLowerCase();
+      const namaLatin = (opt.namaLatin || opt.nama_latin || opt.apiData?.namaLatin || '').trim().toLowerCase();
+      const namaDaerah = (opt.namaDaerah || opt.nama_daerah || opt.apiData?.namaDaerah || '').trim().toLowerCase();
+      const label = (namaLatin && namaLatin !== '-' ? `${namaIndo} (${namaLatin})` : namaIndo).toLowerCase();
+
+      return (
+        trimmed === namaIndo ||
+        (namaLatin !== '-' && trimmed === namaLatin) ||
+        (namaDaerah !== '-' && trimmed === namaDaerah) ||
+        trimmed === label
+      );
+    });
+  };
+
+  const evaluateWarningIndicator = (val: string) => {
+    const trimmed = (val || '').trim();
+    if (trimmed.length >= 3 && !isValueInMaster(trimmed)) {
+      setShowWarningIndicator(true);
+    } else {
+      setShowWarningIndicator(false);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVal = e.target.value;
+    onChange(newVal);
+    setIsOpen(true);
+    setShowWarningIndicator(false);
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Debounce 600ms: periksa setelah pengguna selesai mengetik
+    if (newVal.trim().length >= 3) {
+      debounceTimerRef.current = setTimeout(() => {
+        evaluateWarningIndicator(newVal);
+      }, 600);
+    }
+  };
+
+  const handleInputBlur = () => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    evaluateWarningIndicator(value);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      setIsOpen(false);
+      evaluateWarningIndicator(value);
+    }
+  };
+
+  const handleWarningClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (onRequestAddMaster && value?.trim()) {
+      onRequestAddMaster(value.trim(), biotaType);
+    }
+  };
+
   return (
-    <div ref={wrapperRef} className="relative w-full">
+    <div ref={wrapperRef} className="relative w-full flex items-center">
       <input
         type="text"
         value={value || ''}
-        onChange={(e) => {
-          onChange(e.target.value);
-          setIsOpen(true);
-        }}
+        onChange={handleInputChange}
+        onBlur={handleInputBlur}
+        onKeyDown={handleKeyDown}
         onFocus={() => setIsOpen(true)}
         placeholder={placeholder}
-        className={`w-full px-2 py-1 bg-transparent hover:bg-white focus:bg-white focus:ring-1 focus:ring-blue-500 rounded border border-transparent hover:border-slate-300 focus:border-blue-500 text-slate-800 font-medium ${isHighlighted ? 'border-rose-400 bg-rose-50 text-rose-800' : ''}`}
+        className={`w-full px-2 py-1 bg-transparent hover:bg-white focus:bg-white focus:ring-1 focus:ring-blue-500 rounded border font-medium ${
+          showWarningIndicator ? 'pr-7 ' : ''
+        }${
+          isHighlighted
+            ? 'border-rose-400 bg-rose-50 text-rose-800'
+            : 'border-transparent hover:border-slate-300 focus:border-blue-500 text-slate-800'
+        }`}
       />
+
+      {/* Indikator Warning Kecil di Sebelah Kanan Kolom Input */}
+      {showWarningIndicator && (
+        <button
+          type="button"
+          onClick={handleWarningClick}
+          className="absolute right-1.5 p-1 rounded-md text-amber-500 hover:text-amber-700 hover:bg-amber-100 transition-colors cursor-pointer group shrink-0"
+          title="Data belum tersedia di Data Master. Klik untuk melihat detail."
+          aria-label="Peringatan: Data belum tersedia di Data Master. Klik untuk melihat detail."
+        >
+          <AlertTriangle className="w-3.5 h-3.5 stroke-[2.2]" />
+          <span className="sr-only">Data belum tersedia di Data Master. Klik untuk melihat detail.</span>
+        </button>
+      )}
+
+      {/* Autocomplete Dropdown List */}
       {isOpen && filteredOptions.length > 0 && (
-        <ul className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-48 overflow-y-auto text-xs font-medium text-slate-700">
+        <ul className="absolute left-0 top-full z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-48 overflow-y-auto text-xs font-medium text-slate-700">
           {filteredOptions.map((opt, i) => {
             const namaIndo = opt.namaIndonesia || opt.nama_indonesia || opt.apiData?.namaIndonesia || '';
             const namaLatin = opt.namaLatin || opt.nama_latin || opt.apiData?.namaLatin || '';
-            const label = namaLatin ? `${namaIndo} (${namaLatin})` : namaIndo;
+            const label = namaLatin && namaLatin !== '-' ? `${namaIndo} (${namaLatin})` : namaIndo;
             return (
               <li
                 key={i}
                 onClick={() => {
                   onChange(label);
                   setIsOpen(false);
+                  setShowWarningIndicator(false);
                 }}
                 className="px-3 py-2 cursor-pointer hover:bg-blue-50 hover:text-blue-700 border-b border-slate-100 last:border-0"
               >
                 <div className="flex flex-col">
                   <span>{namaIndo}</span>
-                  {namaLatin && <span className="text-[10px] text-slate-400 italic font-normal">{namaLatin}</span>}
+                  {namaLatin && namaLatin !== '-' && (
+                    <span className="text-[10px] text-slate-400 italic font-normal">{namaLatin}</span>
+                  )}
                 </div>
               </li>
             );
@@ -208,33 +337,111 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
   const [importDropdownOpen, setImportDropdownOpen] = useState<Record<string, boolean>>({});
   const [downloadDropdownOpen, setDownloadDropdownOpen] = useState<Record<string, boolean>>({});
 
-  // Data Master Autocomplete State
-  const [masterBiotaList, setMasterBiotaList] = useState<{ flora: any[], fauna: any[] }>({ flora: [], fauna: [] });
+  // Data Master Autocomplete State (Murni dari Data Master, tanpa mock hardcoded)
+  const [masterBiotaList, setMasterBiotaList] = useState<{ flora: any[]; fauna: any[] }>({ flora: [], fauna: [] });
+
+  // Quick Add Master Biota Modal State
+  const [isAddMasterModalOpen, setIsAddMasterModalOpen] = useState(false);
+  const [addMasterCandidate, setAddMasterCandidate] = useState<{
+    name: string;
+    biotaType: 'flora' | 'fauna';
+    targetMethodId?: string;
+    rowId?: string;
+  }>({
+    name: '',
+    biotaType: 'flora',
+  });
+
+  const loadProjectDataMaster = () => {
+    if (serviceId === 'provisioning' && currentProjId) {
+      getProjectDataMaster(currentProjId)
+        .then((res: any) => {
+          const prov = res?.data?.provisioning || res?.provisioning;
+          if (Array.isArray(prov)) {
+            // Strictly classify flora vs fauna without mock data fallback
+            const flora = prov.filter((item: any) => {
+              if (item.biota_type) return item.biota_type === 'flora';
+              const name = (item.name || item.item || '').toLowerCase();
+              return (
+                name.includes('kayu') ||
+                name.includes('rhizophora') ||
+                name.includes('avicennia') ||
+                name.includes('sonneratia') ||
+                name.includes('bruguiera') ||
+                name.includes('nipah') ||
+                name.includes('mangrove') ||
+                name.includes('tanaman') ||
+                name.includes('daun')
+              );
+            });
+
+            const fauna = prov.filter((item: any) => {
+              if (item.biota_type) return item.biota_type === 'fauna';
+              const name = (item.name || item.item || '').toLowerCase();
+              return !(
+                name.includes('kayu') ||
+                name.includes('rhizophora') ||
+                name.includes('avicennia') ||
+                name.includes('sonneratia') ||
+                name.includes('bruguiera') ||
+                name.includes('nipah') ||
+                name.includes('mangrove') ||
+                name.includes('tanaman') ||
+                name.includes('daun')
+              );
+            });
+
+            setMasterBiotaList({ flora, fauna });
+          } else {
+            setMasterBiotaList({ flora: [], fauna: [] });
+          }
+        })
+        .catch(() => {
+          setMasterBiotaList({ flora: [], fauna: [] });
+        });
+    }
+  };
 
   useEffect(() => {
     if (serviceId === 'provisioning' && isOpen) {
-      const processBiotaList = (prov: any[]) => {
-        setMasterBiotaList({ flora: prov, fauna: prov });
-      };
-
-      if (currentProjId) {
-        getProjectDataMaster(currentProjId)
-          .then((res: any) => {
-            const prov = res?.data?.provisioning || res?.provisioning;
-            if (Array.isArray(prov) && prov.length > 0) {
-              processBiotaList(prov);
-            } else {
-              processBiotaList(PROVISIONING_DATA);
-            }
-          })
-          .catch(() => {
-            processBiotaList(PROVISIONING_DATA);
-          });
-      } else {
-        processBiotaList(PROVISIONING_DATA);
-      }
+      loadProjectDataMaster();
     }
   }, [serviceId, currentProjId, isOpen]);
+
+  const handleRequestAddMaster = (
+    name: string,
+    bType: 'flora' | 'fauna',
+    targetMethodId?: string,
+    rowId?: string
+  ) => {
+    setAddMasterCandidate({ name, biotaType: bType, targetMethodId, rowId });
+    setIsAddMasterModalOpen(true);
+  };
+
+  const handleMasterAdded = (createdItem: any) => {
+    loadProjectDataMaster();
+    // Jika ada rowId dan targetMethodId, simpan referensi ID data master ke baris valuasi
+    if (addMasterCandidate.rowId && addMasterCandidate.targetMethodId) {
+      const rowId = addMasterCandidate.rowId;
+      const tMethodId = addMasterCandidate.targetMethodId;
+      const bType = addMasterCandidate.biotaType;
+      const masterId = createdItem?.id || createdItem?.raw_id;
+      if (masterId) {
+        updateCell(
+          currentProjId,
+          areaId,
+          serviceId,
+          tMethodId,
+          bType,
+          rowId,
+          {
+            data_master_id: masterId,
+            item: createdItem.nama_indonesia || addMasterCandidate.name,
+          }
+        );
+      }
+    }
+  };
 
   // Category visual accent tokens
   const ACCENT_STYLES: Record<string, { badgeBg: string; badgeText: string; borderLeft: string; pillBg: string; pillText: string }> = {
@@ -502,6 +709,10 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
                   placeholder={rowBiota === 'fauna' ? 'Contoh: Ikan Tongkol, Kepiting Bakau (Scylla serrata)' : 'Contoh: Rhizophora apiculata'}
                   isHighlighted={isHighlighted}
                   activeLocation={activeProject?.location}
+                  biotaType={rowBiota === 'fauna' ? 'fauna' : 'flora'}
+                  onRequestAddMaster={(typedVal, bType) =>
+                    handleRequestAddMaster(typedVal, bType, targetMethodId, row.id)
+                  }
                 />
               ) : (
                 <input
@@ -1442,6 +1653,18 @@ export const DynamicServiceSection: React.FC<DynamicServiceSectionProps> = ({
           />
         );
       })()}
+
+      {/* Modal Konfirmasi Peringatan Data Master Biota */}
+      {isAddMasterModalOpen && currentProjId && (
+        <MasterBiotaWarningModal
+          isOpen={isAddMasterModalOpen}
+          onClose={() => setIsAddMasterModalOpen(false)}
+          projectId={currentProjId}
+          biotaType={addMasterCandidate.biotaType}
+          biotaName={addMasterCandidate.name}
+          onSuccess={handleMasterAdded}
+        />
+      )}
 
     </div>
   );

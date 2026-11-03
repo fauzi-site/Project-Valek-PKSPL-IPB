@@ -365,6 +365,7 @@ class ValuationDataController extends Controller
             }
 
             // Hapus baris di database untuk section ini yang sudah dihapus oleh pengguna di frontend
+            // Catatan: Baris valuasi dihapus, namun data master dipertahankan
             if (!empty($keptRowIds)) {
                 $orphans = ValuationRow::where('id_jenis_tutupan_lahan', $landCoverId)
                     ->where('service_id', $serviceId)
@@ -374,11 +375,6 @@ class ValuationDataController extends Controller
                     ->get();
 
                 foreach ($orphans as $orphan) {
-                    $syncService->deleteRowSync(
-                        $landCoverId,
-                        $orphan->service_id,
-                        $orphan->row_data ?? []
-                    );
                     $orphan->delete();
                 }
             }
@@ -478,13 +474,7 @@ class ValuationDataController extends Controller
 
         $rows = $query->get();
 
-        $syncService = app(\App\Services\Valuation\ValuationDataMasterSyncService::class);
         foreach ($rows as $row) {
-            $syncService->deleteRowSync(
-                $landCoverId,
-                $row->service_id,
-                $row->row_data ?? []
-            );
             $row->delete();
         }
 

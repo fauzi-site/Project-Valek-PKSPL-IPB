@@ -101,44 +101,15 @@ class ValuationDataMasterSyncService
 
     /**
      * Menghapus entri data master yang terkait jika baris data valuasi dihapus.
+     * CATATAN: Data Master bersifat independen dan merupakan acuan/katalog.
+     * Penghapusan baris data valuasi oleh peneliti TIDAK BOLEH menghapus data master.
+     * Method ini dipertahankan untuk backward compatibility tetapi tidak menghapus data master.
      */
     public function deleteRowSync(int $landCoverId, string $serviceId, array $rowData): bool
     {
-        $rawItem = trim((string) ($rowData['item'] ?? ($rowData['nama_objek'] ?? '')));
-        if ($rawItem === '') {
-            return false;
-        }
-
-        $serviceKey = strtolower(trim($serviceId));
-        $lowerItem = strtolower($rawItem);
-
-        switch ($serviceKey) {
-            case 'provisioning':
-                return (bool) ProvisioningService::where('id_jenis_tutupan_lahan', $landCoverId)
-                    ->where(function ($q) use ($lowerItem) {
-                        $q->whereRaw('LOWER(TRIM(nama_objek)) = ?', [$lowerItem])
-                          ->orWhereRaw('LOWER(TRIM(COALESCE(nama_latin, \'\'))) = ?', [$lowerItem]);
-                    })
-                    ->delete();
-
-            case 'regulating':
-                return (bool) RegulatingService::where('id_jenis_tutupan_lahan', $landCoverId)
-                    ->whereRaw('LOWER(TRIM(jenis_regulating)) = ?', [$lowerItem])
-                    ->delete();
-
-            case 'supporting':
-                return (bool) SupportingService::where('id_jenis_tutupan_lahan', $landCoverId)
-                    ->whereRaw('LOWER(TRIM(fungsi_pendukung)) = ?', [$lowerItem])
-                    ->delete();
-
-            case 'cultural':
-                return (bool) CulturalService::where('id_jenis_tutupan_lahan', $landCoverId)
-                    ->whereRaw('LOWER(TRIM(nama_aktivitas)) = ?', [$lowerItem])
-                    ->delete();
-
-            default:
-                return false;
-        }
+        // Intentionally no-op: Data master tidak boleh dihapus saat baris valuasi dihapus
+        Log::info("[ValuationSync] deleteRowSync skipped: preserving master data for service {$serviceId} in land cover {$landCoverId}");
+        return false;
     }
 
     /**
