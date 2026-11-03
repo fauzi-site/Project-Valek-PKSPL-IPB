@@ -7,7 +7,6 @@ use App\Models\Index;
 use App\Models\JenisTutupanLahan;
 use App\Models\TcmData;
 use App\Models\CvmData;
-use App\Services\Valuation\ValuationDataMasterSyncService;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -275,8 +274,6 @@ class PramukaSurveySeeder extends Seeder
         }
 
         // 8. Valuation Rows in Spreadsheet (Data Valuasi Tier)
-        $syncService = app(ValuationDataMasterSyncService::class);
-
         // A. Fauna Market Price Rows (3 Komoditas Hasil Perikanan Tangkap)
         $faunaRows = [
             [
@@ -336,7 +333,6 @@ class PramukaSurveySeeder extends Seeder
                     'updated_at' => $now,
                 ]
             );
-            $syncService->syncRow($idLandCover, 'provisioning', 'fauna', $r, (float) ($r['totalNilai'] ?? 0));
         }
 
         // B. Cultural rows: one row per location. Figures are left empty on purpose: the questionnaire
@@ -376,16 +372,11 @@ class PramukaSurveySeeder extends Seeder
             ]);
         }
 
-        // Results derived from invented respondents are removed: analyses, Data Master entry and CBA benefits.
+        // Results derived from invented respondents are removed: analyses and CBA benefits.
         DB::table('tcm_analyses')->where('id_proyek', $idProyek)->where('id_module', $moduleIdTcm)->delete();
         DB::table('cvm_analyses')->where('id_proyek', $idProyek)->where('id_module', $moduleIdCvm)->delete();
         DB::table('benefits')->where('id_proyek', $idProyek)->where('category', 'Cultural')
             ->whereIn('source_module', ['tcm', 'cvm'])->delete();
-        DB::table('cultural_service')->where('id_jenis_tutupan_lahan', $idLandCover)
-            ->whereRaw('LOWER(TRIM(nama_aktivitas)) = ?', [strtolower($lokasi)])->delete();
-
-        // 9. Sync the remaining rows to Data Master (cultural_service)
-        $syncService->reconcileProject($project);
 
         $this->command->info('Pulau Pramuka survey research data successfully integrated into project PRJ-PRAMUKA!');
     }

@@ -154,7 +154,7 @@ class ValuationDataController extends Controller
     /**
      * POST /v1/jenis-tutupan-lahan/{landCoverId}/valuation/rows
      *
-     * Menambahkan satu baris data valuasi baru dan otomatis menyinkronkannya ke Data Master.
+     * Menambahkan satu baris data valuasi baru. Tidak mengubah Data Master.
      * Body: { service_id, method_id, biota?, row_order?, row_data, total_nilai? }
      */
     public function addRow(Request $request, int $landCoverId): JsonResponse
@@ -192,26 +192,17 @@ class ValuationDataController extends Controller
             ));
         }
 
-        // Sinkronisasi otomatis ke Data Master
-        app(\App\Services\Valuation\ValuationDataMasterSyncService::class)->syncRow(
-            $landCoverId,
-            $validated['service_id'],
-            $validated['biota'] ?? null,
-            $validated['row_data'] ?? [],
-            (float) ($validated['total_nilai'] ?? 0)
-        );
-
         return response()->json([
             'data'    => $row,
-            'message' => 'Baris data valuasi berhasil ditambahkan dan disinkronkan ke Data Master.',
+            'message' => 'Baris data valuasi berhasil ditambahkan.',
         ], Response::HTTP_CREATED);
     }
 
     /**
      * POST /v1/jenis-tutupan-lahan/{landCoverId}/valuation/rows/batch
      *
-     * Menambahkan banyak baris data valuasi sekaligus (misal hasil Excel import)
-     * dan menyinkronkan seluruhnya ke Data Master.
+     * Menambahkan banyak baris data valuasi sekaligus (misal hasil Excel import).
+     * Tidak mengubah Data Master.
      */
     public function batchImportRows(Request $request, int $landCoverId): JsonResponse
     {
@@ -227,7 +218,6 @@ class ValuationDataController extends Controller
             'rows.*.row_order'   => ['nullable', 'integer'],
         ]);
 
-        $syncService = app(\App\Services\Valuation\ValuationDataMasterSyncService::class);
         $createdRows = [];
 
         foreach ($validated['rows'] as $r) {
@@ -246,32 +236,21 @@ class ValuationDataController extends Controller
                 'total_nilai'            => $totalNilai,
             ]);
 
-            $rawItem = trim((string) ($rowData['item'] ?? ''));
-            if ($rawItem !== '') {
-                $syncService->syncRow(
-                    $landCoverId,
-                    $validated['service_id'],
-                    $validated['biota'] ?? null,
-                    $rowData,
-                    $totalNilai
-                );
-            }
-
             $createdRows[] = $row;
         }
 
         return response()->json([
             'data'    => $createdRows,
             'count'   => count($createdRows),
-            'message' => 'Seluruh baris data valuasi berhasil diimpor dan disinkronkan ke Data Master.',
+            'message' => 'Seluruh baris data valuasi berhasil diimpor.',
         ], Response::HTTP_CREATED);
     }
 
     /**
      * POST /v1/jenis-tutupan-lahan/{landCoverId}/valuation/sync-all
      *
-     * Menyinkronkan seluruh section/metode data valuasi pada area tutupan lahan sekaligus
-     * ke dalam valuation_rows dan otomatis ke Data Master.
+     * Menyimpan seluruh section/metode data valuasi pada area tutupan lahan sekaligus
+     * ke dalam valuation_rows. Tidak mengubah Data Master.
      */
     public function syncAllSections(Request $request, int $landCoverId): JsonResponse
     {
@@ -285,7 +264,6 @@ class ValuationDataController extends Controller
             'sections.*.rows'       => ['required', 'array'],
         ]);
 
-        $syncService = app(\App\Services\Valuation\ValuationDataMasterSyncService::class);
         $totalSynced = 0;
         $idMappings = [];
 
@@ -348,16 +326,6 @@ class ValuationDataController extends Controller
 
                 $keptRowIds[] = $row->id;
 
-                if ($rawItem !== '') {
-                    $syncService->syncRow(
-                        $landCoverId,
-                        $serviceId,
-                        $biota,
-                        $rowData,
-                        $totalNilai
-                    );
-                }
-
                 if ($clientRowId) {
                     $idMappings[$clientRowId] = $row->id;
                 }
@@ -381,7 +349,7 @@ class ValuationDataController extends Controller
         }
 
         return response()->json([
-            'message'    => "Berhasil menyinkronkan {$totalSynced} baris ke Data Master.",
+            'message'    => "Berhasil menyimpan {$totalSynced} baris data valuasi.",
             'mappings'   => $idMappings,
             'count'      => $totalSynced,
         ]);
@@ -390,7 +358,7 @@ class ValuationDataController extends Controller
     /**
      * PUT /v1/jenis-tutupan-lahan/{landCoverId}/valuation/rows/{rowId}
      *
-     * Memperbarui row_data dan total_nilai pada baris valuasi serta menyinkronkannya ke Data Master.
+     * Memperbarui row_data dan total_nilai pada baris valuasi. Tidak mengubah Data Master.
      */
     public function updateRow(Request $request, int $landCoverId, string|int $rowId): JsonResponse
     {
@@ -434,26 +402,17 @@ class ValuationDataController extends Controller
             $row->update($validated);
         }
 
-        // Sinkronisasi otomatis ke Data Master
-        app(\App\Services\Valuation\ValuationDataMasterSyncService::class)->syncRow(
-            $landCoverId,
-            $row->service_id,
-            $row->biota,
-            $row->row_data ?? [],
-            (float) ($row->total_nilai ?? 0)
-        );
-
         return response()->json([
             'data'    => $row->refresh(),
-            'message' => 'Baris data valuasi berhasil diperbarui dan disinkronkan ke Data Master.',
+            'message' => 'Baris data valuasi berhasil diperbarui.',
         ]);
     }
 
     /**
      * DELETE /v1/jenis-tutupan-lahan/{landCoverId}/valuation/rows/{rowId}
      *
-     * Menghapus baris data valuasi berdasarkan database ID maupun client row ID,
-     * serta membersihkan entri master terkait tutupan lahan tersebut.
+     * Menghapus baris data valuasi berdasarkan database ID maupun client row ID.
+     * Data Master tidak ikut terhapus.
      * Mengembalikan 204 No Content secara idempoten bahkan jika baris sudah terhapus.
      */
     public function deleteRow(int $landCoverId, string|int $rowId): Response

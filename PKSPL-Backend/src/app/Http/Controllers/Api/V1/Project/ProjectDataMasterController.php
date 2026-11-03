@@ -63,14 +63,6 @@ class ProjectDataMasterController extends Controller
      */
     public function index(Request $request, Proyek $proyek): JsonResponse
     {
-        // 0. Rekonsiliasi otomatis: pastikan seluruh data baris dari lembar kerja Data Valuasi
-        // milik tutupan lahan proyek ini sudah tersinkronisasi ke tabel Data Master
-        try {
-            app(\App\Services\Valuation\ValuationDataMasterSyncService::class)->reconcileProject($proyek);
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('[DataMasterSync] Reconcile error: ' . $e->getMessage());
-        }
-
         // 1. Memuat relasi wilayah, ekosistem, dan tutupan lahan proyek
         $proyek->loadMissing([
             'provinsi',

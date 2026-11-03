@@ -25,13 +25,7 @@ class DatabaseSeeder extends Seeder
             DesaKelurahanSeeder::class,
             EkosistemSeeder::class,
             MetodeValuasiSeeder::class,
-            ProyekSeeder::class,
-            AreaTerdampakSeeder::class,
-            IndexSeeder::class,
-            JenisTutupanLahanSeeder::class,
             ReferensiSeeder::class,
-            DataMasterSeeder::class,
-            JasaEkosistemSeeder::class,
             ProsesAnalisisSeeder::class,
             // Review & Discussion Module (additive)
             ReviewSeeder::class,
@@ -41,9 +35,15 @@ class DatabaseSeeder extends Seeder
             EkosistemValuasiSeeder::class,
             // Chat & Discussion Module (Super Admin, Peneliti)
             ChatSeeder::class,
-            // Master Data Spesifik & Integrasi Riset Survei (Kota Bogor & Pulau Pramuka)
-            KotaBogorAndGlobalMasterSeeder::class,
+            // Proyek Bima: Pulau Pramuka (proyek, indeks, tutupan lahan, dan survei)
             PramukaSurveySeeder::class,
+            // Data contoh peneliti lain (selain Bima) untuk beranda publik: peta, statistik, TEV
+            PenelitiLainDummySeeder::class,
+            AreaTerdampakSeeder::class,
+            // Data Master jasa ekosistem: dijalankan terakhir karena menempel pada tutupan lahan
+            // semua proyek di atas. Valuasi tidak menulis ke master.
+            MasterDataResetSeeder::class,
+            DataMasterSeeder::class,
         ]);
     }
 }

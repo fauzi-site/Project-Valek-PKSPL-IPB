@@ -19,8 +19,6 @@ import {
   ChevronDown,
   Check,
   Layers,
-  Edit2,
-  Trash2,
   Download,
   Info,
   ExternalLink,
@@ -37,8 +35,6 @@ import {
 import {
   getProjectDataMaster,
   storeProjectDataMaster,
-  updateProjectDataMaster,
-  deleteProjectDataMaster,
   applyProjectMasterTemplate,
   linkProjectMasterLandCover
 } from '../../services/dataMasterService';
@@ -387,12 +383,6 @@ export const DataMasterPage: React.FC = () => {
   const [selectedDetailItem, setSelectedDetailItem] = useState<UnifiedMasterItem | null>(null);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<UnifiedMasterItem | null>(null);
-
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [deletingItem, setDeletingItem] = useState<UnifiedMasterItem | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
 
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [linkingItem, setLinkingItem] = useState<UnifiedMasterItem | null>(null);
@@ -650,27 +640,6 @@ export const DataMasterPage: React.FC = () => {
     setIsAddModalOpen(true);
   };
 
-  const handleOpenEditModal = (item: UnifiedMasterItem) => {
-    setEditingItem(item);
-    setFormCategory(item.category);
-    setFormNamaIndonesia(item.namaIndonesia);
-    setFormNamaLatin(item.namaLatin !== '-' ? item.namaLatin : '');
-    setFormNamaDaerah(item.namaDaerah !== '-' ? item.namaDaerah : '');
-    setFormSatuan(item.apiData?.satuan || '');
-    setFormDeskripsi(item.apiData?.deskripsi || item.apiData?.referensi || '');
-    setFormProduktivitas(item.apiData?.produktivitas ? String(item.apiData.produktivitas) : '');
-    setFormHargaPasar(item.apiData?.harga_pasar ? String(item.apiData.harga_pasar) : '');
-    setFormNilai(item.apiData?.nilai ? String(item.apiData.nilai) : '');
-    setFormKategoriTev(item.apiData?.kategori_tev || 'DUV');
-    setFormLandCoverId(item.landCoverId || projectLandCovers[0]?.id || '');
-    setIsEditModalOpen(true);
-  };
-
-  const handleOpenDeleteModal = (item: UnifiedMasterItem) => {
-    setDeletingItem(item);
-    setIsDeleteModalOpen(true);
-  };
-
   const handleOpenLinkModal = (item: UnifiedMasterItem) => {
     setLinkingItem(item);
     setSelectedLinkLcId(projectLandCovers[0]?.id || '');
@@ -747,92 +716,6 @@ export const DataMasterPage: React.FC = () => {
       });
     } finally {
       setFormSubmitting(false);
-    }
-  };
-
-  // ─── Save Edit Item ────────────────────────────────────────────────────────
-  const handleSaveEditItem = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingItem || !formNamaIndonesia.trim()) return;
-
-    setFormSubmitting(true);
-    const cat = editingItem.category;
-    const rawId = editingItem.raw_id || parseInt(editingItem.id.replace(/^[a-z]+-/, ''), 10);
-
-    const payload = {
-      nama_indonesia: formNamaIndonesia.trim(),
-      nama_latin: formNamaLatin.trim() || undefined,
-      nama_daerah: formNamaDaerah.trim() || undefined,
-      satuan: formSatuan.trim() || undefined,
-      deskripsi: formDeskripsi.trim() || undefined,
-      produktivitas: formProduktivitas ? parseFloat(formProduktivitas) : undefined,
-      harga_pasar: formHargaPasar ? parseFloat(formHargaPasar) : undefined,
-      nilai: formNilai ? parseFloat(formNilai) : undefined,
-      kategori_tev: formKategoriTev || 'DUV',
-      id_jenis_tutupan_lahan: formLandCoverId ? parseInt(formLandCoverId, 10) : undefined
-    };
-
-    try {
-      if (/^\d+$/.test(effectiveProjectId) && rawId) {
-        const res = await updateProjectDataMaster(effectiveProjectId, cat, rawId, payload);
-        if (res.data) {
-          setMasterList((prev) => prev.map((item) => (item.id === editingItem.id ? res.data : item)));
-        }
-      } else {
-        setMasterList((prev) =>
-          prev.map((item) =>
-            item.id === editingItem.id
-              ? {
-                  ...item,
-                  namaIndonesia: formNamaIndonesia.trim(),
-                  namaLatin: formNamaLatin.trim() || item.namaLatin,
-                  namaDaerah: formNamaDaerah.trim() || item.namaDaerah,
-                  landCoverId: formLandCoverId || item.landCoverId
-                }
-              : item
-          )
-        );
-      }
-      setIsEditModalOpen(false);
-      setEditingItem(null);
-      setFeedbackMessage({ type: 'success', text: `Data master "${formNamaIndonesia}" berhasil diperbarui.` });
-      setTimeout(() => setFeedbackMessage(null), 4000);
-    } catch (err: any) {
-      console.error('Error updating master data:', err);
-      setFeedbackMessage({
-        type: 'error',
-        text: err?.response?.data?.message || 'Gagal memperbarui data master.'
-      });
-    } finally {
-      setFormSubmitting(false);
-    }
-  };
-
-  // ─── Delete Item ───────────────────────────────────────────────────────────
-  const handleDeleteItem = async () => {
-    if (!deletingItem) return;
-
-    setIsDeleting(true);
-    const cat = deletingItem.category;
-    const rawId = deletingItem.raw_id || parseInt(deletingItem.id.replace(/^[a-z]+-/, ''), 10);
-
-    try {
-      if (/^\d+$/.test(effectiveProjectId) && rawId) {
-        await deleteProjectDataMaster(effectiveProjectId, cat, rawId);
-      }
-      setMasterList((prev) => prev.filter((item) => item.id !== deletingItem.id));
-      setIsDeleteModalOpen(false);
-      setDeletingItem(null);
-      setFeedbackMessage({ type: 'success', text: 'Item data master berhasil dihapus.' });
-      setTimeout(() => setFeedbackMessage(null), 4000);
-    } catch (err: any) {
-      console.error('Error deleting master data:', err);
-      setFeedbackMessage({
-        type: 'error',
-        text: err?.response?.data?.message || 'Gagal menghapus data master.'
-      });
-    } finally {
-      setIsDeleting(false);
     }
   };
 
@@ -927,7 +810,6 @@ export const DataMasterPage: React.FC = () => {
       'Nama Latin / Indikator',
       'Nama Daerah / Satuan',
       'Daerah Penelitian',
-      'Status Penggunaan',
       'Kode Index',
       'Nama Index',
       'Tutupan Lahan Terkait',
@@ -957,7 +839,6 @@ export const DataMasterPage: React.FC = () => {
         escapeCSV(item.namaLatin),
         escapeCSV(item.namaDaerah),
         escapeCSV(item.daerah),
-        escapeCSV(item.usage.used ? 'Sudah Digunakan' : 'Belum Digunakan'),
         escapeCSV(item.usage.indexCode || '-'),
         escapeCSV(item.usage.indexName || '-'),
         escapeCSV(item.usage.landCoverName || '-'),
@@ -1267,7 +1148,7 @@ export const DataMasterPage: React.FC = () => {
                 <SortableTh label="Bahasa Latin / Indikator" sortKey="namaLatin" currentSort={sort} onSort={handleSort} />
                 <SortableTh label="Nama Daerah / Satuan" sortKey="namaDaerah" currentSort={sort} onSort={handleSort} />
                 <SortableTh label="Daerah" sortKey="daerah" currentSort={sort} onSort={handleSort} />
-                <th className={`${thClass} text-center w-36`}>Aksi</th>
+                <th className={`${thClass} text-center w-20`}>Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -1300,15 +1181,7 @@ export const DataMasterPage: React.FC = () => {
                         <CategoryBadge category={item.category} />
                       </td>
                       <td className={`${tdClass} font-semibold text-slate-800`}>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span>{item.namaIndonesia}</span>
-                          {item.usage?.used && item.usage?.landCoverName && (
-                            <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200/80 px-1.5 py-0.5 rounded font-medium inline-flex items-center gap-1" title={`Terpakai di tutupan lahan: ${item.usage.landCoverName}`}>
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                              {item.usage.landCoverName}
-                            </span>
-                          )}
-                        </div>
+                        <span>{item.namaIndonesia}</span>
                       </td>
                       <td className={`${tdClass} text-slate-600 italic`}>{item.namaLatin}</td>
                       <td className={`${tdClass} text-slate-600 font-medium`}>{item.namaDaerah}</td>
@@ -1327,24 +1200,6 @@ export const DataMasterPage: React.FC = () => {
                             title="Lihat Detail Ilmiah & Parameter"
                           >
                             <Eye className="w-3.5 h-3.5" />
-                          </button>
-
-                          {/* Edit Button */}
-                          <button
-                            onClick={() => handleOpenEditModal(item)}
-                            className="p-1.5 rounded-md text-slate-600 hover:text-amber-600 hover:bg-amber-50 border border-slate-200 transition-colors cursor-pointer"
-                            title="Edit Data Master"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-
-                          {/* Delete Button */}
-                          <button
-                            onClick={() => handleOpenDeleteModal(item)}
-                            className="p-1.5 rounded-md text-slate-600 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition-colors cursor-pointer"
-                            title="Hapus Data Master"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
@@ -1515,40 +1370,6 @@ export const DataMasterPage: React.FC = () => {
                     <TevBadge tev={selectedDetailItem.apiData?.kategori_tev} />
                   </div>
                 </div>
-              </div>
-
-              {/* Status Penggunaan */}
-              <div className="p-3.5 rounded-xl border border-blue-100 bg-blue-50/50 flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 block mb-0.5">
-                    Status Penggunaan Program
-                  </span>
-                  <span className="text-xs font-semibold text-slate-800">
-                    {selectedDetailItem.usage.used ? (
-                      <span className="text-emerald-700 flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        Terdaftar pada {selectedDetailItem.usage.indexCode} (
-                        {selectedDetailItem.usage.landCoverName || selectedDetailItem.usage.indexName})
-                      </span>
-                    ) : (
-                      <span className="text-slate-500">
-                        Belum dikaitkan ke tutupan lahan program ini
-                      </span>
-                    )}
-                  </span>
-                </div>
-
-                {!selectedDetailItem.usage.used && (
-                  <button
-                    onClick={() => {
-                      setIsDetailModalOpen(false);
-                      handleOpenLinkModal(selectedDetailItem);
-                    }}
-                    className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-blue-700 bg-blue-100 hover:bg-blue-200 transition-colors cursor-pointer"
-                  >
-                    + Tautkan Sekarang
-                  </button>
-                )}
               </div>
 
               {/* Parameter dan Nilai Acuan */}
@@ -1941,211 +1762,6 @@ export const DataMasterPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── Modal 3: Edit Data Master ──────────────────────────────────────── */}
-      {isEditModalOpen && editingItem && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-amber-600 text-white flex items-center justify-center shadow-xs">
-                  <Edit2 className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    Edit Data Master: {editingItem.category}
-                  </h3>
-                  <p className="text-[11px] text-slate-500">Perbarui data atau parameter acuan valuasi.</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsEditModalOpen(false)}
-                className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Modal Body Form */}
-            <form onSubmit={handleSaveEditItem} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-              <div>
-                <label htmlFor="form-edit-nama-indonesia" className="block text-xs font-bold text-slate-700 mb-1">
-                  Nama Objek / Parameter <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  id="form-edit-nama-indonesia"
-                  name="namaIndonesia"
-                  type="text"
-                  required
-                  value={formNamaIndonesia}
-                  onChange={(e) => setFormNamaIndonesia(e.target.value)}
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="form-edit-nama-latin" className="block text-xs font-bold text-slate-700 mb-1">
-                  Nama Latin / Indikator
-                </label>
-                <input
-                  id="form-edit-nama-latin"
-                  name="namaLatin"
-                  type="text"
-                  value={formNamaLatin}
-                  onChange={(e) => setFormNamaLatin(e.target.value)}
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="form-edit-nama-daerah" className="block text-xs font-bold text-slate-700 mb-1">Nama Daerah / Lokal</label>
-                  <input
-                    id="form-edit-nama-daerah"
-                    name="namaDaerah"
-                    type="text"
-                    value={formNamaDaerah}
-                    onChange={(e) => setFormNamaDaerah(e.target.value)}
-                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="form-edit-satuan" className="block text-xs font-bold text-slate-700 mb-1">Satuan</label>
-                  <input
-                    id="form-edit-satuan"
-                    name="satuan"
-                    type="text"
-                    value={formSatuan}
-                    onChange={(e) => setFormSatuan(e.target.value)}
-                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                </div>
-              </div>
-
-              {projectLandCovers.length > 0 && (
-                <div>
-                  <label htmlFor="form-edit-landcover" className="block text-xs font-bold text-slate-700 mb-1">
-                    Tutupan Lahan Program Terkait
-                  </label>
-                  <select
-                    id="form-edit-landcover"
-                    name="landCoverId"
-                    value={formLandCoverId}
-                    onChange={(e) => setFormLandCoverId(e.target.value)}
-                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  >
-                    <option value="">Belum Dikaitkan</option>
-                    {projectLandCovers.map((lc) => (
-                      <option key={lc.id} value={lc.id}>
-                        {lc.index_code ? `[${lc.index_code}] ` : ''}
-                        {lc.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="form-edit-kategori-tev" className="block text-xs font-bold text-slate-700 mb-1">Klasifikasi TEV</label>
-                  <select
-                    id="form-edit-kategori-tev"
-                    name="kategoriTev"
-                    value={formKategoriTev}
-                    onChange={(e) => setFormKategoriTev(e.target.value)}
-                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  >
-                    <option value="DUV">DUV (Direct Use Value)</option>
-                    <option value="IUV">IUV (Indirect Use Value)</option>
-                    <option value="OV">OV (Option Value)</option>
-                    <option value="EV">EV (Existence Value)</option>
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="form-edit-nilai" className="block text-xs font-bold text-slate-700 mb-1">Nilai Total Acuan (Rp)</label>
-                  <input
-                    id="form-edit-nilai"
-                    name="nilai"
-                    type="number"
-                    step="any"
-                    value={formNilai}
-                    onChange={(e) => setFormNilai(e.target.value)}
-                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="form-edit-deskripsi" className="block text-xs font-bold text-slate-700 mb-1">Pustaka / Referensi</label>
-                <input
-                  id="form-edit-deskripsi"
-                  name="deskripsi"
-                  type="text"
-                  value={formDeskripsi}
-                  onChange={(e) => setFormDeskripsi(e.target.value)}
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                />
-              </div>
-
-              {/* Modal Actions */}
-              <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setIsEditModalOpen(false)}
-                  className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={formSubmitting}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 active:bg-amber-800 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>{formSubmitting ? 'Menyimpan...' : 'Perbarui Data Master'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ── Modal 4: Konfirmasi Hapus Data Master ─────────────────────────── */}
-      {isDeleteModalOpen && deletingItem && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-6 text-center space-y-3">
-              <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 mx-auto flex items-center justify-center">
-                <Trash2 className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-bold text-slate-900">Hapus Data Master?</h3>
-              <p className="text-xs text-slate-500">
-                Apakah Anda yakin ingin menghapus data master{' '}
-                <strong className="text-slate-800">"{deletingItem.namaIndonesia}"</strong> (
-                {deletingItem.category})? Tindakan ini tidak dapat dibatalkan.
-              </p>
-            </div>
-            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={() => setIsDeleteModalOpen(false)}
-                className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={handleDeleteItem}
-                className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
-              >
-                {isDeleting ? 'Menghapus...' : 'Ya, Hapus Data'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── Modal 5: Tautkan / Gunakan pada Tutupan Lahan ─────────────────── */}
       {isLinkModalOpen && linkingItem && (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
@@ -2263,7 +1879,6 @@ export const DataMasterPage: React.FC = () => {
                 <div className="font-semibold text-slate-800">Manfaat penerapan template:</div>
                 <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-600">
                   <li>Mengisi otomatis 8 parameter jasa ekosistem standar per tutupan lahan.</li>
-                  <li>Langsung terhubung dengan status "Digunakan" pada indeks program.</li>
                   <li>Siap dihitung langsung pada Tahap 06 Data Valuasi.</li>
                 </ul>
               </div>

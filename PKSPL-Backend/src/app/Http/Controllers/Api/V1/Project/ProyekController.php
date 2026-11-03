@@ -140,7 +140,10 @@ class ProyekController extends ApiResourceController
 
             $projects = $query->orderBy('id_proyek', 'asc')->get();
 
-            $data = $projects->map(function (Proyek $proyek) {
+            $tevResolver = app(\App\Services\Valuation\ProjectTevResolver::class);
+            $tevByProject = $tevResolver->forProjects($projects->pluck('id_proyek'));
+
+            $data = $projects->map(function (Proyek $proyek) use ($tevResolver, $tevByProject) {
                 $nameLower = strtolower((string) $proyek->nama_proyek);
                 $category = match (true) {
                     str_contains($nameLower, 'mangrove') || str_contains($nameLower, 'hutan') || str_contains($nameLower, 'lamun') => 'flora',
@@ -160,31 +163,15 @@ class ProyekController extends ApiResourceController
                 $isDummy = str_contains(strtoupper((string) $proyek->nama_proyek), 'DUMMY')
                     || str_contains(strtoupper((string) $projectCode), 'DUMMY');
 
-                $projTev = match ((int) $proyek->id_proyek) {
-                    1 => 58723271140,
-                    3 => 34200000000,
-                    4 => 48949677785,
-                    5 => 28400000000,
-                    6 => 16800000000,
-                    7 => 12500000000,
-                    8 => 42500000000,
-                    9 => 14800000000,
-                    10 => 19200000000,
-                    11 => 65400000000,
-                    default => (int) round(((float) ($proyek->luas ?: 100)) * 38500000),
-                };
+                $projTev = $tevByProject[(int) $proyek->id_proyek] ?? 0.0;
 
-                // Untuk data dummy pengujian, TEV diset 'Belum tersedia' dan total_tev diset null
-                if ($isDummy) {
+                // Data dummy pengujian atau proyek tanpa nilai valuasi: TEV 'Belum tersedia'.
+                if ($isDummy || $projTev <= 0) {
                     $tevFormatted = 'Belum tersedia';
                     $totalTev = null;
                 } else {
-                    $tevFormatted = match (true) {
-                        $projTev >= 1e12 => 'Rp ' . number_format($projTev / 1e12, 1, ',', '.') . ' T/thn',
-                        $projTev >= 1e9 => 'Rp ' . number_format($projTev / 1e9, 1, ',', '.') . ' M/thn',
-                        default => 'Rp ' . number_format($projTev, 0, ',', '.') . '/thn',
-                    };
-                    $totalTev = $projTev;
+                    $tevFormatted = $tevResolver->format($projTev);
+                    $totalTev = (int) round($projTev);
                 }
 
                 $effectiveYear = (int) ($proyek->tahun ?: ($proyek->created_at ? (int) $proyek->created_at->format('Y') : 2026));

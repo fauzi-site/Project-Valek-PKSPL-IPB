@@ -86,7 +86,7 @@ class StatisticsController extends Controller
         }
 
         // 6. Total Luas Kawasan (Hektare) dari seluruh proyek
-        $totalAreaHa = (float) ($this->baseProjectQuery()->sum('luas') ?: 7422.4);
+        $totalAreaHa = (float) $this->baseProjectQuery()->sum('luas');
 
         // 7. Pengguna Terdaftar Berdasarkan Role - Agregasi database langsung via GROUP BY
         $totalUsers = User::query()->count();
@@ -100,6 +100,7 @@ class StatisticsController extends Controller
 
         // 8. Hitung Akumulasi TEV Nasional dan Komposisi Proyek dari daftar proyek
         $allProjects = $this->baseProjectQuery()->get(['id_proyek', 'kode_proyek', 'nama_proyek', 'luas', 'tahun', 'created_at', 'updated_at']);
+        $tevByProject = app(\App\Services\Valuation\ProjectTevResolver::class)->forProjects($allProjects->pluck('id_proyek'));
         $totalTev = 0;
         $ecosystemTev = [
             'Mangrove' => ['value' => 0, 'areaHa' => 0, 'projectsCount' => 0, 'color' => '#059669'],
@@ -109,19 +110,7 @@ class StatisticsController extends Controller
         ];
 
         foreach ($allProjects as $p) {
-            $projTev = match ((int) $p->id_proyek) {
-                1 => 58723271140,
-                3 => 34200000000,
-                4 => 48949677785,
-                5 => 28400000000,
-                6 => 16800000000,
-                7 => 12500000000,
-                8 => 42500000000,
-                9 => 14800000000,
-                10 => 19200000000,
-                11 => 65400000000,
-                default => (int) round(((float) ($p->luas ?: 100)) * 38500000),
-            };
+            $projTev = (int) round($tevByProject[(int) $p->id_proyek] ?? 0);
             $totalTev += $projTev;
 
             $nl = strtolower((string) $p->nama_proyek);
@@ -212,20 +201,8 @@ class StatisticsController extends Controller
         $tevMiliar = round($totalTev / 1e9, 2);
 
         // Petakan proyek terperinci untuk kalkulasi tren
-        $enrichedProjects = $allProjects->map(function ($p) use ($totalTev) {
-            $projTev = match ((int) $p->id_proyek) {
-                1 => 58723271140,
-                3 => 34200000000,
-                4 => 48949677785,
-                5 => 28400000000,
-                6 => 16800000000,
-                7 => 12500000000,
-                8 => 42500000000,
-                9 => 14800000000,
-                10 => 19200000000,
-                11 => 65400000000,
-                default => (int) round(((float) ($p->luas ?: 100)) * 38500000),
-            };
+        $enrichedProjects = $allProjects->map(function ($p) use ($totalTev, $tevByProject) {
+            $projTev = (int) round($tevByProject[(int) $p->id_proyek] ?? 0);
             $createdAt = $p->created_at ? \Carbon\Carbon::parse($p->created_at)->setTimezone('Asia/Jakarta') : \Carbon\Carbon::now('Asia/Jakarta');
             $updatedAt = $p->updated_at ? \Carbon\Carbon::parse($p->updated_at)->setTimezone('Asia/Jakarta') : $createdAt;
             $yr = (int) ($p->tahun ?: $createdAt->year);
