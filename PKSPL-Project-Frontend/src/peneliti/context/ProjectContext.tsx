@@ -166,9 +166,9 @@ interface ProjectContextType {
 const STORAGE_KEYS = {
   PROJECTS: 'pkspl_peneliti_projects_v1',
   ACTIVE_ID: 'pkspl_peneliti_active_id_v1',
-  PROJECT_LAND_COVERS: 'pkspl_peneliti_proj_landcovers_v2',
-  PROJECT_INDICES: 'pkspl_peneliti_proj_indices_v2',
-  PROJECT_LAYERS: 'pkspl_peneliti_proj_layers_v2',
+  PROJECT_LAND_COVERS: 'pkspl_peneliti_proj_landcovers_v3',
+  PROJECT_INDICES: 'pkspl_peneliti_proj_indices_v3',
+  PROJECT_LAYERS: 'pkspl_peneliti_proj_layers_v3',
   FEEDBACK: 'pkspl_peneliti_feedback_v1',
   AREA_CONFIGS: 'pkspl_peneliti_area_configs_v1',
 };
