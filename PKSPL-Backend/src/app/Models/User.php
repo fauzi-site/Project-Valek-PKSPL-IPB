@@ -15,14 +15,55 @@ use Laravel\Sanctum\HasApiTokens;
 
 /**
  * Pengguna aplikasi yang selalu terhubung ke satu role.
+ *
+ * @property int $id_user
+ * @property int $id_role
+ * @property string $nama
+ * @property string $email
+ * @property string|null $foto
+ * @property string|null $google_id
+ * @property string $status
+ * @property \Illuminate\Support\Carbon|null $email_verified_at
+ * @property \Illuminate\Support\Carbon|null $last_online_at
+ * @property \Illuminate\Support\Carbon|null $last_seen_at
+ * @property string|null $status_permohonan
+ * @property \Illuminate\Support\Carbon|null $permohonan_at
+ * @property int|null $reviewed_by
+ * @property \Illuminate\Support\Carbon|null $reviewed_at
+ * @property string|null $rejection_reason
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property-read \App\Models\Role|null $role
+ * @property-read \App\Models\User|null $reviewer
  */
 class User extends Authenticatable implements MustVerifyEmail
 {
     use HasApiTokens, HasFactory, Notifiable;
 
+    public const STATUS_PERMOHONAN_BELUM_DIAJUKAN = 'Belum diajukan';
+    public const STATUS_PERMOHONAN_PENDING = 'Pending';
+    public const STATUS_PERMOHONAN_APPROVED = 'Approved';
+    public const STATUS_PERMOHONAN_REJECTED = 'Rejected';
+
     protected $primaryKey = 'id_user';
 
-    protected $fillable = ['id_role', 'nama', 'email', 'password', 'google_id', 'foto', 'status', 'email_verified_at', 'last_online_at', 'last_seen_at'];
+    protected $fillable = [
+        'id_role',
+        'nama',
+        'email',
+        'password',
+        'google_id',
+        'foto',
+        'status',
+        'email_verified_at',
+        'last_online_at',
+        'last_seen_at',
+        'status_permohonan',
+        'permohonan_at',
+        'reviewed_by',
+        'reviewed_at',
+        'rejection_reason',
+    ];
 
     protected $hidden = ['password', 'remember_token', 'google_id'];
 
@@ -34,6 +75,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'email_verified_at' => 'datetime',
         'last_online_at' => 'datetime',
         'last_seen_at' => 'datetime',
+        'permohonan_at' => 'datetime',
+        'reviewed_at' => 'datetime',
     ];
 
     public function getRouteKeyName(): string
@@ -47,6 +90,14 @@ class User extends Authenticatable implements MustVerifyEmail
     public function sendPasswordResetNotification($token): void
     {
         $this->notify(new ResetPasswordNotification($token));
+    }
+
+    /**
+     * Admin yang menyetujui atau menolak permohonan akun peneliti.
+     */
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'reviewed_by', 'id_user');
     }
 
     /**

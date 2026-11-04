@@ -34,6 +34,7 @@ const AdminShell = React.lazy(() => import('./admin/layouts/AdminShell'))
 const AdminDashboardPage = React.lazy(() => import('./admin/pages/AdminDashboardPage'))
 const AdminMasterDataPage = React.lazy(() => import('./admin/pages/AdminMasterDataPage'))
 const AdminUsersPage = React.lazy(() => import('./admin/pages/AdminUsersPage'))
+const AdminResearcherApplicationsPage = React.lazy(() => import('./admin/pages/AdminResearcherApplicationsPage'))
 const AdminProjectsPage = React.lazy(() => import('./admin/pages/AdminProjectsPage'))
 const AdminActivityPage = React.lazy(() => import('./admin/pages/AdminActivityPage'))
 const AdminMessagesPage = React.lazy(() => import('./admin/pages/AdminMessagesPage'))
@@ -251,6 +252,8 @@ function App() {
                       <Route path="master-data" element={<AdminMasterDataPage />} />
                       <Route path="users" element={<AdminUsersPage />} />
                       <Route path="manajemen-pengguna" element={<AdminUsersPage />} />
+                      <Route path="researcher-applications" element={<AdminResearcherApplicationsPage />} />
+                      <Route path="permohonan-peneliti" element={<AdminResearcherApplicationsPage />} />
                       <Route path="projects" element={<AdminProjectsPage />} />
                       <Route path="activity" element={<AdminActivityPage />} />
                       <Route path="riwayat-aktivitas" element={<AdminActivityPage />} />

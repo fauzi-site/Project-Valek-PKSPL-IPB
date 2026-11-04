@@ -115,4 +115,16 @@ return [
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Administrator Notification Email Address
+    |--------------------------------------------------------------------------
+    |
+    | Destination email address for receiving system alerts, newly verified
+    | guest notifications, and researcher access requests.
+    |
+    */
+
+    'admin_address' => env('ADMIN_EMAIL', 'admin@gmail.com'),
+
 ];

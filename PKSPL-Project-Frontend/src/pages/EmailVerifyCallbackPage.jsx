@@ -13,6 +13,7 @@ const EmailVerifyCallbackPage = () => {
   const [loading, setLoading] = useState(true);
   const [success, setSuccess] = useState(false);
   const [message, setMessage] = useState('');
+  const [verifiedUser, setVerifiedUser] = useState(null);
   const [emailInput, setEmailInput] = useState('');
   const [isResending, setIsResending] = useState(false);
 
@@ -26,6 +27,9 @@ const EmailVerifyCallbackPage = () => {
       try {
         const res = await verifyEmailApi(id, hash, location.search);
         setSuccess(true);
+        if (res.user) {
+          setVerifiedUser(res.user);
+        }
         const succMsg = res.message || t('verificationSuccessDesc');
         setMessage(succMsg);
         toast.success(succMsg);
@@ -77,9 +81,18 @@ const EmailVerifyCallbackPage = () => {
             </div>
 
             <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('verificationSuccessTitle')}</h2>
-            <p className="text-sm text-gray-600 mb-6 leading-relaxed">
+            <p className="text-sm text-gray-600 mb-4 leading-relaxed">
               {message}
             </p>
+
+            {verifiedUser?.status_permohonan === 'Pending' && (
+              <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-left text-xs text-amber-900 leading-relaxed">
+                <div className="font-bold flex items-center gap-1.5 text-amber-800 mb-1">
+                  <span>ℹ️</span> Menunggu Persetujuan Admin
+                </div>
+                Email Anda telah berhasil diverifikasi. Permohonan peningkatan hak akses akun menjadi <strong>Peneliti</strong> telah tercatat dan sedang dalam antrean peninjauan Super Admin PKSPL IPB. Anda dapat masuk ke aplikasi dengan hak akses Guest saat ini.
+              </div>
+            )}
 
             <button
               onClick={() => navigate('/login')}

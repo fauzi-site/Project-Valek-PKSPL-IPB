@@ -33,6 +33,7 @@ use App\Http\Controllers\Api\V1\Project\StatisticsController;
 use App\Http\Controllers\Api\V1\Admin\AdminActivityLogController;
 use App\Http\Controllers\Api\V1\Admin\AdminAnalyticsController;
 use App\Http\Controllers\Api\V1\Admin\AdminMasterDataController;
+use App\Http\Controllers\Api\V1\Admin\AdminResearcherApplicationController;
 use Illuminate\Support\Facades\Route;
 
 // ============================================================
@@ -57,6 +58,12 @@ Route::prefix('v1')->group(function (): void {
         Route::post('admin/master-data', [AdminMasterDataController::class, 'store']);
         Route::put('admin/master-data/{category}/{id}', [AdminMasterDataController::class, 'update']);
         Route::delete('admin/master-data/{category}/{id}', [AdminMasterDataController::class, 'destroy']);
+
+        // Permohonan Akun Peneliti (Super Admin Only)
+        Route::get('admin/researcher-applications', [AdminResearcherApplicationController::class, 'index']);
+        Route::get('admin/researcher-applications/{user}', [AdminResearcherApplicationController::class, 'show']);
+        Route::post('admin/researcher-applications/{user}/approve', [AdminResearcherApplicationController::class, 'approve']);
+        Route::post('admin/researcher-applications/{user}/reject', [AdminResearcherApplicationController::class, 'reject']);
 
         Route::get('master-data', [AdminMasterDataController::class, 'index']);
         Route::post('master-data', [AdminMasterDataController::class, 'store']);

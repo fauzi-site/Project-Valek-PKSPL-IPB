@@ -8,6 +8,7 @@ use App\Http\Requests\Auth\AuthRegisterRequest;
 use App\Http\Requests\Auth\ForgotPasswordRequest;
 use App\Http\Requests\Auth\ResetPasswordRequest;
 use App\Http\Resources\User\UserResource;
+use App\Mail\Auth\NewResearcherApplicationAdminMail;
 use App\Models\Role;
 use App\Models\User;
 use App\Notifications\VerifyEmailNotification;
@@ -17,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
@@ -203,6 +205,7 @@ class AuthController extends Controller
             'email' => $email,
             'password' => Hash::make($password),
             'status' => 'Aktif',
+            'status_permohonan' => User::STATUS_PERMOHONAN_BELUM_DIAJUKAN,
             'email_verified_at' => null,
         ]);
 
@@ -301,15 +304,41 @@ class AuthController extends Controller
         if ($user->hasVerifiedEmail()) {
             return response()->json([
                 'message' => 'Email sudah terverifikasi sebelumnya.',
-                'user' => new UserResource($user),
+                'user' => new UserResource($user->load(['role', 'reviewer'])),
             ]);
         }
 
         $user->markEmailAsVerified();
 
+        // Alur permohonan Peneliti: Guest yang memverifikasi email masuk ke status Pending
+        $user->load('role');
+        $roleName = $user->role?->nama_role ?? '';
+
+        if (strcasecmp($roleName, Role::GUEST) === 0) {
+            $user->status_permohonan = User::STATUS_PERMOHONAN_PENDING;
+            $user->permohonan_at = now();
+            $user->save();
+
+            // Kirim notifikasi email kepada Admin PKSPL (dikirim sekali saat verifikasi pertama)
+            $adminEmail = config('mail.admin_address', env('ADMIN_EMAIL', 'admin@gmail.com'));
+            try {
+                Mail::to($adminEmail)->send(new NewResearcherApplicationAdminMail($user));
+            } catch (\Throwable $e) {
+                Log::error('Gagal mengirim email notifikasi permohonan ke Admin: ' . $e->getMessage(), [
+                    'applicant_id' => $user->id_user,
+                    'admin_email' => $adminEmail,
+                ]);
+            }
+
+            return response()->json([
+                'message' => 'Email berhasil diverifikasi! Permohonan Anda untuk menjadi Peneliti sedang menunggu peninjauan Admin PKSPL.',
+                'user' => new UserResource($user->fresh(['role', 'reviewer'])),
+            ]);
+        }
+
         return response()->json([
             'message' => 'Email berhasil diverifikasi! Silakan login.',
-            'user' => new UserResource($user),
+            'user' => new UserResource($user->fresh(['role', 'reviewer'])),
         ]);
     }
 

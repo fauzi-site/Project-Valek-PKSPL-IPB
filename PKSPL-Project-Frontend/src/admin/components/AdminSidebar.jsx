@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Database,
   Users,
+  UserCheck,
   FolderKanban,
   Activity,
   MessageSquare,
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { adminChatService } from '../services/adminChatService';
+import { getResearcherApplications } from '../../services/adminResearcherApplicationService';
 import { getEcho } from '../../lib/echo';
 import { SidebarAccountMenu } from '../../components/profile/SidebarAccountMenu';
 
@@ -25,12 +27,13 @@ export const AdminSidebar = ({
   const location = useLocation();
   const { user } = useAuth() || {};
   const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [pendingApplicationsCount, setPendingApplicationsCount] = useState(0);
 
-  // Sync dynamic unread chat message count from backend database
+  // Sync dynamic unread chat message count and pending applications count
   useEffect(() => {
     let isMounted = true;
 
-    const fetchUnread = async () => {
+    const fetchCounts = async () => {
       try {
         const count = await adminChatService.getTotalUnreadCount();
         if (isMounted) {
@@ -39,9 +42,20 @@ export const AdminSidebar = ({
       } catch (err) {
         // silent catch
       }
+
+      try {
+        const res = await getResearcherApplications();
+        const list = res?.data || res || [];
+        if (isMounted && Array.isArray(list)) {
+          const pendingCount = list.filter((u) => u.status_permohonan === 'Pending').length;
+          setPendingApplicationsCount(pendingCount);
+        }
+      } catch (err) {
+        // silent catch
+      }
     };
 
-    fetchUnread();
+    fetchCounts();
 
     // Setup Echo listener for realtime message notifications for this admin
     const echo = getEcho();
@@ -51,7 +65,7 @@ export const AdminSidebar = ({
       try {
         channel = echo.private(`user.${currentUserId}`);
         channel.listen('.ChatMessageSent', () => {
-          fetchUnread();
+          fetchCounts();
         });
       } catch (err) {
         console.warn('[AdminSidebar] Reverb connection error:', err);
@@ -61,7 +75,7 @@ export const AdminSidebar = ({
     // 30 seconds polling fallback if tab is visible
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        fetchUnread();
+        fetchCounts();
       }
     }, 30000);
 
@@ -100,6 +114,13 @@ export const AdminSidebar = ({
       path: '/admin/users',
       icon: Users,
       badge: '38',
+    },
+    {
+      title: 'Permohonan Peneliti',
+      path: '/admin/researcher-applications',
+      icon: UserCheck,
+      badge: pendingApplicationsCount > 0 ? `${pendingApplicationsCount} Baru` : undefined,
+      badgeColor: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
     },
     {
       title: 'Manajemen Program',
