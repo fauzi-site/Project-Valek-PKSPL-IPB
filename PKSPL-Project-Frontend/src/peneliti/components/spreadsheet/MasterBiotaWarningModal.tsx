@@ -138,9 +138,9 @@ export const MasterBiotaWarningModal: React.FC<MasterBiotaWarningModalProps> = (
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200 overflow-y-auto">
       <div
-        className="bg-white rounded-2xl shadow-2xl border-2 border-amber-300 w-full max-w-lg max-h-[92vh] overflow-hidden flex flex-col transform transition-all animate-in zoom-in-95 duration-200"
+        className="bg-white rounded-2xl shadow-2xl border-2 border-amber-300 w-full max-w-lg max-h-[92vh] my-auto overflow-hidden flex flex-col transform transition-all animate-in zoom-in-95 duration-200"
         role="dialog"
         aria-modal="true"
       >

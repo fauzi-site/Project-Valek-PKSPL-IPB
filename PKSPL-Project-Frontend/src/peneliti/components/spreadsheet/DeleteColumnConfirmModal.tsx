@@ -18,8 +18,8 @@ export const DeleteColumnConfirmModal: React.FC<DeleteColumnConfirmModalProps> =
   if (!isOpen || !column) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-2xs z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
-      <div className="bg-white rounded-lg border border-slate-200 shadow-xl max-w-sm w-full overflow-hidden text-sm animate-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-2xs z-50 flex items-center justify-center p-4 animate-in fade-in duration-150 overflow-y-auto">
+      <div className="bg-white rounded-lg border border-slate-200 shadow-xl max-w-sm w-full overflow-hidden text-sm animate-in zoom-in-95 duration-150 max-h-[90vh] my-auto flex flex-col overflow-y-auto">
         <div className="p-5 text-center space-y-3">
           <div className="w-11 h-11 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
             <Trash2 className="w-5 h-5" />

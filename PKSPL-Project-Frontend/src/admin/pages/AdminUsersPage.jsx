@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ADMIN_USERS_LIST } from '../mock/adminMock';
 import { getUsers, getRoles, createUser, updateUser, deleteUser } from '../../services/userService';
+import { triggerAdminCountsRefresh } from '../../services/adminAnalyticsService';
 import UserProfileDetailModal from '../../components/UserProfileDetailModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { Users, Search, Mail, CheckCircle2, UserPlus, X } from 'lucide-react';
@@ -120,9 +121,9 @@ function UserActionModal({ isOpen, onClose, title, confirmText, initialData, rol
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
       <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-xs" onClick={onClose} />
-      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md p-5 sm:p-6 z-10 animate-in text-slate-800 max-h-[90vh] overflow-y-auto">
+      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md p-5 sm:p-6 z-10 animate-in text-slate-800 max-h-[90vh] my-auto overflow-y-auto">
         <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
           <h2 className="text-base font-bold text-slate-900">{title}</h2>
           <button
@@ -311,6 +312,7 @@ export const AdminUsersPage = () => {
       toast.success('Pengguna berhasil dihapus.');
     }
     setUsersList((prev) => prev.filter((u) => u.id !== userId && u.id_user !== userId));
+    triggerAdminCountsRefresh();
   };
 
   const handleCreateUser = async (payload) => {
@@ -341,6 +343,7 @@ export const AdminUsersPage = () => {
         is_verified: true,
       };
       setUsersList((prev) => [newUser, ...prev]);
+      triggerAdminCountsRefresh();
       toast.success('Pengguna berhasil ditambahkan.');
       setShowAddModal(false);
     } finally {

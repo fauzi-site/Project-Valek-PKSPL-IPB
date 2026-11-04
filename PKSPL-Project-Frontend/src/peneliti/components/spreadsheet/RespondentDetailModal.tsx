@@ -847,15 +847,15 @@ export const RespondentDetailModal: React.FC<RespondentDetailModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 flex items-center justify-center p-3 sm:p-4">
       {confirmOpen && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/75 p-4" role="alertdialog" aria-modal="true" aria-labelledby="confirm-save-title">
-          <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl border-4 border-amber-400 overflow-hidden">
-            <div className="bg-amber-400 px-6 py-3 flex items-center gap-3">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/75 p-4 overflow-y-auto" role="alertdialog" aria-modal="true" aria-labelledby="confirm-save-title">
+          <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl border-4 border-amber-400 overflow-hidden max-h-[90vh] my-auto flex flex-col">
+            <div className="bg-amber-400 px-6 py-3 flex items-center gap-3 shrink-0">
               <AlertTriangle className="w-7 h-7 text-amber-950" />
               <h3 id="confirm-save-title" className="text-lg font-extrabold text-amber-950 tracking-tight">
                 BACA SEBELUM MENYIMPAN
               </h3>
             </div>
-            <div className="px-6 py-5 space-y-3 text-sm text-slate-800">
+            <div className="px-6 py-5 space-y-3 text-sm text-slate-800 overflow-y-auto flex-1">
               <p className="font-semibold">
                 {lines.length} responden {method.toUpperCase()} di “{lokasi}” akan disimpan.
               </p>
@@ -871,7 +871,7 @@ export const RespondentDetailModal: React.FC<RespondentDetailModalProps> = ({
                 Tombol lanjut aktif setelah {CONFIRM_SECONDS} detik agar peringatan di atas terbaca.
               </p>
             </div>
-            <div className="flex items-center justify-end gap-3 bg-slate-50 px-6 py-4 border-t border-slate-200">
+            <div className="flex items-center justify-end gap-3 bg-slate-50 px-6 py-4 border-t border-slate-200 shrink-0">
               <button type="button" onClick={() => setConfirmOpen(false)}
                 className="px-4 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-sm font-semibold text-slate-700">
                 Kembali dan Periksa
@@ -888,7 +888,7 @@ export const RespondentDetailModal: React.FC<RespondentDetailModalProps> = ({
         </div>
       )}
 
-      <div className={`bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden transition-all duration-300 ease-in-out ${
+      <div className={`bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden my-auto transition-all duration-300 ease-in-out ${
         isFullView
           ? 'w-[98vw] max-w-[1920px] h-[96vh]'
           : 'w-full max-w-6xl h-[88vh]'

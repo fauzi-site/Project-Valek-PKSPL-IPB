@@ -244,6 +244,33 @@ export const AdminResearcherApplicationsPage = () => {
     fetchApplications();
   }, [fetchApplications]);
 
+  // Handle Escape key & body scroll locking when any modal is open
+  useEffect(() => {
+    const isAnyModalOpen = Boolean(drawerUser || approveModalUser || rejectModalUser);
+    if (!isAnyModalOpen) return;
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (rejectModalUser) {
+          setRejectModalUser(null);
+        } else if (approveModalUser) {
+          setApproveModalUser(null);
+        } else if (drawerUser) {
+          setDrawerUser(null);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [drawerUser, approveModalUser, rejectModalUser]);
+
   // Compute Accurate Dynamic Statistics
   const stats = useMemo(() => {
     const total = applications.length;
@@ -759,29 +786,32 @@ export const AdminResearcherApplicationsPage = () => {
       </div>
 
       {/* ------------------------------------------------------------- */}
-      {/* 5. SLIDE-OVER DRAWER: DETAIL PERMOHONAN                        */}
+      {/* 5. MODAL DETAIL: DETAIL PERMOHONAN AKUN (CENTERED MODAL)      */}
       {/* ------------------------------------------------------------- */}
       {drawerUser && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          {/* Backdrop */}
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          {/* Backdrop Overlay */}
           <div
-            className="fixed inset-0 bg-slate-950/50 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
             onClick={() => setDrawerUser(null)}
           />
 
-          {/* Slide-over Panel */}
-          <div className="relative w-full max-w-md sm:max-w-lg bg-white shadow-2xl z-10 flex flex-col h-full border-l border-slate-200 animate-in slide-in-from-right duration-250">
-            {/* Drawer Header */}
+          {/* Centered Modal Card */}
+          <div
+            className="relative w-full max-w-2xl sm:max-w-[700px] bg-white rounded-2xl shadow-2xl z-10 flex flex-col max-h-[88vh] my-auto border border-slate-200/80 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
             <div className="px-6 py-4.5 border-b border-slate-200/80 bg-slate-50/70 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
-                  <FileText className="w-4 h-4 text-blue-600" />
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 shadow-2xs shrink-0">
+                  <FileText className="w-5 h-5 text-blue-600" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900 text-sm">
+                  <h3 className="font-bold text-slate-900 text-base leading-tight">
                     Detail Permohonan Akun
                   </h3>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-xs text-slate-500 mt-0.5">
                     Informasi lengkap akun dan riwayat peninjauan
                   </p>
                 </div>
@@ -790,17 +820,17 @@ export const AdminResearcherApplicationsPage = () => {
               <button
                 type="button"
                 onClick={() => setDrawerUser(null)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-                title="Tutup"
+                className="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+                title="Tutup (Esc)"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Drawer Content */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6 text-xs">
-              {/* Applicant Card */}
-              <div className="flex items-start gap-3.5 p-4 bg-slate-50/80 rounded-xl border border-slate-200/70">
+            {/* Modal Body (Scrollable) */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-5 text-xs">
+              {/* Profil Pemohon */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4.5 p-4.5 bg-gradient-to-r from-slate-50 via-blue-50/20 to-slate-50 rounded-xl border border-slate-200/80">
                 <ApplicantAvatar
                   foto={drawerUser.foto}
                   name={drawerUser.nama}
@@ -810,43 +840,59 @@ export const AdminResearcherApplicationsPage = () => {
                   showStatus
                 />
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-bold text-slate-900 text-base leading-tight truncate">
-                    {drawerUser.nama || 'Tanpa Nama'}
-                  </h4>
-                  <div className="text-slate-500 text-xs flex items-center gap-1.5 mt-1 truncate">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="font-bold text-slate-900 text-base sm:text-lg leading-tight truncate">
+                      {drawerUser.nama || 'Tanpa Nama'}
+                    </h4>
+                    {drawerUser.is_online ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Aktif
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="text-slate-500 text-xs sm:text-[13px] flex items-center gap-1.5 mt-1 truncate">
                     <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                     <span className="truncate">{drawerUser.email}</span>
                   </div>
 
-                  <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-semibold border border-slate-300">
-                      Role Saat Ini: {drawerUser.role?.nama_role || 'Guest'}
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-medium border border-slate-200">
+                      <span className="text-slate-400">Role Saat Ini:</span>
+                      <strong className="font-semibold text-slate-800">
+                        {drawerUser.role?.nama_role || 'Guest'}
+                      </strong>
                     </span>
-                    <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-semibold border border-blue-200/70">
-                      Target Role: Peneliti
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium border border-blue-200/70">
+                      <span className="text-blue-500">Target Role:</span>
+                      <strong className="font-semibold text-blue-800">Peneliti</strong>
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* Status Section */}
-              <div className="space-y-3">
-                <h5 className="font-bold text-slate-700 text-xs uppercase tracking-wider text-[11px]">
-                  Status & Verifikasi
-                </h5>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
+              {/* Status dan Verifikasi */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-200/80 flex flex-col justify-between gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] uppercase font-bold tracking-wider text-slate-500">
                       Status Permohonan
                     </span>
-                    <ApplicationStatusBadge status={drawerUser.status_permohonan} />
+                    <ShieldCheck className="w-4 h-4 text-slate-400" />
                   </div>
+                  <div className="pt-1">
+                    <ApplicationStatusBadge status={drawerUser.status_permohonan} size="md" />
+                  </div>
+                </div>
 
-                  <div className="p-3 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
-                      Status Email
+                <div className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-200/80 flex flex-col justify-between gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] uppercase font-bold tracking-wider text-slate-500">
+                      Status Verifikasi Email
                     </span>
+                    <Mail className="w-4 h-4 text-slate-400" />
+                  </div>
+                  <div className="pt-1">
                     <EmailVerifiedBadge
                       verifiedAt={drawerUser.email_verified_at}
                       isVerified={drawerUser.is_verified}
@@ -855,127 +901,176 @@ export const AdminResearcherApplicationsPage = () => {
                 </div>
               </div>
 
-              {/* Timeline & Metadata */}
-              <div className="space-y-3">
-                <h5 className="font-bold text-slate-700 text-xs uppercase tracking-wider text-[11px]">
-                  Informasi Waktu
-                </h5>
+              {/* Informasi Waktu */}
+              <div className="rounded-xl border border-slate-200/80 bg-white overflow-hidden shadow-2xs">
+                <div className="px-4 py-2.5 bg-slate-50/80 border-b border-slate-200/80 flex items-center justify-between">
+                  <h5 className="font-bold text-slate-700 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Informasi Waktu</span>
+                  </h5>
+                  <span className="text-[10px] text-slate-400 font-medium">Zona Waktu: WIB</span>
+                </div>
 
-                <div className="bg-white rounded-xl border border-slate-200/80 shadow-2xs divide-y divide-slate-100">
-                  <div className="p-3 flex items-center justify-between">
-                    <span className="text-slate-500">Tanggal Registrasi:</span>
-                    <span className="font-semibold text-slate-800">
-                      {drawerUser.created_at
-                        ? formatDateTime(drawerUser.created_at).date +
-                          ' • ' +
-                          formatDateTime(drawerUser.created_at).time
-                        : '-'}
-                    </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
+                  <div className="p-3.5 space-y-3">
+                    <div>
+                      <span className="text-[11px] text-slate-500 block mb-0.5">Tanggal Registrasi</span>
+                      <span className="font-semibold text-slate-800 text-xs sm:text-[13px]">
+                        {drawerUser.created_at
+                          ? `${formatDateTime(drawerUser.created_at).date} • ${formatDateTime(drawerUser.created_at).time}`
+                          : '-'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-slate-500 block mb-0.5">Tanggal Verifikasi Email</span>
+                      <span className="font-semibold text-slate-800 text-xs sm:text-[13px]">
+                        {drawerUser.email_verified_at
+                          ? `${formatDateTime(drawerUser.email_verified_at).date} • ${formatDateTime(drawerUser.email_verified_at).time}`
+                          : 'Belum Terverifikasi'}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="p-3 flex items-center justify-between">
-                    <span className="text-slate-500">Tanggal Verifikasi Email:</span>
-                    <span className="font-semibold text-slate-800">
-                      {drawerUser.email_verified_at
-                        ? formatDateTime(drawerUser.email_verified_at).date +
-                          ' • ' +
-                          formatDateTime(drawerUser.email_verified_at).time
-                        : 'Belum Terverifikasi'}
-                    </span>
-                  </div>
-
-                  <div className="p-3 flex items-center justify-between">
-                    <span className="text-slate-500">Tanggal Pengajuan:</span>
-                    <span className="font-semibold text-slate-800">
-                      {drawerUser.permohonan_at
-                        ? formatDateTime(drawerUser.permohonan_at).date +
-                          ' • ' +
-                          formatDateTime(drawerUser.permohonan_at).time
-                        : 'Belum diajukan'}
-                    </span>
+                  <div className="p-3.5 space-y-3">
+                    <div>
+                      <span className="text-[11px] text-slate-500 block mb-0.5">Tanggal Pengajuan</span>
+                      <span className="font-semibold text-slate-800 text-xs sm:text-[13px]">
+                        {drawerUser.permohonan_at
+                          ? `${formatDateTime(drawerUser.permohonan_at).date} • ${formatDateTime(drawerUser.permohonan_at).time}`
+                          : 'Belum Diajukan'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-slate-500 block mb-0.5">Tanggal Keputusan Admin</span>
+                      <span className="font-semibold text-slate-800 text-xs sm:text-[13px]">
+                        {drawerUser.reviewed_at
+                          ? `${formatDateTime(drawerUser.reviewed_at).date} • ${formatDateTime(drawerUser.reviewed_at).time}`
+                          : '-'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Review History */}
+              {/* Riwayat Keputusan Admin */}
               <div className="space-y-3">
-                <h5 className="font-bold text-slate-700 text-xs uppercase tracking-wider text-[11px]">
-                  Riwayat Keputusan Admin
+                <h5 className="font-bold text-slate-700 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Riwayat Keputusan Admin</span>
                 </h5>
 
-                {drawerUser.reviewed_by_name || drawerUser.reviewer?.nama || drawerUser.reviewed_at ? (
-                  <div className="p-4 bg-slate-50/70 rounded-xl border border-slate-200/80 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500">Admin Peninjau:</span>
-                      <span className="font-bold text-slate-900">
-                        {drawerUser.reviewed_by_name || drawerUser.reviewer?.nama || 'Super Admin'}
-                      </span>
+                {drawerUser.status_permohonan === 'Approved' ||
+                drawerUser.status_permohonan === 'Rejected' ||
+                drawerUser.reviewed_at ||
+                drawerUser.reviewed_by_name ||
+                drawerUser.reviewer?.nama ? (
+                  <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <span className="text-[11px] text-slate-500 block mb-0.5">Admin Peninjau</span>
+                        <span className="font-bold text-slate-900 text-xs sm:text-[13px]">
+                          {drawerUser.reviewed_by_name || drawerUser.reviewer?.nama || 'Super Admin'}
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-[11px] text-slate-500 block mb-0.5">Status Keputusan</span>
+                        <div>
+                          <ApplicationStatusBadge status={drawerUser.status_permohonan} />
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="text-[11px] text-slate-500 block mb-0.5">Tanggal Keputusan</span>
+                        <span className="font-semibold text-slate-800 text-xs sm:text-[13px]">
+                          {drawerUser.reviewed_at
+                            ? `${formatDateTime(drawerUser.reviewed_at).date} • ${formatDateTime(drawerUser.reviewed_at).time}`
+                            : '-'}
+                        </span>
+                      </div>
                     </div>
 
-                    {drawerUser.reviewed_at && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-500">Waktu Keputusan:</span>
-                        <span className="font-medium text-slate-800">
-                          {formatDateTime(drawerUser.reviewed_at).date} •{' '}
-                          {formatDateTime(drawerUser.reviewed_at).time}
-                        </span>
+                    {drawerUser.rejection_reason && (
+                      <div className="mt-3 p-3.5 bg-rose-50/80 rounded-xl border border-rose-200/80 space-y-1.5">
+                        <div className="flex items-center gap-1.5 font-bold text-rose-800 text-[11px] uppercase tracking-wider">
+                          <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                          <span>Alasan Penolakan</span>
+                        </div>
+                        <p className="text-rose-950 leading-relaxed whitespace-pre-wrap text-xs bg-white/80 p-2.5 rounded-lg border border-rose-200/60 font-medium">
+                          {drawerUser.rejection_reason}
+                        </p>
                       </div>
                     )}
                   </div>
-                ) : (
-                  <div className="p-3.5 bg-slate-50/50 rounded-xl border border-slate-200/60 text-slate-500 text-center">
-                    Permohonan ini belum diproses oleh Admin.
-                  </div>
-                )}
-
-                {/* Rejection Reason if any */}
-                {drawerUser.rejection_reason && (
-                  <div className="p-4 bg-rose-50/70 rounded-xl border border-rose-200/80 space-y-1.5">
-                    <div className="flex items-center gap-1.5 font-bold text-rose-800 text-[11px] uppercase tracking-wider">
-                      <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
-                      Alasan Penolakan
+                ) : drawerUser.status_permohonan === 'Pending' ? (
+                  <div className="p-4 bg-amber-50/60 rounded-xl border border-amber-200/70 flex items-start gap-3">
+                    <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="text-xs text-amber-900">
+                      <strong className="block font-semibold text-amber-950 mb-0.5">
+                        Menunggu Peninjauan Admin
+                      </strong>
+                      Permohonan ini belum diproses. Anda dapat meninjau data pemohon lalu memilih untuk menyetujui atau menolak permohonan melalui tombol tindakan di bawah.
                     </div>
-                    <p className="text-rose-900 leading-relaxed whitespace-pre-wrap text-xs bg-white/60 p-2.5 rounded-lg border border-rose-200/50">
-                      {drawerUser.rejection_reason}
-                    </p>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/70 flex items-start gap-3">
+                    <Info className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                    <div className="text-xs text-slate-600">
+                      <strong className="block font-semibold text-slate-800 mb-0.5">
+                        Belum Ada Pengajuan
+                      </strong>
+                      Pengguna ini berstatus Guest dan belum mengajukan permohonan peningkatan akun menjadi Peneliti.
+                    </div>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Drawer Footer Actions */}
-            <div className="px-6 py-3.5 border-t border-slate-200/80 bg-slate-50/60 flex items-center justify-end gap-2.5 shrink-0">
+            {/* Modal Footer Actions */}
+            <div className="px-6 py-4 border-t border-slate-200/80 bg-slate-50/70 flex items-center justify-between gap-3 shrink-0">
               {drawerUser.status_permohonan === 'Pending' ? (
                 <>
                   <button
                     type="button"
-                    onClick={() => {
-                      setRejectModalUser(drawerUser);
-                      setRejectionReason('');
-                      setRejectionError('');
-                    }}
-                    className="px-3.5 py-2 text-xs font-semibold text-rose-700 bg-white hover:bg-rose-50 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                    onClick={() => setDrawerUser(null)}
+                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors cursor-pointer"
                   >
-                    Tolak Permohonan
+                    Tutup
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setApproveModalUser(drawerUser)}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-2xs transition-colors cursor-pointer"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Setujui Permohonan</span>
-                  </button>
+                  <div className="flex items-center gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRejectModalUser(drawerUser);
+                        setRejectionReason('');
+                        setRejectionError('');
+                      }}
+                      className="px-3.5 py-2 text-xs font-semibold text-rose-700 bg-white hover:bg-rose-50 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                    >
+                      Tolak Permohonan
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setApproveModalUser(drawerUser)}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-2xs transition-colors cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Setujui Permohonan</span>
+                    </button>
+                  </div>
                 </>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => setDrawerUser(null)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors cursor-pointer"
-                >
-                  Tutup
-                </button>
+                <div className="w-full flex items-center justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setDrawerUser(null)}
+                    className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+                  >
+                    Tutup
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -986,13 +1081,13 @@ export const AdminResearcherApplicationsPage = () => {
       {/* 6. MODAL: KONFIRMASI PERSETUJUAN (APPROVE)                     */}
       {/* ------------------------------------------------------------- */}
       {approveModalUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 overflow-y-auto">
           <div
             className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-150"
             onClick={() => setApproveModalUser(null)}
           />
 
-          <div className="relative bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden z-10 animate-in zoom-in-95 duration-150 p-6 text-center">
+          <div className="relative bg-white rounded-2xl max-w-md w-full max-h-[90vh] my-auto overflow-y-auto shadow-2xl border border-slate-100 z-10 animate-in zoom-in-95 duration-150 p-6 text-center">
             <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-200/90 shadow-2xs">
               <CheckCircle2 className="w-6 h-6 text-emerald-600" />
             </div>
@@ -1062,16 +1157,16 @@ export const AdminResearcherApplicationsPage = () => {
       {/* 7. MODAL: PENOLAKAN PERMOHONAN (REJECT)                       */}
       {/* ------------------------------------------------------------- */}
       {rejectModalUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 overflow-y-auto">
           <div
             className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-150"
             onClick={() => setRejectModalUser(null)}
           />
 
-          <div className="relative bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden z-10 animate-in zoom-in-95 duration-150">
-            <form onSubmit={handleConfirmReject}>
+          <div className="relative bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden z-10 animate-in zoom-in-95 duration-150 max-h-[90vh] my-auto flex flex-col">
+            <form onSubmit={handleConfirmReject} className="flex flex-col min-h-0">
               {/* Header */}
-              <div className="px-6 py-4.5 border-b border-slate-200/80 bg-rose-50/50 flex items-center justify-between">
+              <div className="px-6 py-4.5 border-b border-slate-200/80 bg-rose-50/50 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-lg bg-rose-100/80 text-rose-700 flex items-center justify-center border border-rose-200">
                     <UserX className="w-4 h-4 text-rose-600" />
@@ -1091,7 +1186,7 @@ export const AdminResearcherApplicationsPage = () => {
               </div>
 
               {/* Body */}
-              <div className="p-6 space-y-4 text-xs">
+              <div className="p-6 space-y-4 text-xs overflow-y-auto flex-1">
                 {/* Applicant Summary */}
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/70 flex items-center gap-3">
                   <ApplicantAvatar
@@ -1145,7 +1240,7 @@ export const AdminResearcherApplicationsPage = () => {
               </div>
 
               {/* Footer */}
-              <div className="px-6 py-3.5 border-t border-slate-200/80 bg-slate-50/60 flex justify-end gap-2.5">
+              <div className="px-6 py-3.5 border-t border-slate-200/80 bg-slate-50/60 flex justify-end gap-2.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => setRejectModalUser(null)}

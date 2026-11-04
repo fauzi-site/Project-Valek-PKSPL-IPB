@@ -1,4 +1,5 @@
 import api from './api'
+import { triggerAdminCountsRefresh } from './adminAnalyticsService'
 
 export const getProyekList = async (params = {}) => {
   const response = await api.get('/proyek', { params })
@@ -32,6 +33,7 @@ export const getNextProyekCode = async () => {
 
 export const createProyek = async (payload) => {
   const response = await api.post('/proyek', payload)
+  triggerAdminCountsRefresh()
   return response.data?.data || response.data
 }
 
@@ -51,6 +53,7 @@ export const updateProyek = async (idProyek, payload) => {
 
 export const deleteProyek = async (idProyek) => {
   const response = await api.delete(`/proyek/${idProyek}`)
+  triggerAdminCountsRefresh()
   return response.data
 }
 

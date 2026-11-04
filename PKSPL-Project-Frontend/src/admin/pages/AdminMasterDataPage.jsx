@@ -812,10 +812,10 @@ export const AdminMasterDataPage = () => {
 
       {/* ── Modal Tambah / Edit Data Master ─────────────────────────────────── */}
       {isAddEditModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-xl w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-xl w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] my-auto flex flex-col">
             {/* Modal Header */}
-            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs">
                   <Database className="w-4 h-4" />
@@ -838,7 +838,7 @@ export const AdminMasterDataPage = () => {
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleSaveModal} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+            <form onSubmit={handleSaveModal} className="p-6 space-y-4 overflow-y-auto flex-1 flex flex-col justify-between">
               {/* Category Selector */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
@@ -1048,7 +1048,7 @@ export const AdminMasterDataPage = () => {
               </div>
 
               {/* Modal Footer */}
-              <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-2">
+              <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-2 shrink-0 flex-wrap">
                 <button
                   type="button"
                   onClick={() => setIsAddEditModalOpen(false)}
@@ -1073,9 +1073,9 @@ export const AdminMasterDataPage = () => {
 
       {/* ── Modal Detail Data Master ────────────────────────────────────────── */}
       {isDetailModalOpen && selectedItem && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] my-auto flex flex-col">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
                   <Database className="w-4 h-4" />
@@ -1093,7 +1093,7 @@ export const AdminMasterDataPage = () => {
               </button>
             </div>
 
-            <div className="p-6 space-y-4 text-xs">
+            <div className="p-6 space-y-4 text-xs overflow-y-auto flex-1">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <span className="text-slate-500 font-medium">Kategori Jasa</span>
                 <div>{renderCategoryBadge(selectedItem.category)}</div>
@@ -1150,7 +1150,7 @@ export const AdminMasterDataPage = () => {
               </div>
             </div>
 
-            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex justify-end">
+            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex justify-end shrink-0">
               <button
                 onClick={() => setIsDetailModalOpen(false)}
                 className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer"
@@ -1164,10 +1164,10 @@ export const AdminMasterDataPage = () => {
 
       {/* ── Modal Konfirmasi Hapus Data Master ──────────────────────────────── */}
       {isDeleteModalOpen && selectedItem && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-6 text-center space-y-3">
-              <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] my-auto flex flex-col">
+            <div className="p-6 text-center space-y-3 overflow-y-auto flex-1">
+              <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto shrink-0">
                 <Trash2 className="w-6 h-6" />
               </div>
               <h3 className="text-base font-bold text-slate-900">Konfirmasi Hapus Data Master</h3>
@@ -1176,7 +1176,7 @@ export const AdminMasterDataPage = () => {
               </p>
             </div>
 
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2 shrink-0 flex-wrap">
               <button
                 onClick={() => setIsDeleteModalOpen(false)}
                 disabled={submitting}

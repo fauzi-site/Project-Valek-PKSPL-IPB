@@ -353,30 +353,32 @@ export const ValuationAnalysisPanel: React.FC<ValuationAnalysisPanelProps> = ({
           {nonparametric && (
             <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-3">
               <h4 className="text-xs font-bold text-slate-800">Distribusi jawaban per bid</h4>
-              <table className="w-full text-xs text-left">
-                <thead className="bg-slate-100 text-slate-700 font-bold">
-                  <tr>
-                    <th className="py-2 px-3 text-right">Bid</th>
-                    <th className="py-2 px-3 text-right">Responden</th>
-                    <th className="py-2 px-3 text-right">Ya</th>
-                    <th className="py-2 px-3 text-right">Tidak</th>
-                    <th className="py-2 px-3 text-right">Menerima</th>
-                    <th className="py-2 px-3 text-right">Menolak</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-mono">
-                  {nonparametric.table.map((r) => (
-                    <tr key={r.bid}>
-                      <td className="py-1.5 px-3 text-right">{formatIDR(r.bid)}</td>
-                      <td className="py-1.5 px-3 text-right">{r.n}</td>
-                      <td className="py-1.5 px-3 text-right">{r.yes}</td>
-                      <td className="py-1.5 px-3 text-right">{r.no}</td>
-                      <td className="py-1.5 px-3 text-right">{pct(r.accept_rate)}</td>
-                      <td className="py-1.5 px-3 text-right">{pct(r.reject_rate)}</td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-100 text-slate-700 font-bold">
+                    <tr>
+                      <th className="py-2 px-3 text-right">Bid</th>
+                      <th className="py-2 px-3 text-right">Responden</th>
+                      <th className="py-2 px-3 text-right">Ya</th>
+                      <th className="py-2 px-3 text-right">Tidak</th>
+                      <th className="py-2 px-3 text-right">Menerima</th>
+                      <th className="py-2 px-3 text-right">Menolak</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-mono">
+                    {nonparametric.table.map((r) => (
+                      <tr key={r.bid}>
+                        <td className="py-1.5 px-3 text-right">{formatIDR(r.bid)}</td>
+                        <td className="py-1.5 px-3 text-right">{r.n}</td>
+                        <td className="py-1.5 px-3 text-right">{r.yes}</td>
+                        <td className="py-1.5 px-3 text-right">{r.no}</td>
+                        <td className="py-1.5 px-3 text-right">{pct(r.accept_rate)}</td>
+                        <td className="py-1.5 px-3 text-right">{pct(r.reject_rate)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
               {nonparametric.pooled && (
                 <p className="text-[11px] text-amber-700">
                   Tingkat penerimaan tidak turun di semua kenaikan bid, sehingga kelas yang bertentangan digabung

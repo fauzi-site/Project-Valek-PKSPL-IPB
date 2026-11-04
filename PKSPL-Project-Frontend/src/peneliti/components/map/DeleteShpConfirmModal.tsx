@@ -37,7 +37,7 @@ export const DeleteShpConfirmModal: React.FC<DeleteShpConfirmModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-2xs z-50 flex items-center justify-center p-3 md:p-6 overflow-y-auto animate-in fade-in duration-150">
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xl max-w-lg w-full my-auto overflow-hidden text-sm animate-in zoom-in-95 duration-150 flex flex-col">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-2xl max-w-lg w-full max-h-[90vh] my-auto overflow-hidden text-sm animate-in zoom-in-95 duration-150 flex flex-col">
         {/* Header */}
         <div className="px-5 py-4 border-b border-rose-100 flex items-center justify-between bg-rose-50/80 shrink-0">
           <div className="flex items-center gap-2.5">
@@ -65,7 +65,7 @@ export const DeleteShpConfirmModal: React.FC<DeleteShpConfirmModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 overflow-y-auto flex-1">
           {/* Warning Banner */}
           <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3 text-xs text-amber-800">
             <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />

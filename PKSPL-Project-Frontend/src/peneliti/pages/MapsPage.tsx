@@ -334,8 +334,8 @@ export const MapsPage: React.FC = () => {
 
       {/* Confirm Mode Switch Modal */}
       {showSwitchConfirmModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-2xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xl max-w-sm w-full p-5 space-y-4">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-2xs z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xl max-w-sm w-full p-5 space-y-4 max-h-[90vh] my-auto overflow-y-auto">
             <h4 className="font-bold text-slate-800 text-sm">Beralih Mode Pemetaan?</h4>
             <p className="text-xs text-slate-600">
               Beralih mode pemetaan dapat membatalkan proses yang sedang berlangsung pada mode saat ini. Yakin ingin melanjutkan?

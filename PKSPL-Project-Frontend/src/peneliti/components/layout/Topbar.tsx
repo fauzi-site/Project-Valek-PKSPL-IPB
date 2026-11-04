@@ -307,10 +307,10 @@ export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar, onToggleMobileS
 
         <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-slate-500 font-medium shrink-0">
           <span className="text-slate-800 font-semibold tracking-tight">PKSPL</span>
-          <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 hidden sm:inline" />
-          <span className="hidden sm:inline">Sistem Valuasi</span>
+          <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 hidden md:inline" />
+          <span className="hidden md:inline">Sistem Valuasi</span>
           <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400" />
-          <span className="text-blue-700 font-medium bg-blue-50 px-1.5 sm:px-2 py-0.5 rounded text-[11px] sm:text-xs shrink-0 max-w-[120px] sm:max-w-none truncate">
+          <span className="text-blue-700 font-medium bg-blue-50 px-1.5 sm:px-2 py-0.5 rounded text-[11px] sm:text-xs shrink-0 max-w-[110px] sm:max-w-[140px] md:max-w-none truncate">
             {currentStepName}
           </span>
         </div>
@@ -442,7 +442,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar, onToggleMobileS
 
           {/* Notification Popover Dropdown */}
           {showNotifications && (
-            <div className="fixed sm:absolute inset-x-2 sm:inset-x-auto sm:right-0 top-16 sm:top-auto sm:mt-2 w-auto sm:w-[410px] max-w-[calc(100vw-1rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 py-0 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="fixed sm:absolute inset-x-2 sm:inset-x-auto sm:right-0 top-16 sm:top-auto sm:mt-2 w-auto sm:w-[410px] max-w-[calc(100vw-1rem)] max-h-[85vh] bg-white rounded-2xl shadow-2xl border border-slate-200 py-0 z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
               {/* Header */}
               <div className="px-4 py-3 bg-gradient-to-r from-slate-900 via-slate-800 to-blue-950 text-white flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -740,7 +740,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar, onToggleMobileS
 
           {/* Profile Dropdown Popover */}
           {showProfileDropdown && (
-            <div className="fixed sm:absolute inset-x-2 sm:inset-x-auto sm:right-0 top-16 sm:top-auto sm:mt-2 w-auto sm:w-72 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
+            <div className="fixed sm:absolute inset-x-2 sm:inset-x-auto sm:right-0 top-16 sm:top-auto sm:mt-2 w-auto sm:w-72 max-w-[calc(100vw-1rem)] max-h-[85vh] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-y-auto z-50 animate-in fade-in zoom-in-95 duration-150">
               {/* Profile Card Header */}
               <div className="p-4 bg-gradient-to-br from-slate-900 to-slate-800 text-white flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-500 to-indigo-500 flex items-center justify-center text-white font-bold text-sm shadow-md ring-2 ring-white/20 shrink-0">

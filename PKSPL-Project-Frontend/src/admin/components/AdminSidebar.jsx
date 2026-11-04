@@ -15,6 +15,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { adminChatService } from '../services/adminChatService';
 import { getResearcherApplications } from '../../services/adminResearcherApplicationService';
+import { getAdminSidebarCounts } from '../../services/adminAnalyticsService';
 import { getEcho } from '../../lib/echo';
 import { SidebarAccountMenu } from '../../components/profile/SidebarAccountMenu';
 
@@ -28,12 +29,17 @@ export const AdminSidebar = ({
   const { user } = useAuth() || {};
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [pendingApplicationsCount, setPendingApplicationsCount] = useState(0);
+  const [usersCount, setUsersCount] = useState(null);
+  const [projectsCount, setProjectsCount] = useState(null);
+  const [isCountsLoading, setIsCountsLoading] = useState(true);
+  const [countsError, setCountsError] = useState(false);
 
-  // Sync dynamic unread chat message count and pending applications count
+  // Sync dynamic unread chat message count, users, projects, and pending applications count
   useEffect(() => {
     let isMounted = true;
 
     const fetchCounts = async () => {
+      // 1. Unread chat count
       try {
         const count = await adminChatService.getTotalUnreadCount();
         if (isMounted) {
@@ -43,19 +49,41 @@ export const AdminSidebar = ({
         // silent catch
       }
 
+      // 2. Dynamic counts for Users, Projects, and Researcher Applications directly from DB
       try {
-        const res = await getResearcherApplications();
-        const list = res?.data || res || [];
-        if (isMounted && Array.isArray(list)) {
-          const pendingCount = list.filter((u) => u.status_permohonan === 'Pending').length;
-          setPendingApplicationsCount(pendingCount);
+        const sidebarData = await getAdminSidebarCounts();
+        if (isMounted && sidebarData) {
+          if (sidebarData.users_count !== undefined) {
+            setUsersCount(Number(sidebarData.users_count));
+          }
+          if (sidebarData.projects_count !== undefined) {
+            setProjectsCount(Number(sidebarData.projects_count));
+          }
+          if (sidebarData.pending_applications_count !== undefined) {
+            setPendingApplicationsCount(Number(sidebarData.pending_applications_count));
+          }
+          setCountsError(false);
+          setIsCountsLoading(false);
         }
       } catch (err) {
-        // silent catch
+        console.warn('[AdminSidebar] Gagal memuat sidebar counts dari API:', err);
+        // Fallback: don't display fake numbers on API failure
+        if (isMounted) {
+          setCountsError(true);
+          setIsCountsLoading(false);
+        }
       }
     };
 
     fetchCounts();
+
+    // Listen for custom events triggered on CRUD actions in Users or Projects pages
+    const handleCountsUpdate = () => {
+      fetchCounts();
+    };
+
+    window.addEventListener('admin:counts-updated', handleCountsUpdate);
+    window.addEventListener('focus', handleCountsUpdate);
 
     // Setup Echo listener for realtime message notifications for this admin
     const echo = getEcho();
@@ -82,6 +110,8 @@ export const AdminSidebar = ({
     return () => {
       isMounted = false;
       clearInterval(interval);
+      window.removeEventListener('admin:counts-updated', handleCountsUpdate);
+      window.removeEventListener('focus', handleCountsUpdate);
       if (channel && echo) {
         try {
           channel.stopListening('.ChatMessageSent');
@@ -94,6 +124,20 @@ export const AdminSidebar = ({
 
   // Derive user role for header badge
   const userRole = user?.role?.nama_role || (typeof user?.role === 'string' ? user.role : 'Super Admin');
+
+  /**
+   * Helper untuk format badge angka sesuai spesifikasi:
+   * - Sedang loading: kembalikan '__LOADING__' untuk render skeleton/loading indicator kecil
+   * - Error / null: kembalikan undefined (jangan menampilkan angka palsu)
+   * - Count > 99: tampilkan '99+'
+   * - 0 - 99: tampilkan angka aktual (misal: '38', '18', '0')
+   */
+  const formatBadgeNumber = (count, isLoading, isError) => {
+    if (isLoading) return '__LOADING__';
+    if (isError || count === null || count === undefined || isNaN(count)) return undefined;
+    if (count > 99) return '99+';
+    return String(count);
+  };
 
   // Navigation Items
   const navItems = [
@@ -113,20 +157,23 @@ export const AdminSidebar = ({
       title: 'Manajemen Pengguna',
       path: '/admin/users',
       icon: Users,
-      badge: '38',
+      badge: formatBadgeNumber(usersCount, isCountsLoading, countsError),
     },
     {
       title: 'Permohonan Peneliti',
       path: '/admin/researcher-applications',
       icon: UserCheck,
-      badge: pendingApplicationsCount > 0 ? `${pendingApplicationsCount} Baru` : undefined,
+      badge:
+        pendingApplicationsCount > 0
+          ? `${pendingApplicationsCount > 99 ? '99+' : pendingApplicationsCount} Baru`
+          : undefined,
       badgeColor: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
     },
     {
       title: 'Manajemen Program',
       path: '/admin/projects',
       icon: FolderKanban,
-      badge: '18',
+      badge: formatBadgeNumber(projectsCount, isCountsLoading, countsError),
     },
     {
       title: 'Riwayat Aktivitas',
@@ -263,15 +310,24 @@ export const AdminSidebar = ({
                   <div className="flex-1 flex items-center justify-between truncate">
                     <span className="truncate">{item.title}</span>
                     {item.badge && (
-                      <span
-                        className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${
-                          isActive
-                            ? 'bg-blue-800 text-blue-100'
-                            : item.badgeColor || 'bg-slate-800 text-slate-400'
-                        }`}
-                      >
-                        {item.badge}
-                      </span>
+                      item.badge === '__LOADING__' ? (
+                        <span
+                          className={`inline-block w-5 h-3.5 rounded animate-pulse shrink-0 ${
+                            isActive ? 'bg-blue-800/80' : 'bg-slate-800'
+                          }`}
+                          aria-label="Memuat jumlah..."
+                        />
+                      ) : (
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold shrink-0 ${
+                            isActive
+                              ? 'bg-blue-800 text-blue-100'
+                              : item.badgeColor || 'bg-slate-800 text-slate-400'
+                          }`}
+                        >
+                          {item.badge}
+                        </span>
+                      )
                     )}
                   </div>
                 )}

@@ -53,6 +53,7 @@ Route::prefix('v1')->group(function (): void {
         Route::get('admin/activity-logs', [AdminActivityLogController::class, 'index']);
         Route::post('admin/activity-logs', [AdminActivityLogController::class, 'store']);
         Route::get('admin/analytics/overview', [AdminAnalyticsController::class, 'overview']);
+        Route::get('admin/sidebar-counts', [AdminAnalyticsController::class, 'sidebarCounts']);
 
         Route::get('admin/master-data', [AdminMasterDataController::class, 'index']);
         Route::post('admin/master-data', [AdminMasterDataController::class, 'store']);

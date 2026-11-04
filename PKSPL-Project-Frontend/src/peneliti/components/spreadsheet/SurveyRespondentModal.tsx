@@ -92,7 +92,7 @@ export const SurveyRespondentModal: React.FC<SurveyRespondentModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-6xl max-h-[92vh] my-auto flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         
         {/* Header */}
         <div className="px-6 py-4 bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 text-white flex items-center justify-between border-b border-blue-900/40">
@@ -515,22 +515,22 @@ export const SurveyRespondentModal: React.FC<SurveyRespondentModalProps> = ({
 
       {/* Respondent Detail Modal */}
       {selectedRespondent && (
-        <div className="fixed inset-0 z-60 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-lg w-full p-5 space-y-4 shadow-xl border border-slate-200 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between border-b pb-2">
+        <div className="fixed inset-0 z-60 bg-black/50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl max-w-lg w-full p-5 space-y-4 shadow-xl border border-slate-200 animate-in fade-in zoom-in-95 max-h-[90vh] my-auto flex flex-col">
+            <div className="flex items-center justify-between border-b pb-2 shrink-0">
               <h4 className="font-bold text-sm text-slate-800">
                 Detail Responden: {selectedRespondent.respondent_name} ({selectedRespondent.respondent_id})
               </h4>
               <button
                 type="button"
                 onClick={() => setSelectedRespondent(null)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="space-y-2 text-xs">
+            <div className="space-y-2 text-xs overflow-y-auto flex-1">
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <span className="text-slate-500">Pendidikan:</span>
@@ -622,11 +622,11 @@ export const SurveyRespondentModal: React.FC<SurveyRespondentModalProps> = ({
               )}
             </div>
 
-            <div className="text-right">
+            <div className="text-right shrink-0 pt-2 border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => setSelectedRespondent(null)}
-                className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 rounded text-xs font-semibold text-slate-700"
+                className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 rounded text-xs font-semibold text-slate-700 cursor-pointer"
               >
                 Tutup
               </button>

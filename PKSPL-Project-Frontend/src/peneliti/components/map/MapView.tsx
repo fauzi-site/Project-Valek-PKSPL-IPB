@@ -222,7 +222,7 @@ export const MapView: React.FC<MapViewProps> = ({
 
   return (
     <div className="w-full rounded-xl overflow-hidden border border-slate-200 shadow-2xs bg-white flex flex-col">
-      <div className="relative w-full h-[520px] md:h-[580px] bg-slate-100 overflow-hidden">
+      <div className="relative w-full h-[400px] sm:h-[480px] md:h-[560px] max-h-[72vh] min-h-[320px] bg-slate-100 overflow-hidden">
 
         {isBasemapOffline && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 bg-amber-500/90 text-white text-[11px] font-semibold px-3 py-1 rounded-full shadow-md backdrop-blur-xs flex items-center gap-1.5 pointer-events-none">

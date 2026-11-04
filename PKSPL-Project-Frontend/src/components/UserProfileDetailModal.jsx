@@ -116,7 +116,7 @@ function UserProfileDetailModal({ isOpen, userId, initialData, onClose, isOnline
   const displayName = userData?.nama || userData?.name || 'Pengguna'
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
       {/* Backdrop click to close */}
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 

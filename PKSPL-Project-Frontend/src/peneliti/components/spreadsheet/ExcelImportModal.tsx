@@ -234,10 +234,10 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-2xs z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
-      <div className="bg-white rounded-lg border border-slate-200 shadow-xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden text-sm">
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-2xs z-50 flex items-center justify-center p-4 animate-in fade-in duration-150 overflow-y-auto">
+      <div className="bg-white rounded-lg border border-slate-200 shadow-xl max-w-3xl w-full max-h-[90vh] my-auto flex flex-col overflow-hidden text-sm">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
           <div>
             <div className="flex items-center gap-2">
               <h3 className="font-bold text-slate-800 text-sm">Import Data Valuasi</h3>
@@ -647,7 +647,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2">
+        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2 shrink-0">
           <button
             onClick={onClose}
             className="px-3.5 py-1.5 border border-slate-300 bg-white hover:bg-slate-100 rounded text-xs font-medium text-slate-700 transition-colors cursor-pointer"

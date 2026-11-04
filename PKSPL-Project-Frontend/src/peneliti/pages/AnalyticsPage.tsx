@@ -1672,7 +1672,7 @@ const AnalyticsPageContent: React.FC = () => {
 
         return (
           <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150"
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto"
             onClick={() => setSelectedRowDetail(null)}
           >
             <div
@@ -1680,7 +1680,7 @@ const AnalyticsPageContent: React.FC = () => {
               onClick={e => e.stopPropagation()}
             >
               {/* Header Modal */}
-              <div className={`px-6 py-4 border-b border-slate-200 flex items-start justify-between ${meta.bgClass}`}>
+              <div className={`px-6 py-4 border-b border-slate-200 flex items-start justify-between ${meta.bgClass} shrink-0`}>
                 <div className="flex items-start gap-3">
                   <div className={`p-2.5 rounded-xl bg-white shadow-2xs border ${meta.borderClass} shrink-0 mt-0.5`}>
                     <Icon className={`w-5 h-5 ${meta.labelClass}`} />
@@ -1719,7 +1719,7 @@ const AnalyticsPageContent: React.FC = () => {
               </div>
 
               {/* Nilai Utama KPI Card */}
-              <div className="px-6 py-4 bg-slate-50/70 border-b border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="px-6 py-4 bg-slate-50/70 border-b border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3 shrink-0">
                 <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
                   <span className="text-[11px] text-slate-500 font-medium">Total Nilai Ekonomi Objek:</span>
                   <div className="text-xl font-mono font-bold text-blue-950 mt-1">
@@ -1746,7 +1746,7 @@ const AnalyticsPageContent: React.FC = () => {
                     <span>Rincian Parameter &amp; Variabel Perhitungan</span>
                   </h4>
 
-                  <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                  <div className="border border-slate-200 rounded-xl overflow-x-auto bg-white">
                     <table className="w-full text-xs text-left">
                       <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold text-[11px]">
                         <tr>
@@ -1815,7 +1815,7 @@ const AnalyticsPageContent: React.FC = () => {
               </div>
 
               {/* Footer Modal */}
-              <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 text-xs">
+              <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 text-xs shrink-0 flex-wrap">
                 <button
                   type="button"
                   onClick={() => {

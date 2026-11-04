@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Proyek;
 use App\Models\Review;
 use App\Models\ActivityLog;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -233,6 +234,44 @@ class AdminAnalyticsController extends Controller
         return response()->json([
             'status' => 'success',
             'data' => $resultPayload,
+        ]);
+    }
+
+    /**
+     * Endpoint agregasi badge dinamis untuk Admin Sidebar.
+     * Mengembalikan jumlah data aktual (Users, Proyek, Permohonan Peneliti) menggunakan query COUNT database yang sangat efisien.
+     */
+    public function sidebarCounts(Request $request): JsonResponse
+    {
+        $user = $request->user('sanctum') ?? $request->user();
+        if ($user) {
+            $userRole = optional($user->role)->nama_role;
+            if ($userRole && !in_array($userRole, ['Admin', 'Super Admin', 'Administrator'], true)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Forbidden. Anda tidak memiliki hak akses Administrator.',
+                ], Response::HTTP_FORBIDDEN);
+            }
+        }
+
+        $projectQuery = Proyek::query();
+        if ($user && optional($user->role)->nama_role === 'Peneliti') {
+            $projectQuery->where('id_user', $user->id_user);
+        }
+
+        $usersCount = User::query()->count();
+        $projectsCount = $projectQuery->count();
+        $pendingApplicationsCount = User::query()
+            ->where('status_permohonan', 'Pending')
+            ->count();
+
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'users_count' => $usersCount,
+                'projects_count' => $projectsCount,
+                'pending_applications_count' => $pendingApplicationsCount,
+            ],
         ]);
     }
 }

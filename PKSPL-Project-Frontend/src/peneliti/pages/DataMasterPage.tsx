@@ -1303,10 +1303,10 @@ export const DataMasterPage: React.FC = () => {
 
       {/* ── Modal 1: Detail Ilmiah Master Item ─────────────────────────────── */}
       {isDetailModalOpen && selectedDetailItem && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-xl w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-xl w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] my-auto flex flex-col">
             {/* Modal Header */}
-            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs">
                   <BookOpen className="w-5 h-5" />
@@ -1332,7 +1332,7 @@ export const DataMasterPage: React.FC = () => {
             </div>
 
             {/* Modal Content */}
-            <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
               {/* Grid Metadata */}
               <div className="grid grid-cols-2 gap-3.5 bg-slate-50 p-4 rounded-xl border border-slate-200/80">
                 <div>
@@ -1461,7 +1461,7 @@ export const DataMasterPage: React.FC = () => {
             </div>
 
             {/* Modal Actions */}
-            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5">
+            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5 shrink-0 flex-wrap">
               <button
                 type="button"
                 onClick={() => setIsDetailModalOpen(false)}
@@ -1487,10 +1487,10 @@ export const DataMasterPage: React.FC = () => {
 
       {/* ── Modal 2: Tambah Data Master Baru ───────────────────────────────── */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] my-auto flex flex-col">
             {/* Modal Header */}
-            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs">
                   <Database className="w-4 h-4" />
@@ -1511,7 +1511,7 @@ export const DataMasterPage: React.FC = () => {
             </div>
 
             {/* Modal Body Form */}
-            <form onSubmit={handleSaveNewItem} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+            <form onSubmit={handleSaveNewItem} className="p-6 space-y-4 overflow-y-auto flex-1 flex flex-col justify-between">
               {/* Category Selector */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
@@ -1740,7 +1740,7 @@ export const DataMasterPage: React.FC = () => {
               </div>
 
               {/* Modal Actions */}
-              <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2.5">
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2.5 shrink-0 flex-wrap">
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
@@ -1764,9 +1764,9 @@ export const DataMasterPage: React.FC = () => {
 
       {/* ── Modal 5: Tautkan / Gunakan pada Tutupan Lahan ─────────────────── */}
       {isLinkModalOpen && linkingItem && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] my-auto flex flex-col">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs">
                   <Layers className="w-4 h-4" />
@@ -1786,7 +1786,7 @@ export const DataMasterPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
                 <div className="flex items-center gap-2 mb-1">
                   <CategoryBadge category={linkingItem.category} />
@@ -1826,7 +1826,7 @@ export const DataMasterPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-end gap-2">
+            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-end gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => setIsLinkModalOpen(false)}
@@ -1858,10 +1858,10 @@ export const DataMasterPage: React.FC = () => {
 
       {/* ── Modal 6: Konfirmasi Terapkan Template Master ───────────────────── */}
       {isApplyTemplateModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-6 space-y-4">
-              <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 mx-auto flex items-center justify-center">
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] my-auto flex flex-col">
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 mx-auto flex items-center justify-center shrink-0">
                 <Layers className="w-6 h-6" />
               </div>
               <div className="text-center space-y-1.5">
@@ -1884,7 +1884,7 @@ export const DataMasterPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5">
+            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5 shrink-0 flex-wrap">
               <button
                 type="button"
                 onClick={() => setIsApplyTemplateModalOpen(false)}

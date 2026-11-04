@@ -108,7 +108,7 @@ function LoginPage() {
       {/* Login Card */}
       <div
         id="login-card"
-        className="w-full max-w-[960px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[560px]"
+        className="w-full max-w-[960px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[560px] my-auto"
       >
         {/* Left Side - Login Form */}
         <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-center relative">

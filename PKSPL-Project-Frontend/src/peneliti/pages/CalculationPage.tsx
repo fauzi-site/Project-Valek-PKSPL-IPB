@@ -1853,10 +1853,10 @@ const CalculationPageContent: React.FC = () => {
         let globalRowNo = 0;
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-            <div className="bg-white rounded-2xl shadow-2xl w-[90vw] max-w-[90vw] max-h-[92vh] flex flex-col overflow-hidden border border-slate-200">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-200 my-auto">
               {/* Modal Header */}
-              <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
                 <div>
                   <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-600">
                     <Calculator className="w-4 h-4" />
@@ -1912,7 +1912,7 @@ const CalculationPageContent: React.FC = () => {
                     Belum ada baris data yang dimasukkan untuk jasa ini pada indeks / tutupan lahan yang dipilih.
                   </div>
                 ) : (
-                  <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                  <div className="border border-slate-200 rounded-xl overflow-x-auto shadow-2xs">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
                         <tr className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200 text-[11px] uppercase">
@@ -2157,7 +2157,7 @@ const CalculationPageContent: React.FC = () => {
               </div>
 
               {/* Modal Footer */}
-              <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0 flex-wrap gap-2">
                 <div className="text-xs text-slate-500">
                   Ingin merevisi angka parameter?{' '}
                   <button

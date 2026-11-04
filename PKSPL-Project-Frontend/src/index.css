@@ -10,13 +10,28 @@
 
 html {
   scroll-behavior: smooth;
+  width: 100%;
+  max-width: 100%;
+  min-height: 100%;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  width: 100%;
+  max-width: 100%;
+  min-height: 100%;
   overflow-x: hidden;
+}
+
+#root {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Permanently Hide Page Visual Scrollbar (Zero White Strip, 100% Active Scrolling) */
@@ -226,4 +241,3 @@ body::-webkit-scrollbar-track,
 .animate-modal { animation: modal-in 0.24s cubic-bezier(0.16, 1, 0.3, 1); }
 .animate-toast { animation: toast-in 0.28s cubic-bezier(0.16, 1, 0.3, 1); }
 .animate-panel { animation: accordion-down 0.22s ease-out; }
-

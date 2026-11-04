@@ -398,8 +398,8 @@ export const ProjectListPage: React.FC = () => {
 
       {/* Sederhana: Modal Buat Program Baru (Tanpa SHP) */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-2xs z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-lg border border-slate-200 shadow-xl max-w-md w-full overflow-hidden text-sm max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-2xs z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150 overflow-y-auto">
+          <div className="bg-white rounded-lg border border-slate-200 shadow-xl max-w-md w-full overflow-hidden text-sm max-h-[90vh] my-auto flex flex-col">
             <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
               <h3 className="font-bold text-slate-800 text-sm">Buat Program Baru</h3>
               <button
@@ -507,8 +507,8 @@ export const ProjectListPage: React.FC = () => {
 
       {/* Modal Edit Informasi Program */}
       {editingProject && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-2xs z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-lg border border-slate-200 shadow-xl max-w-md w-full overflow-hidden text-sm max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-2xs z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150 overflow-y-auto">
+          <div className="bg-white rounded-lg border border-slate-200 shadow-xl max-w-md w-full overflow-hidden text-sm max-h-[90vh] my-auto flex flex-col">
             <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
               <div className="flex items-center gap-2">
                 <Edit3 className="w-4 h-4 text-blue-600" />

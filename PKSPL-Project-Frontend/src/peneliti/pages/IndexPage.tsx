@@ -846,8 +846,8 @@ export const IndexPage: React.FC = () => {
 
       {/* Modal: + Buat Index Mandiri Tanpa SHP / Edit Index */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-2xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xl max-w-5xl w-full p-6 space-y-4 animate-in fade-in zoom-in-95 max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-2xs flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xl max-w-5xl w-full p-6 space-y-4 animate-in fade-in zoom-in-95 max-h-[90vh] my-auto flex flex-col">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 shrink-0">
               <div>
                 <h3 className="font-bold text-slate-900 text-sm">{editingIndex ? 'Edit Index' : 'Buat Index Baru'}</h3>
@@ -1017,9 +1017,9 @@ export const IndexPage: React.FC = () => {
 
       {/* Modal: Hubungkan Index ke Polygon SHP */}
       {isLinkModalOpen && targetIndexForLink && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-2xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-2xs flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95 max-h-[90vh] my-auto flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 shrink-0">
               <div>
                 <h3 className="font-bold text-slate-900 text-sm">Hubungkan ke Data Spasial</h3>
                 <p className="text-[11px] text-slate-500">
@@ -1034,7 +1034,7 @@ export const IndexPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
+            <div className="space-y-3 text-xs overflow-y-auto flex-1">
               <p className="text-slate-600">
                 Pilih salah satu polygon spasial yang belum memiliki index untuk dihubungkan:
               </p>
@@ -1071,7 +1071,7 @@ export const IndexPage: React.FC = () => {
                 </div>
               )}
 
-              <div className="flex items-center justify-end pt-3 border-t border-slate-200">
+              <div className="flex items-center justify-end pt-3 border-t border-slate-200 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsLinkModalOpen(false)}
@@ -1086,8 +1086,8 @@ export const IndexPage: React.FC = () => {
       )}
       {/* Modal: Hapus Index */}
       {indexToDelete && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-2xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xl max-w-sm w-full p-5 space-y-4 animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-2xs flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xl max-w-sm w-full p-5 space-y-4 animate-in fade-in zoom-in-95 max-h-[90vh] my-auto flex flex-col overflow-y-auto">
             <div className="flex items-start gap-3">
               <div className="p-2 bg-rose-100 text-rose-600 rounded-full shrink-0">
                 <AlertCircle className="w-5 h-5" />

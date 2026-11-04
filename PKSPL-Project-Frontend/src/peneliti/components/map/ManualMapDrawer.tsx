@@ -1946,8 +1946,8 @@ export const ManualMapDrawer: React.FC<ManualMapDrawerProps> = ({
           <div
             className={
               isFullscreen
-                ? "fixed inset-0 z-[9990] w-screen h-screen flex flex-col bg-slate-950 overflow-hidden animate-in fade-in duration-150"
-                : "w-full h-[520px] md:h-[580px] rounded-xl overflow-hidden border border-slate-300 shadow-xs relative bg-slate-100 flex flex-col"
+                ? "fixed inset-0 z-[9990] w-full h-full max-w-full max-h-full flex flex-col bg-slate-950 overflow-hidden animate-in fade-in duration-150"
+                : "w-full h-[400px] sm:h-[480px] md:h-[560px] max-h-[72vh] min-h-[320px] rounded-xl overflow-hidden border border-slate-300 shadow-xs relative bg-slate-100 flex flex-col"
             }
           >
             {/* Top Bar for Fullscreen Viewport */}

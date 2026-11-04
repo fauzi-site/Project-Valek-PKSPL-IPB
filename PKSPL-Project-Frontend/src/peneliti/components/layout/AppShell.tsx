@@ -35,7 +35,7 @@ export const AppShell: React.FC = () => {
   }, []);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 font-sans text-slate-800">
+    <div className="flex h-screen w-full max-w-full overflow-hidden bg-slate-50 font-sans text-slate-800">
       {/* Sidebar (Desktop collapsible + Mobile off-canvas drawer) */}
       <Sidebar
         collapsed={sidebarCollapsed}

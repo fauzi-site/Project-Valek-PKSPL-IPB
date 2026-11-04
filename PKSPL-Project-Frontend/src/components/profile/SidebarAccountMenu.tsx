@@ -104,7 +104,7 @@ export const SidebarAccountMenu: React.FC<SidebarAccountMenuProps> = ({
         {isDropdownOpen && !loading && (
           <div
             className={`
-              absolute bottom-full mb-2 bg-white rounded-2xl shadow-2xl shadow-black/30 border border-slate-200/90 overflow-hidden text-slate-800 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150
+              absolute bottom-full mb-2 bg-white rounded-2xl shadow-2xl shadow-black/30 border border-slate-200/90 overflow-y-auto max-h-[80vh] text-slate-800 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150
               ${isCollapsedMode ? 'left-3 w-64' : 'left-3 right-3'}
             `}
           >
