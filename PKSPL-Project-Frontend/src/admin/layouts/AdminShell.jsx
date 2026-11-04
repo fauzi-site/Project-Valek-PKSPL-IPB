@@ -29,6 +29,12 @@ export const AdminShell = () => {
         subtitle: 'Monitoring seluruh portofolio program valuasi ekonomi pesisir & laut',
       };
     }
+        if (path.includes('/researcher-applications') || path.includes('/permohonan-peneliti')) {
+      return {
+        title: 'Permohonan Akun Peneliti',
+        subtitle: 'Kelola dan verifikasi permohonan peningkatan hak akses dari akun Guest menjadi Peneliti resmi PKSPL IPB',
+      };
+    }
     if (path.includes('/activity') || path.includes('/riwayat-aktivitas')) {
       return {
         title: 'Riwayat Aktivitas',
